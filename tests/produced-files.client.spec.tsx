@@ -371,36 +371,36 @@ describe('ProducedFiles row', () => {
     const view = render(
       <ProducedFiles matched={reviews(paths)} openFile={openFile} {...capability(true)} t={t} />,
     )
-    expect(view.getByText('产物')).toBeTruthy()
+    expect(view.getByText('Produced')).toBeTruthy()
     const row = view.container.querySelector('[data-produced-files-row]')
     if (!(row instanceof HTMLElement)) throw new Error('produced row missing')
     // The third probe is 100px: two chips plus the remainder fit, three do not.
     expect(within(row).getAllByRole('button')).toHaveLength(2)
-    expect(within(row).getByText('+ 5 个文件')).toBeTruthy()
-    const chip = view.getByRole('button', { name: '审查 deep/a.html' })
+    expect(within(row).getByText('+ 5 files')).toBeTruthy()
+    const chip = view.getByRole('button', { name: 'Review deep/a.html' })
     expect(chip.textContent).toBe('a.html')
     expect(chip.getAttribute('title')).toBe('deep/a.html')
-    expect(view.queryByRole('button', { name: '审查 g.ts' })).toBeNull()
+    expect(view.queryByRole('button', { name: 'Review g.ts' })).toBeNull()
     fireEvent.click(chip)
     expect(openFile).not.toHaveBeenCalled()
-    expect(view.getByRole('dialog', { name: '审查 deep/a.html' })).toBeTruthy()
+    expect(view.getByRole('dialog', { name: 'Review deep/a.html' })).toBeTruthy()
     expect(view.getByText('before')).toBeTruthy()
     expect(view.getByText('after')).toBeTruthy()
     expect(document.querySelector('[data-diff-layout="unified"]')).toBeTruthy()
     expect(document.querySelector('[data-line-kind="del"][data-old-line="7"]')).toBeTruthy()
     expect(document.querySelector('[data-line-kind="add"][data-new-line="7"]')).toBeTruthy()
-    expect(view.getByText('6 行未修改')).toBeTruthy()
-    fireEvent.click(view.getByRole('button', { name: '在编辑器中打开' }))
+    expect(view.getByText('6 unchanged lines')).toBeTruthy()
+    fireEvent.click(view.getByRole('button', { name: 'Open in editor' }))
     expect(openFile).toHaveBeenCalledWith('deep/a.html')
 
-    const showFolder = view.getByRole('button', { name: '在文件夹中显示' })
+    const showFolder = view.getByRole('button', { name: 'Show in folder' })
     fireEvent.click(showFolder)
     expect(openFile).toHaveBeenLastCalledWith('.')
 
     available = 150
     act(() => { resize?.([], {} as ResizeObserver) })
     expect(within(row).getAllByRole('button')).toHaveLength(1)
-    expect(within(row).getByText('+ 6 个文件')).toBeTruthy()
+    expect(within(row).getByText('+ 6 files')).toBeTruthy()
 
     // A missing/unsupported computed gap falls back to zero rather than NaN.
     vi.stubGlobal('getComputedStyle', () => ({ columnGap: '', gap: '' } as CSSStyleDeclaration))
@@ -428,10 +428,10 @@ describe('ProducedFiles row', () => {
       <ProducedFiles matched={reviews(['a.md'])} openFile={openFile} {...capability(true)} t={t} />,
     )
     const overflowing = ['a.md', 'b.md', 'c.md', 'd.md', 'e.md', 'f.md', 'g.md']
-    expect(view.queryByRole('button', { name: '在文件夹中显示' })).toBeNull()
+    expect(view.queryByRole('button', { name: 'Show in folder' })).toBeNull()
     for (const unavailable of [capability(false), capability(true, false), capability(undefined)]) {
       view.rerender(<ProducedFiles matched={reviews(overflowing)} openFile={openFile} {...unavailable} t={t} />)
-      expect(view.queryByRole('button', { name: '在文件夹中显示' })).toBeNull()
+      expect(view.queryByRole('button', { name: 'Show in folder' })).toBeNull()
     }
   })
 
@@ -454,27 +454,27 @@ describe('ProducedFiles row', () => {
     const view = render(
       <ProducedFiles matched={[fileReview('notes.md')]} openFile={openFile} {...capability(false)} t={t} />,
     )
-    const openReview = () => { fireEvent.click(view.getByRole('button', { name: '审查 notes.md' })) }
+    const openReview = () => { fireEvent.click(view.getByRole('button', { name: 'Review notes.md' })) }
 
     openReview()
-    expect(view.getByText('此修改没有可重建的差异。你仍然可以打开当前文件。')).toBeTruthy()
+    expect(view.getByText('No reconstructable diff is available for this change. You can still open the current file.')).toBeTruthy()
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(view.queryByRole('dialog')).toBeNull()
 
     openReview()
-    const closeButtons = view.getAllByRole('button', { name: '关闭' })
+    const closeButtons = view.getAllByRole('button', { name: 'Close' })
     fireEvent.click(closeButtons.at(-1) as HTMLButtonElement)
     expect(view.queryByRole('dialog')).toBeNull()
 
     openReview()
-    fireEvent.click(view.getByRole('button', { name: '在编辑器中打开' }))
+    fireEvent.click(view.getByRole('button', { name: 'Open in editor' }))
     expect(openFile).toHaveBeenCalledExactlyOnceWith('notes.md')
     expect(view.queryByRole('dialog')).toBeNull()
   })
 })
 
 describe('producedFileMentions resolver', () => {
-  const label = (path: string) => `打开 ${path}`
+  const label = (path: string) => `Open ${path}`
 
   it('resolves exact paths and unique basenames; ambiguity and unknowns stay unresolved', () => {
     const opened: string[] = []
@@ -485,7 +485,7 @@ describe('producedFileMentions resolver', () => {
     )
     // Unique basename resolves to its full path; the full path rides title.
     const byBasename = resolver.resolve('index.html')
-    expect(byBasename?.label).toBe('打开 out/index.html')
+    expect(byBasename?.label).toBe('Open out/index.html')
     expect(byBasename?.title).toBe('out/index.html')
     byBasename?.open()
     expect(opened).toEqual(['out/index.html'])

@@ -3,26 +3,8 @@
 /** Dictionary namespace owned by this plugin. */
 export const NS = 'file-review'
 
-/** Simplified Chinese dictionary (the key-set source of truth). */
-export const zh = {
-  'produced.label': '产物',
-  'produced.moreOne': '+ 1 个文件',
-  'produced.more': '+ {count} 个文件',
-  'produced.open': '打开 {name}',
-  'produced.review': '审查 {name}',
-  'produced.showInFolder': '在文件夹中显示',
-  'review.title': '审查 {name}',
-  'review.close': '关闭',
-  'review.openInEditor': '在编辑器中打开',
-  'review.copy': '复制',
-  'review.copied': '复制成功',
-  'review.showUnchanged': '{count} 行未修改',
-  'review.hideUnchanged': '收起 {count} 行未修改内容',
-  'review.unavailable': '此修改没有可重建的差异。你仍然可以打开当前文件。',
-}
-
-/** English dictionary (same key set). */
-export const en: Record<DeliverablesKey, string> = {
+/** English dictionary (the key-set source of truth). */
+export const en = {
   'produced.label': 'Produced',
   'produced.moreOne': '+ 1 file',
   'produced.more': '+ {count} files',
@@ -40,4 +22,7 @@ export const en: Record<DeliverablesKey, string> = {
 }
 
 /** Union of this namespace's dictionary keys. */
-export type DeliverablesKey = keyof typeof zh
+export type DeliverablesKey = keyof typeof en
+
+/** Keep the plugin copy in English when the host locale is Simplified Chinese. */
+export const zh: Record<DeliverablesKey, string> = en
