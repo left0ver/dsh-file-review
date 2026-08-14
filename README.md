@@ -50,15 +50,7 @@ Ask the agent to create or edit files. When the turn finishes:
 Agent edits files  →  Turn completes  →  Click a file chip  →  Review the diff
 ```
 
-To uninstall:
-
-```sh
-dsh plugin --profile web remove dsh-file-review
-```
-
-## Install from a local checkout
-
-From the repository root:
+## Install from source
 
 ```sh
 git clone https://github.com/left0ver/dsh-file-review.git
@@ -66,6 +58,12 @@ cd dsh-file-review
 pnpm install
 pnpm run build
 dsh plugin --profile web add ${PWD}
+```
+
+## Uninstall the plugin
+
+```sh
+dsh plugin --profile web remove dsh-file-review
 ```
 
 ## License
