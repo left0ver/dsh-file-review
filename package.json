@@ -8,6 +8,14 @@
     "diff",
     "code-review"
   ],
+  "homepage": "https://github.com/left0ver/dsh-file-review#readme",
+  "bugs": {
+    "url": "https://github.com/left0ver/dsh-file-review/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/left0ver/dsh-file-review.git"
+  },
   "license": "MIT",
   "type": "module",
   "main": "lib/index.js",
@@ -30,7 +38,8 @@
     "lib/types/**/*.d.ts",
     "cordis.patch.yml",
     "README.md",
-    "README.zh.md"
+    "README.zh.md",
+    "assests/preview.png"
   ],
   "publishConfig": {
     "access": "public"
