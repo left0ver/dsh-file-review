@@ -1,0 +1,145 @@
+/* The review layout follows a source-control diff: one content stream with
+   independent old/new gutters. It is deliberately separate from `.block`, so
+   existing inline tool cards keep their compact geometry. */
+.unifiedBlock {
+  position: relative;
+  margin: 16px 0;
+  color: var(--dsw-alias-label-primary);
+  background: var(--dsw-alias-markdown-code-block);
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.unifiedCopyButton {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  z-index: 2;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  cursor: pointer;
+  font: var(--dsw-font-xs-13);
+}
+
+.unifiedFile + .unifiedFile {
+  border-top: 1px solid var(--dsw-alias-border-l2);
+}
+
+.unifiedHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 0 72px 0 12px;
+  border-bottom: 1px solid var(--dsw-alias-border-l2);
+  font: var(--dsw-font-markdown-code-block);
+}
+
+.unifiedStatus {
+  color: var(--dsw-alias-state-success-primary);
+  font-weight: 700;
+}
+
+.unifiedPath {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.unifiedAdded {
+  margin-left: auto;
+  color: var(--dsw-alias-state-success-primary);
+}
+
+.unifiedRemoved {
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.unifiedHunkHeader {
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--dsw-alias-border-l2);
+  color: var(--dsw-alias-label-tertiary);
+  font: var(--dsw-font-markdown-code-block);
+}
+
+.unifiedBody {
+  overflow-x: auto;
+  overflow-y: hidden;
+  font: var(--dsw-font-markdown-code-block);
+}
+
+.unifiedLine {
+  display: grid;
+  grid-template-columns: 48px 48px 24px minmax(max-content, 1fr);
+  min-width: max-content;
+  min-height: 23px;
+  line-height: 23px;
+  white-space: pre;
+}
+
+.unifiedOldNumber,
+.unifiedNewNumber {
+  padding: 0 8px;
+  border-right: 1px solid var(--dsw-alias-border-l2);
+  color: var(--dsw-alias-label-tertiary);
+  text-align: right;
+  user-select: none;
+}
+
+.unifiedSign {
+  text-align: center;
+  user-select: none;
+}
+
+.unifiedText {
+  padding-right: 14px;
+}
+
+.unified_del {
+  color: var(--dsw-alias-state-error-primary);
+  background: color-mix(in srgb, var(--dsw-alias-state-error-primary) 11%, transparent);
+}
+
+.unified_add {
+  color: var(--dsw-alias-state-success-primary);
+  background: color-mix(in srgb, var(--dsw-alias-state-success-primary) 11%, transparent);
+}
+
+.unified_context {
+  color: var(--dsw-alias-label-primary);
+}
+
+.unifiedGap {
+  display: block;
+  width: 100%;
+  min-height: 32px;
+  padding: 0 12px 0 120px;
+  border: 0;
+  border-top: 1px solid var(--dsw-alias-border-l1);
+  border-bottom: 1px solid var(--dsw-alias-border-l1);
+  background: var(--dsw-alias-border-l1);
+  color: var(--dsw-alias-label-secondary);
+  cursor: pointer;
+  font: var(--dsw-font-xs-13);
+  text-align: left;
+}
+
+.unifiedGap:hover {
+  color: var(--dsw-alias-label-primary);
+}
+
+.unifiedOmitted {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 32px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--dsw-alias-border-l1);
+  background: var(--dsw-alias-border-l1);
+  color: var(--dsw-alias-label-secondary);
+  font: var(--dsw-font-xs-13);
+}

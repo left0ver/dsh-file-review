@@ -1,0 +1,6 @@
+- id: ui-deliverables
+  disabled: true
+  
+- insert:
+    - id: file-review
+      name: '@deepseek-ai/dsh-file-review'

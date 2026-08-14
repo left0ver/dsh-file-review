@@ -1,0 +1,37 @@
+// @vitest-environment jsdom
+import { pathToFileURL } from 'node:url'
+import * as React from 'react'
+import * as jsxRuntime from 'react/jsx-runtime'
+import { describe, expect, it } from 'vitest'
+import * as primitives from '@deepseek-ai/dsh-client-ui-primitives'
+
+interface ClientHandoff {
+  readonly id: string
+  readonly factory: (require: (id: string) => unknown) => unknown
+}
+
+describe('published browser artifact', () => {
+  it('registers through the Harness module loader and materializes without repository modules', async () => {
+    let handoff: ClientHandoff | undefined
+    const browserWindow = window as unknown as {
+      __ModuleLoader__?: { load(value: ClientHandoff): void }
+    }
+    browserWindow.__ModuleLoader__ = { load: (value) => { handoff = value } }
+    const artifact = pathToFileURL(new URL('../lib/client.js', import.meta.url).pathname)
+    await import(/* @vite-ignore */ `${artifact.href}?test=${String(Date.now())}`)
+
+    expect(handoff?.id).toBe('@deepseek-ai/dsh-file-review')
+    const shared: Record<string, unknown> = {
+      react: React,
+      'react/jsx-runtime': jsxRuntime,
+      '@deepseek-ai/dsh-client-ui-primitives': primitives,
+    }
+    const client = handoff?.factory((id) => {
+      if (!(id in shared)) throw new Error(`unexpected shared module: ${id}`)
+      return shared[id]
+    }) as { apply?: unknown; inject?: unknown } | undefined
+    expect(client?.apply).toBeTypeOf('function')
+    expect(client?.inject).toEqual(['slots', 'locale', 'conversationEvents', 'connection'])
+    expect(document.querySelectorAll('style[data-plugin="@deepseek-ai/dsh-file-review"]')).toHaveLength(2)
+  })
+})
