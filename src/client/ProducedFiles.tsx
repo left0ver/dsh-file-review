@@ -153,9 +153,9 @@ function addStats(left: UnifiedDiffStats, right: UnifiedDiffStats): UnifiedDiffS
   return { added: left.added + right.added, removed: left.removed + right.removed }
 }
 
-function Stats({ stats }: { readonly stats: UnifiedDiffStats }) {
+function Stats({ stats, label }: { readonly stats: UnifiedDiffStats; readonly label: string }) {
   return (
-    <span className={css.stats} aria-label={`${stats.added} added, ${stats.removed} removed`}>
+    <span className={css.stats} aria-label={label}>
       <span className={css.added}>+{stats.added}</span>
       <span className={css.removed}>-{stats.removed}</span>
     </span>
@@ -394,7 +394,12 @@ export function ProducedFiles({ matched: reviews, openFile, t }: ProducedFilesPr
                 ? t('produced.editedOne')
                 : t('produced.edited', { count: String(reviews.length) })}
             </span>
-            <Stats stats={totalStats} />
+            <Stats
+              stats={totalStats}
+              label={t('review.stats', {
+                added: String(totalStats.added), removed: String(totalStats.removed),
+              })}
+            />
           </div>
           <button
             type="button"
@@ -419,7 +424,12 @@ export function ProducedFiles({ matched: reviews, openFile, t }: ProducedFilesPr
               }}
             >
               <span className={css.fileName}>{basename(review.path)}</span>
-              <Stats stats={stats} />
+              <Stats
+                stats={stats}
+                label={t('review.stats', {
+                  added: String(stats.added), removed: String(stats.removed),
+                })}
+              />
             </button>
           ))}
           {hidden > 0 && (
@@ -467,7 +477,12 @@ export function ProducedFiles({ matched: reviews, openFile, t }: ProducedFilesPr
                   : t('review.files', { count: String(visibleReviews.length) })}
               </span>
             </div>
-            <Stats stats={visibleStats} />
+            <Stats
+              stats={visibleStats}
+              label={t('review.stats', {
+                added: String(visibleStats.added), removed: String(visibleStats.removed),
+              })}
+            />
             <button
               type="button"
               className={css.toolbarButton}
@@ -495,7 +510,12 @@ export function ProducedFiles({ matched: reviews, openFile, t }: ProducedFilesPr
                   <header className={css.reviewFileHeader}>
                     <span className={css.reviewStatus}>M</span>
                     <span className={css.reviewPath} title={review.path}>{review.path}</span>
-                    <Stats stats={stats} />
+                    <Stats
+                      stats={stats}
+                      label={t('review.stats', {
+                        added: String(stats.added), removed: String(stats.removed),
+                      })}
+                    />
                     <button
                       type="button"
                       className={css.openButton}

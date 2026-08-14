@@ -18,7 +18,7 @@ import {
   selectProducedFiles, type DeliverablesTurnData, type ProducedFileDiff, type ProducedFileReview,
 } from '../src/client/turn-deliverables.ts'
 import { apply, inject } from '../src/client/index.ts'
-import { en, zh } from '../src/client/locales.ts'
+import { en, NS, zh } from '../src/client/locales.ts'
 
 afterEach(() => {
   cleanup()
@@ -304,7 +304,7 @@ describe('produced-file Turn data', () => {
 })
 
 describe('ProducedFiles review card', () => {
-  const t = makeTranslate(zh)
+  const t = makeTranslate(en)
   const changedReviews: readonly ProducedFileReview[] = [
     fileReview('deep/a.html', [{
       path: 'deep/a.html', oldText: 'before\nkeep', newText: 'after\nkeep', oldStart: 7, newStart: 7,
@@ -337,6 +337,33 @@ describe('ProducedFiles review card', () => {
     const first = within(card).getByRole('button', { name: 'Review deep/a.html' })
     expect(first.textContent).toContain('a.html')
     expect(first.getAttribute('title')).toBe('deep/a.html')
+  })
+
+  it('renders the active Web UI language after the locale changes', () => {
+    let active = en
+    const translate = (key: string, params?: Record<string, unknown>): string =>
+      makeTranslate(active)(key, params)
+    const view = render(
+      <ProducedFiles matched={changedReviews} openFile={() => {}} t={translate} />,
+    )
+
+    expect(view.getByRole('region', { name: 'Edited files' })).toBeTruthy()
+    expect(view.getByRole('button', { name: 'Review all produced files' })).toBeTruthy()
+
+    active = zh
+    view.rerender(<ProducedFiles matched={changedReviews} openFile={() => {}} t={translate} />)
+
+    const card = view.getByRole('region', { name: '已编辑文件' })
+    expect(within(card).getByText('已编辑 2 个文件')).toBeTruthy()
+    expect(within(card).getByLabelText('新增 3 行，删除 1 行')).toBeTruthy()
+    fireEvent.click(within(card).getByRole('button', { name: '审查所有产出文件' }))
+
+    const drawer = view.getByRole('dialog', { name: '审查' })
+    expect(within(drawer).getByText('2 个文件')).toBeTruthy()
+    expect(within(drawer).getByRole('button', { name: '复制差异' })).toBeTruthy()
+    expect(within(drawer).getByRole('button', { name: '关闭' })).toBeTruthy()
+    expect(within(drawer).getByRole('separator', { name: '调整审查面板大小' })).toBeTruthy()
+    expect(within(drawer).getAllByRole('button', { name: '在编辑器中打开' })).toHaveLength(2)
   })
 
   it('reviews every file from the header and copies the visible unified diff', async () => {
@@ -494,7 +521,10 @@ describe('producedFileMentions resolver', () => {
 describe('plugin registration', () => {
   it('registers the turn definition, tail entry, dictionaries, and mention service', () => {
     let definition: unknown
-    let slot: { options: { inject?: () => unknown }; component: unknown } | undefined
+    let slot: {
+      options: { inject?: () => unknown; locale?: string; name?: string }
+      component: unknown
+    } | undefined
     let service: ChatFileMentions | undefined
     const registerLocale = vi.fn(() => () => {})
     const ctx = {
@@ -503,7 +533,10 @@ describe('plugin registration', () => {
       locale: { register: registerLocale, bind: () => makeTranslate(en) },
       slots: {
         inject: (_name: string, setup: () => void) => { setup() },
-        register: (options: { inject?: () => unknown }, component: unknown) => {
+        register: (
+          options: { inject?: () => unknown; locale?: string; name?: string },
+          component: unknown,
+        ) => {
           slot = { options, component }
           return () => {}
         },
@@ -518,6 +551,7 @@ describe('plugin registration', () => {
     expect(definition).toBe(deliverablesDefinition)
     expect(registerLocale).toHaveBeenCalledWith('file-review', { zh, en })
     expect(slot?.component).toBe(ProducedFiles)
+    expect(slot?.options.locale).toBe(NS)
     expect(slot?.options.inject).toBeUndefined()
 
     const opened: string[] = []
