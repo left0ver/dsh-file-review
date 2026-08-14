@@ -1,5 +1,5 @@
 {
-  "name": "@deepseek-ai/dsh-file-review",
+  "name": "dsh-file-review",
   "description": "Review files produced by DeepSeek Harness turns in a line-numbered unified diff modal",
   "version": "0.1.0",
   "keywords": [
