@@ -67,6 +67,10 @@ dsh plugin --profile web add ${PWD}
 ```sh
 dsh plugin --profile web remove dsh-file-review
 ```
+
+## 友情链接
+
+[LINUX DO](https://linux.do/) — 新的理想型社区
 ## 许可证
 
 [MIT](LICENSE)

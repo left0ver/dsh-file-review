@@ -66,6 +66,10 @@ dsh plugin --profile web add ${PWD}
 dsh plugin --profile web remove dsh-file-review
 ```
 
+## Friendly Links
+
+[LINUX DO](https://linux.do/) — A new ideal community
+
 ## License
 
 [MIT](LICENSE)
