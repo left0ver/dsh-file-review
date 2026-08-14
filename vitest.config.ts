@@ -5,9 +5,7 @@ export default defineConfig({
     include: ['tests/**/*.spec.{ts,tsx}'],
     restoreMocks: true,
     server: {
-      deps: {
-        inline: [/@deepseek-ai\/dsh-client-ui-primitives/, /katex/],
-      },
+      deps: { inline: [/katex/] },
     },
   },
 })

@@ -12,6 +12,12 @@ export interface UnifiedDiffLabels {
   readonly hideUnchanged: (count: number) => string
 }
 
+/** Added and removed line totals derived from the same hunks the viewer renders. */
+export interface UnifiedDiffStats {
+  readonly added: number
+  readonly removed: number
+}
+
 type UnifiedLineKind = 'context' | 'del' | 'add'
 
 interface UnifiedLine {
@@ -41,6 +47,8 @@ interface UnifiedDiffProps {
   readonly contextLines: number
   readonly labels: UnifiedDiffLabels
   readonly className?: string | undefined
+  readonly showCopyButton?: boolean | undefined
+  readonly showFileHeaders?: boolean | undefined
 }
 
 function hunkLines(diff: DiffHunk): UnifiedLine[] {
@@ -135,7 +143,8 @@ function buildHunks(diffs: readonly DiffHunk[], contextLines: number): UnifiedHu
   })
 }
 
-function copyText(diffs: readonly DiffHunk[]): string {
+/** Serialize recorded hunks as one plain-text unified diff. */
+export function unifiedDiffText(diffs: readonly DiffHunk[]): string {
   let previousPath: string | undefined
   const output: string[] = []
   for (const diff of diffs) {
@@ -150,6 +159,19 @@ function copyText(diffs: readonly DiffHunk[]): string {
   return output.join('\n')
 }
 
+/** Count added and removed lines using the viewer's exact line-diff algorithm. */
+export function summarizeDiffs(diffs: readonly DiffHunk[]): UnifiedDiffStats {
+  let added = 0
+  let removed = 0
+  for (const diff of diffs) {
+    for (const line of hunkLines(diff)) {
+      if (line.kind === 'add') added++
+      if (line.kind === 'del') removed++
+    }
+  }
+  return { added, removed }
+}
+
 function lineNumbers(line: UnifiedLine): string {
   const oldNumber = line.oldNumber === null ? '' : String(line.oldNumber)
   const newNumber = line.newNumber === null ? '' : String(line.newNumber)
@@ -161,14 +183,21 @@ function lineNumbers(line: UnifiedLine): string {
  * @param props - Unified diff data, locale labels, and presentation options.
  * @returns The line-numbered unified diff surface.
  */
-export function UnifiedDiff({ diffs, contextLines, labels, className }: UnifiedDiffProps) {
+export function UnifiedDiff({
+  diffs,
+  contextLines,
+  labels,
+  className,
+  showCopyButton = true,
+  showFileHeaders = true,
+}: UnifiedDiffProps) {
   const hunks = useMemo(() => buildHunks(diffs, contextLines), [contextLines, diffs])
   const [expandedGaps, setExpandedGaps] = useState<ReadonlySet<string>>(() => new Set())
   const [copied, setCopied] = useState(false)
 
   const onCopy = useCallback(() => {
     if (copied) return
-    void navigator.clipboard?.writeText(copyText(diffs)).then(() => {
+    void navigator.clipboard?.writeText(unifiedDiffText(diffs)).then(() => {
       setCopied(true)
       window.setTimeout(() => { setCopied(false) }, 1000)
     }).catch(() => {})
@@ -188,10 +217,16 @@ export function UnifiedDiff({ diffs, contextLines, labels, className }: UnifiedD
 
   let previousPath: string | undefined
   return (
-    <div className={`${css.unifiedBlock} ${className ?? ''}`} data-diff="" data-diff-layout="unified">
-      <button type="button" className={css.unifiedCopyButton} onClick={onCopy}>
-        {copied ? labels.copied : labels.copy}
-      </button>
+    <div
+      className={`${css.unifiedBlock} ${showFileHeaders ? '' : css.unifiedEmbedded} ${className ?? ''}`}
+      data-diff=""
+      data-diff-layout="unified"
+    >
+      {showCopyButton && (
+        <button type="button" className={css.unifiedCopyButton} onClick={onCopy}>
+          {copied ? labels.copied : labels.copy}
+        </button>
+      )}
       {diffs.map((diff, hunkIndex) => {
         const firstForPath = diff.path !== previousPath
         previousPath = diff.path
@@ -199,7 +234,7 @@ export function UnifiedDiff({ diffs, contextLines, labels, className }: UnifiedD
         const hunk = hunks[hunkIndex]
         return (
           <section key={`${diff.path}:${hunkIndex}`} className={css.unifiedFile}>
-            {firstForPath
+            {showFileHeaders && firstForPath
               ? (
                 <header className={css.unifiedHeader}>
                   <span className={css.unifiedStatus}>M</span>
@@ -208,7 +243,7 @@ export function UnifiedDiff({ diffs, contextLines, labels, className }: UnifiedD
                   <span className={css.unifiedRemoved}>-{total.removed}</span>
                 </header>
               )
-              : (hunk?.unchangedBefore ?? 0) === 0
+              : !firstForPath && (hunk?.unchangedBefore ?? 0) === 0
                 ? <div className={css.unifiedHunkHeader}>@@ -{diff.oldStart ?? 1} +{diff.newStart ?? 1} @@</div>
                 : null}
             <div className={css.unifiedBody}>

@@ -1,128 +1,391 @@
-/* Turn-tail produced-files summary: one measured chip lane plus an optional
-   native-folder action below it. */
+/* Turn-tail review card and its non-modal, fixed review drawer. */
 
-.root {
-  position: relative;
-  display: grid;
-  grid-template-columns: max-content minmax(0, 1fr);
-  align-items: center;
-  column-gap: 8px;
-  row-gap: 6px;
+.card {
   margin-top: 16px;
+  overflow: hidden;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 12px;
+  background: var(--dsw-alias-bg-container, Canvas);
+  color: var(--dsw-alias-label-primary);
   font-size: 13px;
-  line-height: 22px;
 }
 
-.label {
-  grid-column: 1;
-  grid-row: 1;
-  color: var(--dsw-alias-label-tertiary);
-}
-
-.row {
-  grid-column: 2;
-  grid-row: 1;
+.cardHeader {
   display: flex;
-  flex-wrap: nowrap;
   align-items: center;
-  gap: 8px;
-  min-width: 0;
-  overflow: hidden;
+  gap: 10px;
+  min-height: 56px;
+  padding: 0 12px;
 }
 
-/* One produced-file review. Full paths are long, while the measured lane stays
-   on one row. */
-.file {
+.fileIconWrap {
+  display: grid;
   flex: 0 0 auto;
-  max-width: 320px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  margin: 0;
-  padding: 0 8px;
-  border: none;
-  border-radius: 6px;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: 8px;
   background: var(--dsw-alias-interactive-bg-hover);
   color: var(--dsw-alias-label-secondary);
-  font: inherit;
-  cursor: pointer;
 }
 
-.file:hover {
+.icon,
+.buttonIcon,
+.closeIcon {
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.4;
+}
+
+.icon {
+  width: 18px;
+  height: 18px;
+}
+
+.buttonIcon {
+  width: 16px;
+  height: 16px;
+}
+
+.closeIcon {
+  width: 20px;
+  height: 20px;
+}
+
+.cardTitleBlock {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+}
+
+.cardTitle {
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stats {
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: 5px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.added {
+  color: var(--dsw-alias-state-success-primary);
+}
+
+.removed {
+  color: var(--dsw-alias-state-error-primary);
+}
+
+.reviewButton,
+.toolbarButton,
+.openButton,
+.closeButton {
+  border: 1px solid var(--dsw-alias-border-l2);
+  background: var(--dsw-alias-bg-container, Canvas);
   color: var(--dsw-alias-label-primary);
-  text-decoration: underline;
+  cursor: pointer;
+  font: inherit;
 }
 
-.file:focus-visible,
-.showFolder:focus-visible {
+.reviewButton,
+.toolbarButton {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 0 10px;
+  border-radius: 8px;
+}
+
+.reviewButton:hover,
+.toolbarButton:hover:not(:disabled),
+.openButton:hover,
+.closeButton:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.reviewButton:focus-visible,
+.toolbarButton:focus-visible,
+.openButton:focus-visible,
+.closeButton:focus-visible,
+.fileRow:focus-visible {
   outline: none;
   box-shadow: inset 0 0 0 2px var(--dsw-alias-border-l3);
 }
 
-/* Overflow count: the row never silently drops files it did not show. */
-.more {
-  flex: 0 0 auto;
-  white-space: nowrap;
-  color: var(--dsw-alias-label-tertiary);
+.fileList {
+  border-top: 1px solid var(--dsw-alias-border-l1);
 }
 
-.showFolder {
-  grid-column: 2;
-  grid-row: 2;
-  justify-self: start;
+.fileRow {
+  display: flex;
+  width: 100%;
+  min-height: 38px;
+  align-items: center;
+  gap: 12px;
   margin: 0;
-  padding: 0 2px;
-  border: none;
-  border-radius: 4px;
+  padding: 0 12px;
+  border: 0;
+  border-bottom: 1px solid var(--dsw-alias-border-l1);
   background: transparent;
-  color: var(--dsw-alias-label-tertiary);
-  font: inherit;
-  line-height: 20px;
+  color: var(--dsw-alias-label-primary);
   cursor: pointer;
+  font: inherit;
+  text-align: left;
 }
 
-.showFolder:hover {
-  color: var(--dsw-alias-label-secondary);
-  text-decoration: underline;
+.fileRow:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
 }
 
-/* Exact browser-native probes for every candidate shown count. They share the
-   visible styles but never affect layout, accessibility, or scroll width. */
-.measure {
-  position: absolute;
-  width: 0;
-  height: 0;
+.fileName {
+  flex: 1 1 auto;
+  min-width: 0;
   overflow: hidden;
-  visibility: hidden;
-  pointer-events: none;
-  contain: strict;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.probe {
+.moreFiles {
+  min-height: 34px;
+  padding: 0 12px;
+  color: var(--dsw-alias-label-tertiary);
+  line-height: 34px;
+}
+
+.drawer {
+  position: fixed;
+  z-index: 1000;
+  inset: 0 0 0 auto;
+  display: flex;
+  width: var(--review-drawer-width, 36vw);
+  max-width: 100vw;
+  flex-direction: column;
+  border-left: 1px solid var(--dsw-alias-border-l2);
+  background: var(--dsw-alias-bg-container, Canvas);
+  box-shadow: -12px 0 32px rgb(0 0 0 / 12%);
+  color: var(--dsw-alias-label-primary);
+}
+
+.drawerSplit {
+  z-index: 1;
+  box-shadow: none;
+}
+
+.drawerResizing,
+.drawerResizing * {
+  cursor: col-resize;
+  user-select: none;
+}
+
+.resizeHandle {
   position: absolute;
-  inset: 0 auto auto 0;
-  width: max-content;
+  z-index: 5;
+  inset: 0 auto 0 -6px;
+  width: 12px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: col-resize;
+  touch-action: none;
 }
 
-/* The review is a reading surface: it uses the shared dialog chrome at a
-   source-friendly width while retaining a fixed footer when the diff scrolls. */
-.reviewDialog.reviewDialog {
-  width: min(760px, 100%);
-  max-height: calc(100vh - 48px);
+.resizeHandle::after {
+  position: absolute;
+  inset: 0 auto 0 5px;
+  width: 2px;
+  background: transparent;
+  content: '';
+  transition: background 120ms ease;
 }
 
-.reviewContent {
+.resizeHandle:hover::after,
+.resizeHandle:focus-visible::after,
+.drawerResizing .resizeHandle::after {
+  background: var(--dsw-alias-border-l3);
+}
+
+.resizeHandle:focus-visible {
+  outline: none;
+}
+
+.drawerHeader {
+  display: flex;
+  flex: 0 0 auto;
+  min-height: 64px;
+  align-items: center;
+  gap: 12px;
+  padding: 0 14px 0 18px;
+  border-bottom: 1px solid var(--dsw-alias-border-l2);
+}
+
+.drawerHeading {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.drawerTitle {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 20px;
+}
+
+.drawerSubtitle {
+  overflow: hidden;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+  line-height: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.toolbarButton:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.closeButton {
+  display: grid;
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  place-items: center;
+  border-color: transparent;
+  border-radius: 8px;
+  background: transparent;
+}
+
+.drawerBody {
   min-height: 0;
+  flex: 1 1 auto;
   overflow: auto;
 }
 
+.reviewFile + .reviewFile {
+  border-top: 8px solid var(--dsw-alias-border-l1);
+}
+
+.reviewFileHeader {
+  position: sticky;
+  z-index: 2;
+  top: 0;
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--dsw-alias-border-l2);
+  background: var(--dsw-alias-bg-container, Canvas);
+  font: var(--dsw-font-markdown-code-block);
+}
+
+.reviewStatus {
+  color: var(--dsw-alias-state-success-primary);
+  font-weight: 700;
+}
+
+.reviewPath {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.openButton {
+  flex: 0 0 auto;
+  min-height: 28px;
+  padding: 0 9px;
+  border-radius: 7px;
+  font: var(--dsw-font-xs-13);
+}
+
 .reviewDiff {
-  flex: none;
+  color: var(--dsw-alias-label-primary);
 }
 
 .reviewUnavailable {
   margin: 0;
+  padding: 22px 16px;
+  background: var(--dsw-alias-markdown-code-block);
+  color: var(--dsw-alias-label-secondary);
   font-size: 13px;
   line-height: 20px;
-  color: var(--dsw-alias-label-secondary);
+}
+
+@media (max-width: 760px) {
+  .cardHeader {
+    flex-wrap: wrap;
+    padding-block: 10px;
+  }
+
+  .cardTitleBlock {
+    flex-direction: column;
+    gap: 1px;
+  }
+
+  .drawer {
+    width: 100vw;
+    border-left: 0;
+  }
+
+  .resizeHandle {
+    display: none;
+  }
+
+  .drawerHeader {
+    gap: 8px;
+    padding-left: 12px;
+  }
+
+  .toolbarButton {
+    width: 32px;
+    padding: 0;
+    justify-content: center;
+    overflow: hidden;
+    color: transparent;
+  }
+
+  .toolbarButton .buttonIcon {
+    color: var(--dsw-alias-label-primary);
+  }
+
+  .reviewFileHeader {
+    flex-wrap: wrap;
+    padding-block: 8px;
+  }
+
+  .reviewPath {
+    flex-basis: calc(100% - 30px);
+  }
+
+  .openButton {
+    margin-left: auto;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .drawer {
+    animation: drawer-enter 160ms ease-out;
+  }
+}
+
+@keyframes drawer-enter {
+  from { transform: translateX(20px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
 }

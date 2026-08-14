@@ -52,15 +52,7 @@ dsh web
 Agent 修改文件  →  本轮任务完成  →  点击文件标签  →  审查差异
 ```
 
-卸载插件：
-
-```sh
-dsh plugin --profile web remove dsh-file-review
-```
-
-## 从本地源码安装
-
-在仓库根目录运行：
+## 从源码安装
 
 ```sh
 git clone https://github.com/left0ver/dsh-file-review.git
@@ -70,6 +62,11 @@ pnpm run build
 dsh plugin --profile web add ${PWD}
 ```
 
+## 卸载插件
+
+```sh
+dsh plugin --profile web remove dsh-file-review
+```
 ## 许可证
 
 [MIT](LICENSE)

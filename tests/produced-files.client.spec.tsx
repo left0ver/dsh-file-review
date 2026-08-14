@@ -4,16 +4,15 @@
  * `producedForClosing` over engine-published Turn data, the row's rendering
  * and opener wiring, plus the plugin's public service registrations.
  */
-import { act, cleanup, fireEvent, render, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type {
   ConversationEventInput, ConversationLocationDataStore, ConversationMatch,
   ConversationTurnDataMap, ToolResultNode, TurnLocation,
 } from '@deepseek-ai/dsh-client-runtime/client'
 import type { ChatFileMentions, TurnTailOwnerProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
-import {
-  fitProducedFiles, ProducedFiles, type ProducedFilesProps,
-} from '../src/client/ProducedFiles.tsx'
+import { ProducedFiles } from '../src/client/ProducedFiles.tsx'
+import { summarizeDiffs, unifiedDiffText } from '../src/client/UnifiedDiff.tsx'
 import {
   basename, deliverablesDefinition, producedFileMentions, producedForClosing, reviewsForClosing,
   selectProducedFiles, type DeliverablesTurnData, type ProducedFileDiff, type ProducedFileReview,
@@ -21,17 +20,11 @@ import {
 import { apply, inject } from '../src/client/index.ts'
 import { en, zh } from '../src/client/locales.ts'
 
-const originalClientWidth = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'clientWidth')
-
 afterEach(() => {
   cleanup()
+  window.localStorage.clear()
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
-  if (originalClientWidth === undefined) {
-    delete (HTMLElement.prototype as { clientWidth?: number }).clientWidth
-  } else {
-    Object.defineProperty(HTMLElement.prototype, 'clientWidth', originalClientWidth)
-  }
 })
 
 class TestTurnDataStore implements ConversationLocationDataStore<ConversationTurnDataMap> {
@@ -310,166 +303,164 @@ describe('produced-file Turn data', () => {
 
 })
 
-describe('ProducedFiles row', () => {
+describe('ProducedFiles review card', () => {
   const t = makeTranslate(zh)
-  const capability = (
-    canOpenPath: boolean | undefined,
-    isLoopback = true,
-  ): Pick<ProducedFilesProps, 'isLoopback' | 'useHostDescription'> => {
-    const description = canOpenPath === undefined
-      ? undefined
-      : { version: 'test', cwd: '/workspace', attachedSessions: 1, canOpenPath }
-    return {
-      isLoopback,
-      useHostDescription: selector => selector(description),
-    }
-  }
+  const changedReviews: readonly ProducedFileReview[] = [
+    fileReview('deep/a.html', [{
+      path: 'deep/a.html', oldText: 'before\nkeep', newText: 'after\nkeep', oldStart: 7, newStart: 7,
+    }]),
+    fileReview('styles/b.css', [{
+      path: 'styles/b.css', oldText: null, newText: 'one\ntwo', oldStart: 1, newStart: 1,
+    }]),
+  ]
 
-  it('selects the largest prefix using the exact remainder width', () => {
-    expect(fitProducedFiles(230, 8, [70, 60, 60], [55, 55, 55, 55])).toBe(2)
-    expect(fitProducedFiles(145, 8, [70, 60, 60], [55, 55, 55, 55])).toBe(1)
-    expect(fitProducedFiles(300, 8, [70, 60, 60], [55, 55, 55, 55])).toBe(3)
-    // A zero-width lane is a pre-layout test/hidden state, not evidence that
-    // every chip overflowed; keep the bounded initial prefix until measured.
-    expect(fitProducedFiles(0, 8, [70, 60], [60, 50, undefined])).toBe(2)
-    expect(fitProducedFiles(128, 8, [60, 60], [70, 50, undefined])).toBe(2)
-    // Candidate-specific suffix widths matter at the 10 -> 9 digit boundary.
-    expect(fitProducedFiles(126, 8, [60], [70, 50])).toBe(1)
-    expect(fitProducedFiles(20, 8, [60], [70, 50])).toBe(0)
+  it('derives exact totals for replacements, additions, multiple hunks, and empty reviews', () => {
+    expect(summarizeDiffs(changedReviews[0]?.diffs ?? [])).toEqual({ added: 1, removed: 1 })
+    expect(summarizeDiffs(changedReviews[1]?.diffs ?? [])).toEqual({ added: 2, removed: 0 })
+    expect(summarizeDiffs([])).toEqual({ added: 0, removed: 0 })
+    expect(summarizeDiffs([
+      { path: 'a.md', oldText: 'x', newText: 'y', oldStart: 1, newStart: 1 },
+      { path: 'a.md', oldText: 'same', newText: 'same\nnew', oldStart: 8, newStart: 8 },
+    ])).toEqual({ added: 2, removed: 1 })
+    expect(unifiedDiffText(changedReviews.flatMap(review => review.diffs)))
+      .toContain('styles/b.css\n+ one\n+ two')
   })
 
-  it('keeps one measured line, updates on resize, and opens a file or the workspace folder', () => {
+  it('renders aggregate and per-file totals with a six-file preview', () => {
     const paths = ['deep/a.html', 'b.css', 'c.ts', 'd.ts', 'e.ts', 'f.ts', 'g.ts']
-    const openFile = vi.fn<(path: string) => void>()
-    let available = 226
-    let resize: ResizeObserverCallback | undefined
-    const disconnect = vi.fn()
-    const observeNode = vi.fn<(target: Element) => void>()
-    vi.stubGlobal('ResizeObserver', class {
-      constructor(callback: ResizeObserverCallback) { resize = callback }
-      observe(target: Element): void {
-        expect(target).toBeInstanceOf(Element)
-        observeNode(target)
-      }
-      disconnect(): void { disconnect() }
-    })
-    Object.defineProperty(HTMLElement.prototype, 'clientWidth', {
-      configurable: true,
-      get(this: HTMLElement) { return this.hasAttribute('data-produced-files-row') ? available : 0 },
-    })
-    const rect = (width: number): DOMRect => ({
-      x: 0, y: 0, width, height: 22, top: 0, right: width, bottom: 22, left: 0,
-      toJSON: () => ({}),
-    })
-    const bounds = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect')
-      .mockImplementation(function getProbeRect(this: HTMLElement) {
-        if (this.closest('[aria-hidden="true"]') === null) return rect(0)
-        if (this.tagName !== 'BUTTON') return rect(60)
-        return rect(this.textContent === 'a.html' || this.textContent === 'b.css' ? 50 : 100)
-      })
-
-    const view = render(
-      <ProducedFiles matched={reviews(paths)} openFile={openFile} {...capability(true)} t={t} />,
-    )
-    expect(view.getByText('Produced')).toBeTruthy()
-    const row = view.container.querySelector('[data-produced-files-row]')
-    if (!(row instanceof HTMLElement)) throw new Error('produced row missing')
-    // The third probe is 100px: two chips plus the remainder fit, three do not.
-    expect(within(row).getAllByRole('button')).toHaveLength(2)
-    expect(within(row).getByText('+ 5 files')).toBeTruthy()
-    const chip = view.getByRole('button', { name: 'Review deep/a.html' })
-    expect(chip.textContent).toBe('a.html')
-    expect(chip.getAttribute('title')).toBe('deep/a.html')
-    expect(view.queryByRole('button', { name: 'Review g.ts' })).toBeNull()
-    fireEvent.click(chip)
-    expect(openFile).not.toHaveBeenCalled()
-    expect(view.getByRole('dialog', { name: 'Review deep/a.html' })).toBeTruthy()
-    expect(view.getByText('before')).toBeTruthy()
-    expect(view.getByText('after')).toBeTruthy()
-    expect(document.querySelector('[data-diff-layout="unified"]')).toBeTruthy()
-    expect(document.querySelector('[data-line-kind="del"][data-old-line="7"]')).toBeTruthy()
-    expect(document.querySelector('[data-line-kind="add"][data-new-line="7"]')).toBeTruthy()
-    expect(view.getByText('6 unchanged lines')).toBeTruthy()
-    fireEvent.click(view.getByRole('button', { name: 'Open in editor' }))
-    expect(openFile).toHaveBeenCalledWith('deep/a.html')
-
-    const showFolder = view.getByRole('button', { name: 'Show in folder' })
-    fireEvent.click(showFolder)
-    expect(openFile).toHaveBeenLastCalledWith('.')
-
-    available = 150
-    act(() => { resize?.([], {} as ResizeObserver) })
-    expect(within(row).getAllByRole('button')).toHaveLength(1)
-    expect(within(row).getByText('+ 6 files')).toBeTruthy()
-
-    // A missing/unsupported computed gap falls back to zero rather than NaN.
-    vi.stubGlobal('getComputedStyle', () => ({ columnGap: '', gap: '' } as CSSStyleDeclaration))
-    available = 165
-    act(() => { resize?.([], {} as ResizeObserver) })
-    expect(within(row).getAllByRole('button')).toHaveLength(2)
-
-    // Ref callbacks leave nulls in the probe arrays when the candidate set
-    // shrinks; the replacement observer must skip those stale slots.
-    observeNode.mockClear()
-    view.rerender(
-      <ProducedFiles matched={reviews(paths.slice(0, 1))} openFile={openFile} {...capability(true)} t={t} />,
-    )
-    expect(within(row).getAllByRole('button')).toHaveLength(1)
-    expect(observeNode).toHaveBeenCalledTimes(3)
-
-    view.unmount()
-    expect(disconnect).toHaveBeenCalledTimes(2)
-    bounds.mockRestore()
+    const view = render(<ProducedFiles matched={reviews(paths)} openFile={() => {}} t={t} />)
+    const card = view.getByRole('region', { name: 'Edited files' })
+    expect(within(card).getByText('Edited 7 files')).toBeTruthy()
+    expect(within(card).getByText('1 more file')).toBeTruthy()
+    expect(within(card).getAllByRole('button')).toHaveLength(7)
+    expect(within(card).queryByRole('button', { name: 'Review g.ts' })).toBeNull()
+    const first = within(card).getByRole('button', { name: 'Review deep/a.html' })
+    expect(first.textContent).toContain('a.html')
+    expect(first.getAttribute('title')).toBe('deep/a.html')
   })
 
-  it('keeps the folder action absent without overflow or a local native opener', () => {
-    const openFile = vi.fn<(path: string) => void>()
-    const view = render(
-      <ProducedFiles matched={reviews(['a.md'])} openFile={openFile} {...capability(true)} t={t} />,
-    )
-    const overflowing = ['a.md', 'b.md', 'c.md', 'd.md', 'e.md', 'f.md', 'g.md']
-    expect(view.queryByRole('button', { name: 'Show in folder' })).toBeNull()
-    for (const unavailable of [capability(false), capability(true, false), capability(undefined)]) {
-      view.rerender(<ProducedFiles matched={reviews(overflowing)} openFile={openFile} {...unavailable} t={t} />)
-      expect(view.queryByRole('button', { name: 'Show in folder' })).toBeNull()
-    }
+  it('reviews every file from the header and copies the visible unified diff', async () => {
+    const writeText = vi.fn(() => Promise.resolve())
+    vi.stubGlobal('navigator', { clipboard: { writeText } })
+    const view = render(<ProducedFiles matched={changedReviews} openFile={() => {}} t={t} />)
+
+    fireEvent.click(view.getByRole('button', { name: 'Review all produced files' }))
+    const drawer = view.getByRole('dialog', { name: 'Review' })
+    expect(within(drawer).getByText('2 files')).toBeTruthy()
+    expect(within(drawer).getByText('deep/a.html')).toBeTruthy()
+    expect(within(drawer).getByText('styles/b.css')).toBeTruthy()
+    expect(drawer.querySelectorAll('[data-diff-layout="unified"]')).toHaveLength(2)
+
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Copy diff' }))
+    await vi.waitFor(() => { expect(writeText).toHaveBeenCalledOnce() })
+    expect(writeText.mock.calls[0]?.[0]).toContain('deep/a.html')
+    expect(writeText.mock.calls[0]?.[0]).toContain('styles/b.css')
+    expect(within(drawer).getByRole('button', { name: 'Copied' })).toBeTruthy()
   })
 
-  it('uses singular English copy when exactly one file is hidden', () => {
-    const view = render(
-      <ProducedFiles
-        matched={reviews(['a.md', 'b.md', 'c.md', 'd.md', 'e.md', 'f.md', 'g.md'])}
-        openFile={() => {}}
-        {...capability(false)}
-        t={makeTranslate(en)}
-      />,
-    )
-    const row = view.container.querySelector('[data-produced-files-row]')
-    if (!(row instanceof HTMLElement)) throw new Error('produced row missing')
-    expect(within(row).getByText('+ 1 file')).toBeTruthy()
-  })
-
-  it('explains an unavailable diff and supports every close path', () => {
+  it('focuses one file from its row, opens it in the editor, and restores focus on close', () => {
     const openFile = vi.fn<(path: string) => void>()
-    const view = render(
-      <ProducedFiles matched={[fileReview('notes.md')]} openFile={openFile} {...capability(false)} t={t} />,
-    )
-    const openReview = () => { fireEvent.click(view.getByRole('button', { name: 'Review notes.md' })) }
+    const view = render(<ProducedFiles matched={changedReviews} openFile={openFile} t={t} />)
+    const trigger = view.getByRole('button', { name: 'Review deep/a.html' })
 
-    openReview()
-    expect(view.getByText('No reconstructable diff is available for this change. You can still open the current file.')).toBeTruthy()
+    fireEvent.click(trigger)
+    const drawer = view.getByRole('dialog', { name: 'Review' })
+    expect(within(drawer).getByText('1 file')).toBeTruthy()
+    expect(within(drawer).queryByText('styles/b.css')).toBeNull()
+    expect(document.activeElement).toBe(view.getByRole('button', { name: 'Close' }))
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Open in editor' }))
+    expect(openFile).toHaveBeenCalledExactlyOnceWith('deep/a.html')
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(view.queryByRole('dialog')).toBeNull()
+    expect(document.activeElement).toBe(trigger)
 
-    openReview()
-    const closeButtons = view.getAllByRole('button', { name: 'Close' })
-    fireEvent.click(closeButtons.at(-1) as HTMLButtonElement)
+    fireEvent.click(trigger)
+    fireEvent.click(view.getByRole('button', { name: 'Close' }))
     expect(view.queryByRole('dialog')).toBeNull()
+  })
 
-    openReview()
-    fireEvent.click(view.getByRole('button', { name: 'Open in editor' }))
+  it('resizes the drawer by dragging or keyboard and persists the chosen width', () => {
+    const innerWidth = vi.spyOn(window, 'innerWidth', 'get').mockReturnValue(1024)
+    const view = render(<ProducedFiles matched={changedReviews} openFile={() => {}} t={t} />)
+    fireEvent.click(view.getByRole('button', { name: 'Review all produced files' }))
+    const drawer = view.getByRole('dialog', { name: 'Review' })
+    const handle = within(drawer).getByRole('separator', { name: 'Resize review panel' })
+
+    expect(handle.getAttribute('aria-valuenow')).toBe('369')
+    fireEvent.pointerDown(handle, { button: 0, pointerId: 7, clientX: 500 })
+    fireEvent.pointerMove(handle, { pointerId: 7, clientX: 400 })
+    fireEvent.pointerUp(handle, { pointerId: 7, clientX: 400 })
+    expect(drawer.style.getPropertyValue('--review-drawer-width')).toBe('45.77vw')
+    expect(window.localStorage.getItem('dsh-file-review:drawer-ratio')).toBe('0.4577')
+
+    fireEvent.keyDown(handle, { key: 'ArrowRight' })
+    expect(drawer.style.getPropertyValue('--review-drawer-width')).toBe('43.77vw')
+    fireEvent.keyDown(handle, { key: 'Home' })
+    expect(drawer.style.getPropertyValue('--review-drawer-width')).toBe('24vw')
+
+    fireEvent.keyDown(handle, { key: 'ArrowLeft' })
+    innerWidth.mockReturnValue(1440)
+    fireEvent(window, new Event('resize'))
+    expect(drawer.style.getPropertyValue('--review-drawer-width')).toBe('26vw')
+    expect(handle.getAttribute('aria-valuenow')).toBe('374')
+
+    fireEvent.doubleClick(handle)
+    expect(drawer.style.getPropertyValue('--review-drawer-width')).toBe('')
+    expect(window.localStorage.getItem('dsh-file-review:drawer-ratio')).toBeNull()
+  })
+
+  it('uses the host details track instead of covering the conversation', () => {
+    const view = render(
+      <div
+        data-testid="host-frame"
+        style={{ display: 'grid', gridTemplateColumns: '280px minmax(0, 1fr) 0px' }}
+      >
+        <aside style={{ width: 280 }} />
+        <main>
+          <ProducedFiles matched={changedReviews} openFile={() => {}} t={t} />
+        </main>
+        <aside data-testid="host-details">Native details</aside>
+      </div>,
+    )
+    const frame = view.getByTestId('host-frame')
+    const details = view.getByTestId('host-details')
+
+    fireEvent.click(view.getByRole('button', { name: 'Review all produced files' }))
+    expect(frame.style.gridTemplateColumns)
+      .toBe('280px minmax(0, 1fr) var(--dsh-file-review-drawer-width)')
+    expect(frame.style.getPropertyValue('--dsh-file-review-drawer-width')).toBe('36vw')
+    expect(details.style.visibility).toBe('hidden')
+    expect(details.style.pointerEvents).toBe('none')
+    expect(details.getAttribute('aria-hidden')).toBe('true')
+    const drawer = view.getByRole('dialog', { name: 'Review' })
+    expect(drawer.className).toContain('drawerSplit')
+
+    const handle = within(drawer).getByRole('separator', { name: 'Resize review panel' })
+    fireEvent.keyDown(handle, { key: 'ArrowLeft' })
+    expect(frame.style.getPropertyValue('--dsh-file-review-drawer-width')).toBe('38vw')
+
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Close' }))
+    expect(frame.style.gridTemplateColumns).toBe('280px minmax(0, 1fr) 0px')
+    expect(frame.style.getPropertyValue('--dsh-file-review-drawer-width')).toBe('')
+    expect(details.style.visibility).toBe('')
+    expect(details.style.pointerEvents).toBe('')
+    expect(details.getAttribute('aria-hidden')).toBeNull()
+  })
+
+  it('explains unavailable diffs and disables copying while keeping editor access', () => {
+    const openFile = vi.fn<(path: string) => void>()
+    const view = render(
+      <ProducedFiles matched={[fileReview('notes.md')]} openFile={openFile} t={t} />,
+    )
+    fireEvent.click(view.getByRole('button', { name: 'Review notes.md' }))
+    const drawer = view.getByRole('dialog', { name: 'Review' })
+    expect(within(drawer).getByText(
+      'No reconstructable diff is available for this change. You can still open the current file.',
+    )).toBeTruthy()
+    expect((within(drawer).getByRole('button', { name: 'Copy diff' }) as HTMLButtonElement).disabled)
+      .toBe(true)
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Open in editor' }))
     expect(openFile).toHaveBeenCalledExactlyOnceWith('notes.md')
-    expect(view.queryByRole('dialog')).toBeNull()
   })
 })
 
@@ -502,18 +493,11 @@ describe('producedFileMentions resolver', () => {
 
 describe('plugin registration', () => {
   it('registers the turn definition, tail entry, dictionaries, and mention service', () => {
-    const hostDescription = { getSnapshot: () => undefined, subscribe: () => () => {} }
-    const connection = {
-      api: { settings: {} },
-      isLoopback: false,
-      hostDescription,
-    }
     let definition: unknown
     let slot: { options: { inject?: () => unknown }; component: unknown } | undefined
     let service: ChatFileMentions | undefined
     const registerLocale = vi.fn(() => () => {})
     const ctx = {
-      get: () => connection,
       conversationEvents: { register: (value: unknown) => { definition = value; return () => {} } },
       effect: (setup: () => void) => { setup() },
       locale: { register: registerLocale, bind: () => makeTranslate(en) },
@@ -530,11 +514,11 @@ describe('plugin registration', () => {
     }
 
     apply(ctx as never)
-    expect(inject).toEqual(['slots', 'locale', 'conversationEvents', 'connection'])
+    expect(inject).toEqual(['slots', 'locale', 'conversationEvents'])
     expect(definition).toBe(deliverablesDefinition)
     expect(registerLocale).toHaveBeenCalledWith('file-review', { zh, en })
     expect(slot?.component).toBe(ProducedFiles)
-    expect(slot?.options.inject?.()).toEqual({ isLoopback: false, hooks: { hostDescription } })
+    expect(slot?.options.inject).toBeUndefined()
 
     const opened: string[] = []
     const owner = tailOwner(

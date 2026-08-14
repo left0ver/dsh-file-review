@@ -9,7 +9,6 @@ const CSS_VIRTUAL_SUFFIX = '.mjs'
 const CLIENT_EXTERNALS = [
   'react',
   'react/jsx-runtime',
-  '@deepseek-ai/dsh-client-ui-primitives',
 ] as const
 
 /** Compile CSS Modules into package-owned style elements understood by the Web plugin loader. */
