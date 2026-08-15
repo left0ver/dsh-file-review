@@ -31,6 +31,17 @@ English · [简体中文](README.zh.md)
 
 ## Quick start
 
+### 0. Add dsh-file-review in pnpm's minimum release age withlist
+
+Open `~/.dsh/profiles/web/pnpm-workspace.yaml` and add:
+
+```yaml
+minimumReleaseAgeExclude:
+  - dsh-file-review
+```
+
+Recent versions of `pnpm` enforce a minimum release age, so newly published packages are not installed until that waiting period has passed. To install the latest version, add `dsh-file-review` to the exclusion list.
+
 ### 1. Install the plugin
 
 ```sh

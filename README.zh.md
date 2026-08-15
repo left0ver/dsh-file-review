@@ -29,6 +29,14 @@
 
 ## 快速开始
 
+### 0. 将dsh-file-review添加到pnpm冷静期白名单
+找到`~/.dsh/profiles/web/pnpm-workspace.yaml`,加上
+
+```yaml
+minimumReleaseAgeExclude:
+  - dsh-file-review
+```
+这是因为较新版的`pnpm`有冷静期，默认情况下，新发布的包得过了冷静期之后才会被安装。因此要安装最新版本，需要将`dsh-file-review`加入到名单中。
 ### 1. 安装插件
 
 ```sh
