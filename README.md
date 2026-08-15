@@ -6,6 +6,7 @@
 
 ![DeepSeek Harness 0.1.x](https://img.shields.io/badge/DeepSeek%20Harness-0.1.x-4f46e5)
 ![Web profile](https://img.shields.io/badge/profile-Web-0ea5e9)
+[![npm version](https://img.shields.io/npm/v/dsh-file-review.svg)](https://www.npmjs.com/package/dsh-file-review)
 [![GitHub repository](https://img.shields.io/badge/GitHub-Repository-181717?logo=github)](https://github.com/left0ver/dsh-file-review)
 [![MIT License](https://img.shields.io/badge/license-MIT-22c55e)](LICENSE)
 
@@ -13,16 +14,20 @@ English · [简体中文](README.zh.md)
 
 </div>
 
-> **Zero configuration:** install the plugin, restart the Web profile, and use DeepSeek Harness as usual.
-
-# How to use
+## How to use
 
 <p align="center">
   <strong>💬 Chat &nbsp;→&nbsp; ✨ Generate &nbsp;→&nbsp; 📄 Click a changed file &nbsp;→&nbsp; 🔍 Review</strong>
 </p>
 
-# Preview
+## Preview
+
 ![leftover](./assests/preview.png)
+
+## Features
+
+1. A diff panel for instantly reviewing every file the agent just changed.
+2. Undo support for reverting the agent's changes from the current turn.
 
 ## Quick start
 
@@ -38,17 +43,7 @@ dsh plugin --profile web add dsh-file-review
 dsh web
 ```
 
-### 3. Review the next completed turn
-
-Ask the agent to create or edit files. When the turn finishes:
-
-1. Find the produced-file chips below the final response.
-2. Click a file to open its diff.
-3. Inspect the changes, expand hidden context, copy the diff, or open the file in your editor.
-
-```text
-Agent edits files  →  Turn completes  →  Click a file chip  →  Review the diff
-```
+### 3. Enjoy it
 
 ## Install from source
 
@@ -58,6 +53,12 @@ cd dsh-file-review
 pnpm install
 pnpm run build
 dsh plugin --profile web add ${PWD}
+```
+
+## Install from GitHub repository
+
+```sh
+dsh plugin --profile web add github:left0ver/dsh-file-review
 ```
 
 ## Uninstall the plugin
