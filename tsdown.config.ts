@@ -52,7 +52,7 @@ function cssModulesPlugin() {
 
 const config: UserConfig[] = [{
   name: PACKAGE_NAME,
-  entry: ['src/index.ts'],
+  entry: ['src/index.ts', 'src/typert.host.ts', 'src/remote.ts'],
   outDir: 'lib',
   format: 'esm',
   platform: 'node',
@@ -60,6 +60,9 @@ const config: UserConfig[] = [{
   fixedExtension: false,
   dts: false,
   clean: false,
+  outputOptions: {
+    chunkFileNames: '[name].js',
+  },
 }, {
   name: `${PACKAGE_NAME}/client`,
   entry: { client: 'src/client/index.ts' },
@@ -72,8 +75,8 @@ const config: UserConfig[] = [{
   clean: false,
   deps: {
     neverBundle: [...CLIENT_EXTERNALS],
-    alwaysBundle: ['diff'],
-    onlyBundle: ['diff'],
+    alwaysBundle: ['diff', 'zod'],
+    onlyBundle: ['diff', 'zod'],
   },
   plugins: [cssModulesPlugin()],
   outputOptions: {

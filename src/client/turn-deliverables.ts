@@ -8,24 +8,12 @@ import type {
 } from '@deepseek-ai/dsh-client-runtime/client'
 import type { MarkdownFileMentions } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { TurnTailOwnerProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type { ProducedFileDiff, ProducedFileReview } from '../change-types.ts'
+
+export type { ProducedFileDiff, ProducedFileReview } from '../change-types.ts'
 
 interface ProducedPath {
   readonly seq: number
-  readonly path: string
-  readonly diffs: readonly ProducedFileDiff[]
-}
-
-/** One validated contextual diff hunk attached to a produced file. */
-export interface ProducedFileDiff {
-  readonly path: string
-  readonly oldText: string | null
-  readonly newText: string
-  readonly oldStart?: number | undefined
-  readonly newStart?: number | undefined
-}
-
-/** One produced file and the applied hunks available for review. */
-export interface ProducedFileReview {
   readonly path: string
   readonly diffs: readonly ProducedFileDiff[]
 }

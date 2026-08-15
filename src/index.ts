@@ -7,6 +7,10 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-system-prompt'
+import { FileReviewService } from './file-review-service.ts'
+
+export type * from './change-types.ts'
+export { FileReviewService, transformFile } from './file-review-service.ts'
 
 /** Services required for the model guidance paired with the browser renderer. */
 export const inject = ['systemPrompt']
@@ -20,6 +24,7 @@ const FILE_REFERENCE_PROMPT = 'When you successfully create or modify files, men
  * @param ctx - host context carrying the system-prompt registry.
  */
 export function apply(ctx: Context): void {
+  new FileReviewService(ctx)
   ctx.systemPrompt.section({
     name: 'ui:file-review-references',
     order: 190,

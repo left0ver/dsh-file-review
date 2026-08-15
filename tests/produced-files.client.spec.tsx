@@ -4,7 +4,8 @@
  * `producedForClosing` over engine-published Turn data, the row's rendering
  * and opener wiring, plus the plugin's public service registrations.
  */
-import { cleanup, fireEvent, render, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, within } from '@testing-library/react'
+import { Context, Service } from '@deepseek-ai/cordis'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type {
   ConversationEventInput, ConversationLocationDataStore, ConversationMatch,
@@ -332,7 +333,7 @@ describe('ProducedFiles review card', () => {
     const card = view.getByRole('region', { name: 'Edited files' })
     expect(within(card).getByText('Edited 7 files')).toBeTruthy()
     expect(within(card).getByText('1 more file')).toBeTruthy()
-    expect(within(card).getAllByRole('button')).toHaveLength(7)
+    expect(within(card).getAllByRole('button')).toHaveLength(8)
     expect(within(card).queryByRole('button', { name: 'Review g.ts' })).toBeNull()
     const first = within(card).getByRole('button', { name: 'Review deep/a.html' })
     expect(first.textContent).toContain('a.html')
@@ -364,6 +365,100 @@ describe('ProducedFiles review card', () => {
     expect(within(drawer).getByRole('button', { name: '关闭' })).toBeTruthy()
     expect(within(drawer).getByRole('separator', { name: '调整审查面板大小' })).toBeTruthy()
     expect(within(drawer).getAllByRole('button', { name: '在编辑器中打开' })).toHaveLength(2)
+  })
+
+  it('switches to reapply only after every reversible file is undone', async () => {
+    const inspectChanges = vi.fn(async () => ({ files: [
+      { path: 'deep/a.html', state: 'applied' as const, changed: false },
+    ] }))
+    const applyChanges = vi.fn()
+      .mockResolvedValueOnce({ files: [
+        { path: 'deep/a.html', state: 'undone', changed: true },
+      ] })
+      .mockResolvedValueOnce({ files: [
+        { path: 'deep/a.html', state: 'applied', changed: true },
+      ] })
+    const view = render(
+      <ProducedFiles
+        matched={[changedReviews[0]!]}
+        openFile={() => {}}
+        inspectChanges={inspectChanges}
+        applyChanges={applyChanges}
+        t={t}
+      />,
+    )
+
+    await vi.waitFor(() => {
+      expect((view.getByRole('button', { name: 'Undo' }) as HTMLButtonElement).disabled).toBe(false)
+    })
+    const timeout = vi.spyOn(window, 'setTimeout')
+    fireEvent.click(view.getByRole('button', { name: 'Undo' }))
+    await vi.waitFor(() => { expect(view.getByRole('button', { name: 'Reapply' })).toBeTruthy() })
+    expect(view.getByRole('alert').textContent).toContain('Changes undone')
+    expect(timeout.mock.calls.some(([, delay]) => delay === 2000)).toBe(true)
+    expect(applyChanges.mock.calls[0]?.[0].action).toBe('undo')
+
+    fireEvent.click(view.getByRole('button', { name: 'Reapply' }))
+    await vi.waitFor(() => { expect(view.getByRole('button', { name: 'Undo' })).toBeTruthy() })
+    expect(view.getByRole('alert').textContent).toContain('Changes reapplied')
+    expect(applyChanges.mock.calls[1]?.[0].action).toBe('redo')
+  })
+
+  it('keeps Undo in a mixed state and disables it when no file is reversible', async () => {
+    const twoReversible = [
+      fileReview('deep/a.txt', [{ path: 'deep/a.txt', oldText: 'a', newText: 'A' }]),
+      fileReview('nested/b.txt', [{ path: 'nested/b.txt', oldText: 'b', newText: 'B' }]),
+    ]
+    const inspectChanges = vi.fn(async () => ({ files: [
+      { path: 'deep/a.txt', state: 'applied' as const, changed: false },
+      { path: 'nested/b.txt', state: 'applied' as const, changed: false },
+    ] }))
+    const applyChanges = vi.fn(async () => ({ files: [
+      { path: 'deep/a.txt', state: 'undone' as const, changed: true },
+      { path: 'nested/b.txt', state: 'conflict' as const, changed: false },
+    ] }))
+    const openFile = vi.fn<(path: string) => void>()
+    const view = render(
+      <ProducedFiles
+        matched={twoReversible}
+        openFile={openFile}
+        inspectChanges={inspectChanges}
+        applyChanges={applyChanges}
+        t={t}
+      />,
+    )
+    await vi.waitFor(() => {
+      expect((view.getByRole('button', { name: 'Undo' }) as HTMLButtonElement).disabled).toBe(false)
+    })
+    const timeout = vi.spyOn(window, 'setTimeout')
+    fireEvent.click(view.getByRole('button', { name: 'Undo' }))
+    await vi.waitFor(() => { expect(view.getByRole('alert')).toBeTruthy() })
+    expect(applyChanges).toHaveBeenCalledOnce()
+    expect(view.getByRole('button', { name: 'Undo' })).toBeTruthy()
+    const notice = view.getByRole('alert')
+    expect(notice.textContent).toContain('Not all changes were restored')
+    expect(notice.textContent).toContain('An error occurred while restoring some files')
+    expect(notice.textContent).toContain('Skipped (1)')
+    expect(notice.textContent).toContain('b.txt')
+    expect(notice.textContent).not.toContain('nested/b.txt')
+    expect(within(notice).queryByText('a.txt')).toBeNull()
+    fireEvent.click(within(notice).getByRole('button', { name: 'Open b.txt' }))
+    expect(openFile).toHaveBeenCalledExactlyOnceWith('nested/b.txt')
+    const autoClose = timeout.mock.calls.find(([, delay]) => delay === 5000)?.[0]
+    expect(autoClose).toBeTypeOf('function')
+    act(() => { if (typeof autoClose === 'function') autoClose() })
+    expect(view.queryByRole('alert')).toBeNull()
+    fireEvent.click(view.getByRole('button', { name: 'Undo' }))
+    await vi.waitFor(() => { expect(applyChanges).toHaveBeenCalledTimes(2) })
+
+    view.rerender(
+      <ProducedFiles matched={[fileReview('notes.md')]} openFile={() => {}} t={t} />,
+    )
+    await vi.waitFor(() => {
+      const button = view.getByRole('button', { name: 'Undo' }) as HTMLButtonElement
+      expect(button.disabled).toBe(true)
+      expect(button.title).toBe('No safely reversible files are available in this change')
+    })
   })
 
   it('reviews every file from the header and copies the visible unified diff', async () => {
@@ -519,22 +614,48 @@ describe('producedFileMentions resolver', () => {
 })
 
 describe('plugin registration', () => {
-  it('registers the turn definition, tail entry, dictionaries, and mention service', () => {
+  it('registers the Remote, turn definition, tail entry, dictionaries, and mention service', async () => {
     let definition: unknown
     let slot: {
-      options: { inject?: () => unknown; locale?: string; name?: string }
+      options: { inject?: (sessionId: string) => unknown; locale?: string; name?: string }
       component: unknown
     } | undefined
     let service: ChatFileMentions | undefined
     const registerLocale = vi.fn(() => () => {})
+    const disposeRemote = vi.fn(async () => {})
+    const mountRemote = vi.fn(async () => disposeRemote)
+    class RemoteFixture extends Service {
+      constructor(scoped: Context) { super(scoped, 'remote') }
+    }
+    class FileReviewRemoteFixture extends Service {
+      constructor(scoped: Context) { super(scoped, 'remote.fileReview') }
+      async status(): Promise<{ ok: true; value: { files: readonly [] } }> {
+        return { ok: true, value: { files: [] } }
+      }
+      async apply(): Promise<{ ok: true; value: { files: readonly [] } }> {
+        return { ok: true, value: { files: [] } }
+      }
+    }
+    const cordis = new Context()
+    const remoteFixture = cordis.plugin({ apply: scoped => { new RemoteFixture(scoped) } })
+    const fileReviewFixture = cordis.plugin({
+      apply: scoped => { new FileReviewRemoteFixture(scoped) },
+    })
+    await Promise.all([remoteFixture, fileReviewFixture])
+    // Match SessionRuntime: its Agent-scope fiber knows the root Remote service,
+    // but not feature namespaces mounted after the runtime started.
+    const sessionScope = cordis.plugin({ inject: ['remote'], apply: () => {} })
+    await sessionScope
     const ctx = {
+      remote: { $mount: mountRemote },
+      sessions: { scope: vi.fn(() => sessionScope.ctx) },
       conversationEvents: { register: (value: unknown) => { definition = value; return () => {} } },
       effect: (setup: () => void) => { setup() },
       locale: { register: registerLocale, bind: () => makeTranslate(en) },
       slots: {
         inject: (_name: string, setup: () => void) => { setup() },
         register: (
-          options: { inject?: () => unknown; locale?: string; name?: string },
+          options: { inject?: (sessionId: string) => unknown; locale?: string; name?: string },
           component: unknown,
         ) => {
           slot = { options, component }
@@ -546,13 +667,28 @@ describe('plugin registration', () => {
       },
     }
 
-    apply(ctx as never)
-    expect(inject).toEqual(['slots', 'locale', 'conversationEvents'])
+    const dispose = await apply(ctx as never)
+    expect(inject).toEqual(['slots', 'locale', 'conversationEvents', 'remote', 'sessions'])
+    expect(mountRemote).toHaveBeenCalledOnce()
     expect(definition).toBe(deliverablesDefinition)
     expect(registerLocale).toHaveBeenCalledWith('file-review', { zh, en })
     expect(slot?.component).toBe(ProducedFiles)
     expect(slot?.options.locale).toBe(NS)
-    expect(slot?.options.inject).toBeUndefined()
+    expect(slot?.options.inject).toBeTypeOf('function')
+    const reviewActions = slot?.options.inject?.('session-1') as {
+      inspectChanges(request: {
+        action: 'undo'
+        files: readonly []
+      }): Promise<{ files: readonly [] }>
+      applyChanges(request: {
+        action: 'undo'
+        files: readonly []
+      }): Promise<{ files: readonly [] }>
+    }
+    await expect(reviewActions.inspectChanges({ action: 'undo', files: [] }))
+      .resolves.toEqual({ files: [] })
+    await expect(reviewActions.applyChanges({ action: 'undo', files: [] }))
+      .resolves.toEqual({ files: [] })
 
     const opened: string[] = []
     const owner = tailOwner(
@@ -564,5 +700,10 @@ describe('plugin registration', () => {
     mentions?.resolve('report.html')?.open()
     expect(opened).toEqual(['site/report.html'])
     expect(service?.forClosing(tailOwner(undefined, 2))).toBeUndefined()
+    await dispose()
+    expect(disposeRemote).toHaveBeenCalledOnce()
+    await sessionScope.dispose()
+    await fileReviewFixture.dispose()
+    await remoteFixture.dispose()
   })
 })

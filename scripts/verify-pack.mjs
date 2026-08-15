@@ -18,8 +18,13 @@ try {
     'lib/index.js',
     'lib/client.js',
     'lib/client.js.map',
+    'lib/typert.host.js',
+    'lib/remote.js',
+    'lib/typert-descriptors.js',
     'lib/types/index.d.ts',
     'lib/types/client/index.d.ts',
+    'lib/types/typert.host.d.ts',
+    'lib/types/remote.d.ts',
   ]) {
     if (!files.has(required)) throw new Error(`npm package is missing ${required}`)
   }

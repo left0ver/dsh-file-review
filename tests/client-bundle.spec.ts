@@ -29,7 +29,7 @@ describe('published browser artifact', () => {
       return shared[id]
     }) as { apply?: unknown; inject?: unknown } | undefined
     expect(client?.apply).toBeTypeOf('function')
-    expect(client?.inject).toEqual(['slots', 'locale', 'conversationEvents'])
+    expect(client?.inject).toEqual(['slots', 'locale', 'conversationEvents', 'remote', 'sessions'])
     expect(document.querySelectorAll('style[data-plugin="@deepseek-ai/dsh-file-review"]')).toHaveLength(2)
   })
 })
