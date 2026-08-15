@@ -501,6 +501,29 @@ describe('ProducedFiles review card', () => {
     expect(view.queryByRole('dialog')).toBeNull()
   })
 
+  it('shows review paths relative to the Session project while opening the absolute path', () => {
+    const absolutePath = '/Users/test/projects/example/docs/guide.md'
+    const absoluteReview = fileReview(absolutePath, [{
+      path: absolutePath, oldText: 'before', newText: 'after', oldStart: 1, newStart: 1,
+    }])
+    const openFile = vi.fn<(path: string) => void>()
+    const view = render(
+      <ProducedFiles
+        matched={[absoluteReview]}
+        openFile={openFile}
+        projectRoot="/Users/test/projects/example"
+        t={t}
+      />,
+    )
+
+    fireEvent.click(view.getByRole('button', { name: `Review ${absolutePath}` }))
+    const drawer = view.getByRole('dialog', { name: 'Review' })
+    expect(within(drawer).getByText('docs/guide.md')).toBeTruthy()
+    expect(within(drawer).queryByText(absolutePath)).toBeNull()
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Open in editor' }))
+    expect(openFile).toHaveBeenCalledExactlyOnceWith(absolutePath)
+  })
+
   it('resizes the drawer by dragging or keyboard and persists the chosen width', () => {
     const innerWidth = vi.spyOn(window, 'innerWidth', 'get').mockReturnValue(1024)
     const view = render(<ProducedFiles matched={changedReviews} openFile={() => {}} t={t} />)
@@ -648,7 +671,12 @@ describe('plugin registration', () => {
     await sessionScope
     const ctx = {
       remote: { $mount: mountRemote },
-      sessions: { scope: vi.fn(() => sessionScope.ctx) },
+      sessions: {
+        scope: vi.fn(() => sessionScope.ctx),
+        list: { getSnapshot: () => ({ byId: {
+          'session-1': { cwd: '/workspace/project' },
+        } }) },
+      },
       conversationEvents: { register: (value: unknown) => { definition = value; return () => {} } },
       effect: (setup: () => void) => { setup() },
       locale: { register: registerLocale, bind: () => makeTranslate(en) },
@@ -676,6 +704,7 @@ describe('plugin registration', () => {
     expect(slot?.options.locale).toBe(NS)
     expect(slot?.options.inject).toBeTypeOf('function')
     const reviewActions = slot?.options.inject?.('session-1') as {
+      projectRoot?: string
       inspectChanges(request: {
         action: 'undo'
         files: readonly []
@@ -685,6 +714,7 @@ describe('plugin registration', () => {
         files: readonly []
       }): Promise<{ files: readonly [] }>
     }
+    expect(reviewActions.projectRoot).toBe('/workspace/project')
     await expect(reviewActions.inspectChanges({ action: 'undo', files: [] }))
       .resolves.toEqual({ files: [] })
     await expect(reviewActions.applyChanges({ action: 'undo', files: [] }))

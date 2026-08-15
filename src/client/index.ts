@@ -59,6 +59,7 @@ export async function apply(ctx: ClientContext): Promise<() => Promise<void>> {
       select: selectProducedFiles,
       locale: NS,
       inject: (sessionId) => {
+        const projectRoot = sessions.list.getSnapshot().byId[sessionId]?.cwd
         const invoke = async (
           method: 'status' | 'apply',
           request: FileReviewRequest,
@@ -76,6 +77,7 @@ export async function apply(ctx: ClientContext): Promise<() => Promise<void>> {
           return result.value
         }
         return {
+          projectRoot,
           inspectChanges: (request: FileReviewRequest) => invoke('status', request),
           applyChanges: (request: FileReviewRequest) => invoke('apply', request),
         }

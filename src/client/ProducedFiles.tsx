@@ -129,9 +129,26 @@ function drawerTrackForRatio(ratio: number): string {
 /** Matched file reviews plus the opener and locale supplied by the turn-tail slot. */
 export type ProducedFilesProps = Pick<TurnTailOwnerProps, 'openFile'> & {
   matched: readonly ProducedFileReview[]
+  /** Session workspace root, used only to shorten paths shown in the review UI. */
+  projectRoot?: string | undefined
   inspectChanges?: (request: FileReviewRequest) => Promise<FileReviewResult>
   applyChanges?: (request: FileReviewRequest) => Promise<FileReviewResult>
 } & PropsLocale<typeof NS>
+
+/** Keep host paths intact for actions while presenting files relative to their project. */
+function displayPath(path: string, projectRoot: string | undefined): string {
+  if (projectRoot === undefined || projectRoot.length === 0) return path
+  const normalizedPath = path.replaceAll('\\', '/')
+  const normalizedRoot = projectRoot.replaceAll('\\', '/').replace(/\/+$/, '')
+  if (normalizedRoot.length === 0) return path
+  const windowsPath = /^[A-Za-z]:\//.test(normalizedPath)
+  const comparablePath = windowsPath ? normalizedPath.toLowerCase() : normalizedPath
+  const comparableRoot = windowsPath ? normalizedRoot.toLowerCase() : normalizedRoot
+  const prefix = `${comparableRoot}/`
+  return comparablePath.startsWith(prefix)
+    ? normalizedPath.slice(normalizedRoot.length + 1)
+    : path
+}
 
 const unavailableChanges = async (request: FileReviewRequest): Promise<FileReviewResult> => ({
   files: request.files.map(file => ({
@@ -280,7 +297,7 @@ function Stats({ stats, label }: { readonly stats: UnifiedDiffStats; readonly la
 
 /** Render one turn's produced files as a summary card and review drawer. */
 export function ProducedFiles({
-  matched: reviews, openFile,
+  matched: reviews, openFile, projectRoot,
   inspectChanges = unavailableChanges, applyChanges = unavailableChanges, t,
 }: ProducedFilesProps) {
   const drawerTitleId = useId()
@@ -730,11 +747,12 @@ export function ProducedFiles({
           <div className={css.drawerBody}>
             {visibleReviews.map((review) => {
               const stats = summarizeDiffs(review.diffs)
+              const relativePath = displayPath(review.path, projectRoot)
               return (
                 <section key={review.path} className={css.reviewFile}>
                   <header className={css.reviewFileHeader}>
                     <span className={css.reviewStatus}>M</span>
-                    <span className={css.reviewPath} title={review.path}>{review.path}</span>
+                    <span className={css.reviewPath} title={relativePath}>{relativePath}</span>
                     <Stats
                       stats={stats}
                       label={t('review.stats', {
