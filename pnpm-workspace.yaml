@@ -61,3 +61,5 @@ minimumReleaseAgeExclude:
   - '@deepseek-ai/dsh-user-questions@0.1.0-rc.6'
   - '@deepseek-ai/dsh-workspace@0.1.0-rc.6'
   - '@deepseek-ai/schemastery@3.18.1'
+allowBuilds:
+  'dsh-file-review@git+https://github.com/left0ver/dsh-file-review.git': true
