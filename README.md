@@ -61,6 +61,12 @@ dsh plugin --profile web add ${PWD}
 dsh plugin --profile web add github:left0ver/dsh-file-review
 ```
 
+## Update the plugin
+
+```sh
+dsh plugin --profile web update dsh-file-review
+```
+
 ## Uninstall the plugin
 
 ```sh
