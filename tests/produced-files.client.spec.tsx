@@ -524,6 +524,27 @@ describe('ProducedFiles review card', () => {
     expect(openFile).toHaveBeenCalledExactlyOnceWith(absolutePath)
   })
 
+  it('keeps only one review drawer open across multiple produced-file cards', () => {
+    const view = render(
+      <>
+        <ProducedFiles matched={[fileReview('first.md')]} openFile={() => {}} t={t} />
+        <ProducedFiles matched={[fileReview('second.md')]} openFile={() => {}} t={t} />
+      </>,
+    )
+
+    fireEvent.click(view.getByRole('button', { name: 'Review first.md' }))
+    expect(view.getAllByRole('dialog', { name: 'Review' })).toHaveLength(1)
+    fireEvent.click(view.getByRole('button', { name: 'Review second.md' }))
+    expect(view.getAllByRole('dialog', { name: 'Review' })).toHaveLength(1)
+    expect(view.getByRole('dialog', { name: 'Review' }).textContent).toContain('first.md')
+
+    fireEvent.click(within(view.getByRole('dialog', { name: 'Review' }))
+      .getByRole('button', { name: 'Close' }))
+    fireEvent.click(view.getByRole('button', { name: 'Review second.md' }))
+    expect(view.getAllByRole('dialog', { name: 'Review' })).toHaveLength(1)
+    expect(view.getByRole('dialog', { name: 'Review' }).textContent).toContain('second.md')
+  })
+
   it('resizes the drawer by dragging or keyboard and persists the chosen width', () => {
     const innerWidth = vi.spyOn(window, 'innerWidth', 'get').mockReturnValue(1024)
     const view = render(<ProducedFiles matched={changedReviews} openFile={() => {}} t={t} />)

@@ -29,6 +29,19 @@ const HOST_DRAWER_TRACK_PROPERTY = '--dsh-file-review-drawer-width'
 const SUCCESS_NOTICE_DURATION = 2000
 const ERROR_NOTICE_DURATION = 5000
 
+/** Review drawers share the host's single details column, so only one may own it at a time. */
+let activeReviewOwner: symbol | null = null
+
+function claimReviewDrawer(owner: symbol): boolean {
+  if (activeReviewOwner !== null) return activeReviewOwner === owner
+  activeReviewOwner = owner
+  return true
+}
+
+function releaseReviewDrawer(owner: symbol): void {
+  if (activeReviewOwner === owner) activeReviewOwner = null
+}
+
 type ReviewScope = { readonly kind: 'all' } | { readonly kind: 'file'; readonly path: string }
 
 interface ResizeDrag {
@@ -312,6 +325,7 @@ export function ProducedFiles({
   const [togglePending, setTogglePending] = useState(false)
   const [toast, setToast] = useState<ToggleNotice | null>(null)
   const toastSeqRef = useRef(0)
+  const reviewOwnerRef = useRef(Symbol('review-drawer-owner'))
   const cardRef = useRef<HTMLElement>(null)
   const hostSplitRef = useRef<ActiveHostSplit | null>(null)
   const closeButtonRef = useRef<HTMLButtonElement>(null)
@@ -434,11 +448,17 @@ export function ProducedFiles({
   ])
 
   const openReview = useCallback((scope: ReviewScope, trigger: HTMLButtonElement) => {
+    if (!claimReviewDrawer(reviewOwnerRef.current)) return
     triggerRef.current = trigger
     setCopied(false)
     setReviewScope(scope)
   }, [])
-  const closeReview = useCallback(() => { setReviewScope(null) }, [])
+  const closeReview = useCallback(() => {
+    releaseReviewDrawer(reviewOwnerRef.current)
+    setReviewScope(null)
+  }, [])
+
+  useEffect(() => () => { releaseReviewDrawer(reviewOwnerRef.current) }, [])
 
   useEffect(() => {
     if (reviewScope === null) return
