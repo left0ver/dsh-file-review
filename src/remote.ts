@@ -3,7 +3,7 @@
 import type { SessionId } from '@deepseek-ai/dsh-client-runtime/client'
 import type { RemoteResult, TypertRemoteContribution } from '@deepseek-ai/dsh-typert-protocol'
 import type { FileReviewRequest, FileReviewResult } from './change-types.ts'
-import { FILE_REVIEW_INVOCATIONS } from './typert-descriptors.ts'
+import { FILE_REVIEW_INVOCATIONS, PACKAGE_NAME } from './typert-descriptors.ts'
 
 declare module '@deepseek-ai/dsh-typert-protocol' {
   interface TypertRemoteNamespaceMap {
@@ -39,7 +39,7 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
 }
 
 export const TYPERT_REMOTE: TypertRemoteContribution = {
-  package: '@deepseek-ai/dsh-file-review',
+  package: PACKAGE_NAME,
   descriptors: FILE_REVIEW_INVOCATIONS,
 }
 

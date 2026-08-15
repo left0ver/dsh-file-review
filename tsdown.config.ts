@@ -3,7 +3,7 @@ import { basename, dirname, resolve } from 'node:path'
 import type { UserConfig } from 'tsdown'
 import { transform } from 'lightningcss'
 
-const PACKAGE_NAME = '@deepseek-ai/dsh-file-review'
+const PACKAGE_NAME = 'dsh-file-review'
 const CSS_VIRTUAL_PREFIX = '\0dsh-file-review-css:'
 const CSS_VIRTUAL_SUFFIX = '.mjs'
 const CLIENT_EXTERNALS = [

@@ -3,6 +3,8 @@
 import { z } from 'zod'
 import type { InvocationDescriptor } from '@deepseek-ai/dsh-typert-protocol'
 
+export const PACKAGE_NAME = 'dsh-file-review'
+
 const diffSchema = z.object({
   path: z.string(),
   oldText: z.string().nullable(),
@@ -33,19 +35,19 @@ const agentCodec = {
 
 const requestCodec = {
   mode: 'strict' as const,
-  typeSymbol: '@deepseek-ai/dsh-file-review#FileReviewRequest',
+  typeSymbol: `${PACKAGE_NAME}#FileReviewRequest`,
   schema: requestSchema,
 }
 
 const resultCodec = {
   mode: 'strict' as const,
-  typeSymbol: '@deepseek-ai/dsh-file-review#FileReviewResult',
+  typeSymbol: `${PACKAGE_NAME}#FileReviewResult`,
   schema: resultSchema,
 }
 
 function descriptor(method: 'status' | 'apply'): InvocationDescriptor {
   return {
-    id: `@deepseek-ai/dsh-file-review#fileReview/${method}`,
+    id: `${PACKAGE_NAME}#fileReview/${method}`,
     service: 'fileReview',
     namespace: 'fileReview',
     method,
@@ -64,4 +66,3 @@ export const FILE_REVIEW_INVOCATIONS: readonly InvocationDescriptor[] = [
   descriptor('status'),
   descriptor('apply'),
 ]
-

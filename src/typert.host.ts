@@ -1,10 +1,10 @@
 /** Host Typert contribution discovered through the package's `./typert` export. */
 
 import type { TypertContribution } from '@deepseek-ai/dsh-typert-registry/types'
-import { FILE_REVIEW_INVOCATIONS } from './typert-descriptors.ts'
+import { FILE_REVIEW_INVOCATIONS, PACKAGE_NAME } from './typert-descriptors.ts'
 
 export const TYPERT: TypertContribution = {
-  package: '@deepseek-ai/dsh-file-review',
+  package: PACKAGE_NAME,
   face: 'host',
   schemas: [],
   invocations: FILE_REVIEW_INVOCATIONS,
@@ -23,4 +23,3 @@ export const TYPERT: TypertContribution = {
 }
 
 export default TYPERT
-

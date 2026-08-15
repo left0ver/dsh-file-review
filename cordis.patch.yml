@@ -3,4 +3,4 @@
   
 - insert:
     - id: file-review
-      name: '@deepseek-ai/dsh-file-review'
+      name: 'dsh-file-review'
