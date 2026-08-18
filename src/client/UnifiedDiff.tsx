@@ -178,8 +178,12 @@ function lineNumbers(line: UnifiedLine): string {
   return `${oldNumber}, ${newNumber}`
 }
 
+function lineNumber(line: UnifiedLine): number | null {
+  return line.kind === 'del' ? line.oldNumber : line.newNumber
+}
+
 /**
- * Render line-aligned hunks with old/new gutters and expandable context gaps.
+ * Render line-aligned hunks with a single gutter and expandable context gaps.
  * @param props - Unified diff data, locale labels, and presentation options.
  * @returns The line-numbered unified diff surface.
  */
@@ -264,8 +268,7 @@ export function UnifiedDiff({
                       data-old-line={row.oldNumber ?? undefined}
                       data-new-line={row.newNumber ?? undefined}
                     >
-                      <span className={css.unifiedOldNumber}>{row.oldNumber}</span>
-                      <span className={css.unifiedNewNumber}>{row.newNumber}</span>
+                      <span className={css.unifiedLineNumber}>{lineNumber(row)}</span>
                       <span className={css.unifiedSign}>{sign}</span>
                       <span className={css.unifiedText}>{row.text}</span>
                     </div>
@@ -298,8 +301,7 @@ export function UnifiedDiff({
                         data-old-line={line.oldNumber ?? undefined}
                         data-new-line={line.newNumber ?? undefined}
                       >
-                        <span className={css.unifiedOldNumber}>{line.oldNumber}</span>
-                        <span className={css.unifiedNewNumber}>{line.newNumber}</span>
+                        <span className={css.unifiedLineNumber}>{lineNumber(line)}</span>
                         <span className={css.unifiedSign}> </span>
                         <span className={css.unifiedText}>{line.text}</span>
                       </div>

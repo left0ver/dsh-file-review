@@ -472,6 +472,10 @@ describe('ProducedFiles review card', () => {
     expect(within(drawer).getByText('deep/a.html')).toBeTruthy()
     expect(within(drawer).getByText('styles/b.css')).toBeTruthy()
     expect(drawer.querySelectorAll('[data-diff-layout="unified"]')).toHaveLength(2)
+    const firstDiff = drawer.querySelectorAll('[data-diff-layout="unified"]')[0]
+    const firstDiffLines = firstDiff?.querySelectorAll('[data-line-kind]') ?? []
+    expect([...firstDiffLines].map(line => line.childElementCount)).toEqual([3, 3, 3])
+    expect([...firstDiffLines].map(line => line.firstElementChild?.textContent)).toEqual(['7', '7', '8'])
 
     fireEvent.click(within(drawer).getByRole('button', { name: 'Copy diff' }))
     await vi.waitFor(() => { expect(writeText).toHaveBeenCalledOnce() })

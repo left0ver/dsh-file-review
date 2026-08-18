@@ -1,5 +1,5 @@
-/* The review layout follows a source-control diff: one content stream with
-   independent old/new gutters. It is deliberately separate from `.block`, so
+/* The review layout follows a source-control diff: one content stream with a
+   single line-number gutter. It is deliberately separate from `.block`, so
    existing inline tool cards keep their compact geometry. */
 .unifiedBlock {
   position: relative;
@@ -80,15 +80,14 @@
 
 .unifiedLine {
   display: grid;
-  grid-template-columns: 48px 48px 24px minmax(max-content, 1fr);
+  grid-template-columns: 48px 24px minmax(max-content, 1fr);
   min-width: max-content;
   min-height: 23px;
   line-height: 23px;
   white-space: pre;
 }
 
-.unifiedOldNumber,
-.unifiedNewNumber {
+.unifiedLineNumber {
   padding: 0 8px;
   border-right: 1px solid var(--dsw-alias-border-l2);
   color: var(--dsw-alias-label-tertiary);
@@ -123,7 +122,7 @@
   display: block;
   width: 100%;
   min-height: 32px;
-  padding: 0 12px 0 120px;
+  padding: 0 12px 0 72px;
   border: 0;
   border-top: 1px solid var(--dsw-alias-border-l1);
   border-bottom: 1px solid var(--dsw-alias-border-l1);
