@@ -526,6 +526,147 @@
   line-height: 20px;
 }
 
+/* Aggregate comment reference rendered as an interactive composer dock chip. */
+.commentDock {
+  box-sizing: border-box;
+  position: relative;
+  z-index: 9;
+  width: calc(100% - var(--dsh-composer-side-clearance) - var(--dsh-composer-side-clearance));
+  max-width: var(--dsh-composer-card-max-width);
+  margin: 0 auto -4px;
+  padding: 0 12px;
+}
+
+.commentDockPill {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 18px;
+  background: var(--dsw-specific-input-major, var(--dsw-alias-bg-container, Canvas));
+  box-shadow: var(--dsw-shadow-lv1);
+  overflow: hidden;
+}
+
+.commentDockOpen,
+.commentDockRemove {
+  border: 0;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  cursor: pointer;
+}
+
+.commentDockOpen {
+  display: flex;
+  min-height: 34px;
+  align-items: center;
+  gap: 7px;
+  padding: 0 4px 0 11px;
+  font: var(--dsw-font-sm-14);
+}
+
+.commentDockOpen:hover,
+.commentDockRemove:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.commentDockIcon {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.4;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.commentDockRemove {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  margin-right: 2px;
+  border-radius: 50%;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 22px;
+  line-height: 1;
+}
+
+.commentDockOpen:focus-visible,
+.commentDockRemove:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary);
+  outline-offset: -2px;
+}
+
+.commentPreview {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 12px;
+  display: flex;
+  box-sizing: border-box;
+  width: min(560px, calc(100vw - 48px));
+  max-height: min(420px, 60vh);
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  overflow: auto;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 16px;
+  background: var(--dsw-alias-bg-container, Canvas);
+  box-shadow: var(--dsw-shadow-lv3);
+}
+
+.commentPreviewCard {
+  box-sizing: border-box;
+  padding: 14px 16px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 12px;
+  background: var(--dsw-alias-bg-container, Canvas);
+}
+
+.commentPreviewHeader {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 12px;
+  font: var(--dsw-font-sm-14);
+}
+
+.commentPreviewPath {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  color: var(--dsw-alias-state-business-primary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.commentPreviewLocation {
+  flex: 0 0 auto;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.commentPreviewBody {
+  margin: 10px 0 0;
+  color: var(--dsw-alias-label-primary);
+  font: var(--dsw-font-sm-14);
+  line-height: 22px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* The interactive dock owns presentation; retain the placeholder occurrence
+   only for model serialization and composer submit eligibility. */
+[data-decoration="chip"][title="​"] {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
 @media (max-width: 760px) {
   .cardHeader {
     flex-wrap: wrap;

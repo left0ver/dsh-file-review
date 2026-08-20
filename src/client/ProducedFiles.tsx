@@ -15,6 +15,11 @@ import type { NS } from './locales.ts'
 import {
   summarizeDiffs, UnifiedDiff, unifiedDiffText, type UnifiedDiffStats,
 } from './UnifiedDiff.tsx'
+import type { DiffLineAnchor } from './UnifiedDiff.tsx'
+import {
+  deleteReviewComment, reviewCommentKey, reviewCommentsForTurn, setReviewComment,
+  subscribeReviewComments,
+} from './review-comments.ts'
 import css from './ProducedFiles.module.css'
 
 /** Keep the turn-tail card compact; the drawer always contains every file. */
@@ -146,6 +151,13 @@ export type ProducedFilesProps = Pick<TurnTailOwnerProps, 'openFile'> & {
   projectRoot?: string | undefined
   inspectChanges?: (request: FileReviewRequest) => Promise<FileReviewResult>
   applyChanges?: (request: FileReviewRequest) => Promise<FileReviewResult>
+  /** Runtime-injected session identity; absent only in isolated render tests. */
+  sessionId?: string | undefined
+  /** Turn-tail identity used to keep repeated file/line coordinates distinct. */
+  turn?: TurnTailOwnerProps['turn'] | undefined
+  seq?: number | undefined
+  /** Reconcile the aggregate review-comment reference in the session composer. */
+  syncComments?: (() => void) | undefined
 } & PropsLocale<typeof NS>
 
 /** Keep host paths intact for actions while presenting files relative to their project. */
@@ -311,7 +323,8 @@ function Stats({ stats, label }: { readonly stats: UnifiedDiffStats; readonly la
 /** Render one turn's produced files as a summary card and review drawer. */
 export function ProducedFiles({
   matched: reviews, openFile, projectRoot,
-  inspectChanges = unavailableChanges, applyChanges = unavailableChanges, t,
+  inspectChanges = unavailableChanges, applyChanges = unavailableChanges,
+  sessionId, turn, seq = 0, syncComments, t,
 }: ProducedFilesProps) {
   const drawerTitleId = useId()
   const [reviewScope, setReviewScope] = useState<ReviewScope | null>(null)
@@ -324,6 +337,7 @@ export function ProducedFiles({
   const [statusPending, setStatusPending] = useState(true)
   const [togglePending, setTogglePending] = useState(false)
   const [toast, setToast] = useState<ToggleNotice | null>(null)
+  const [commentVersion, setCommentVersion] = useState(0)
   const toastSeqRef = useRef(0)
   const reviewOwnerRef = useRef(Symbol('review-drawer-owner'))
   const cardRef = useRef<HTMLElement>(null)
@@ -332,6 +346,42 @@ export function ProducedFiles({
   const triggerRef = useRef<HTMLButtonElement | null>(null)
   const copyResetRef = useRef<number | null>(null)
   const resizeDragRef = useRef<ResizeDrag | null>(null)
+  const turnNumber = turn?.turn ?? 0
+
+  useEffect(() => {
+    if (sessionId === undefined) return undefined
+    const unsubscribe = subscribeReviewComments(sessionId, () => {
+      setCommentVersion(version => version + 1)
+    })
+    return unsubscribe
+  }, [sessionId])
+
+  // Locale changes re-render this component; reconcile on every committed render
+  // so the cached composer-chip label follows the active language as well.
+  useEffect(() => { syncComments?.() })
+
+  const turnComments = useMemo(
+    () => sessionId === undefined
+      ? new Map<string, never>()
+      : reviewCommentsForTurn(sessionId, turnNumber, seq),
+    [commentVersion, seq, sessionId, turnNumber],
+  )
+
+  const commentFor = useCallback((anchor: DiffLineAnchor): string | undefined =>
+    turnComments.get(reviewCommentKey(turnNumber, seq, anchor))?.body,
+  [seq, turnComments, turnNumber])
+
+  const onCommentChange = useCallback((anchor: DiffLineAnchor, body: string) => {
+    if (sessionId === undefined) return
+    setReviewComment({ sessionId, turn: turnNumber, closingSeq: seq, anchor, body })
+    syncComments?.()
+  }, [seq, sessionId, syncComments, turnNumber])
+
+  const onCommentDelete = useCallback((anchor: DiffLineAnchor) => {
+    if (sessionId === undefined) return
+    deleteReviewComment(sessionId, turnNumber, seq, anchor)
+    syncComments?.()
+  }, [seq, sessionId, syncComments, turnNumber])
 
   const reviewsWithStats = useMemo(() => reviews.map(review => ({
     review,
@@ -800,7 +850,16 @@ export function ProducedFiles({
                           copied: t('review.copied'),
                           showUnchanged: count => t('review.showUnchanged', { count: String(count) }),
                           hideUnchanged: count => t('review.hideUnchanged', { count: String(count) }),
+                          addComment: line => t('review.commentAdd', { line: String(line) }),
+                          editComment: line => t('review.commentEdit', { line: String(line) }),
+                          commentPlaceholder: t('review.commentPlaceholder'),
+                          cancelComment: t('review.commentCancel'),
+                          saveComment: t('review.commentSave'),
+                          deleteComment: t('review.commentDelete'),
                         }}
+                        commentFor={sessionId === undefined ? undefined : commentFor}
+                        onCommentChange={sessionId === undefined ? undefined : onCommentChange}
+                        onCommentDelete={sessionId === undefined ? undefined : onCommentDelete}
                         className={css.reviewDiff}
                       />
                     )}

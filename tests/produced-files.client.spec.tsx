@@ -13,7 +13,13 @@ import type {
 } from '@deepseek-ai/dsh-client-runtime/client'
 import type { ChatFileMentions, TurnTailOwnerProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { ProducedFiles } from '../src/client/ProducedFiles.tsx'
+import {
+  ReviewCommentsDock, type ReviewCommentsDockProps,
+} from '../src/client/ReviewCommentsDock.tsx'
 import { summarizeDiffs, unifiedDiffText } from '../src/client/UnifiedDiff.tsx'
+import {
+  clearAllReviewComments, reviewComments, serializeReviewComments, setReviewComment,
+} from '../src/client/review-comments.ts'
 import {
   basename, deliverablesDefinition, producedFileMentions, producedForClosing, reviewsForClosing,
   selectProducedFiles, type DeliverablesTurnData, type ProducedFileDiff, type ProducedFileReview,
@@ -24,6 +30,7 @@ import { en, NS, zh } from '../src/client/locales.ts'
 afterEach(() => {
   cleanup()
   window.localStorage.clear()
+  clearAllReviewComments()
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
 })
@@ -484,6 +491,74 @@ describe('ProducedFiles review card', () => {
     expect(within(drawer).getByRole('button', { name: 'Copied' })).toBeTruthy()
   })
 
+  it('comments added, deleted, and expanded context lines while retaining comments on reopen', () => {
+    const commented = fileReview('src/example.ts', [{
+      path: 'src/example.ts',
+      oldText: 'one\ntwo\nthree\nfour\nfive\nsix\nseven\neight\nnine',
+      newText: 'one\ntwo\nthree\nfour\nFIVE\nsix\nseven\neight\nnine',
+      oldStart: 1,
+      newStart: 1,
+    }])
+    const ownerTurn = turnLocation(4)
+    const view = render(
+      <ProducedFiles
+        matched={[commented]}
+        openFile={() => {}}
+        sessionId="session-comments"
+        turn={ownerTurn}
+        seq={20}
+        t={t}
+      />,
+    )
+    fireEvent.click(view.getByRole('button', { name: 'Review src/example.ts' }))
+    const drawer = view.getByRole('dialog', { name: 'Review' })
+
+    const changedLineButtons = within(drawer).getAllByRole('button', { name: 'Add comment on line 5' })
+    fireEvent.click(changedLineButtons[0]!)
+    let editor = within(drawer).getByRole('textbox', { name: 'Edit comment on line 5' })
+    expect((within(drawer).getByRole('button', { name: 'Save' }) as HTMLButtonElement).disabled)
+      .toBe(true)
+    fireEvent.change(editor, { target: { value: 'Discard me.' } })
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Cancel' }))
+    expect(reviewComments('session-comments')).toHaveLength(0)
+
+    fireEvent.click(within(drawer).getAllByRole('button', { name: 'Add comment on line 5' })[0]!)
+    editor = within(drawer).getByRole('textbox', { name: 'Edit comment on line 5' })
+    fireEvent.change(editor, { target: { value: 'Keep the previous behavior <safe>.' } })
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Save' }))
+    expect(within(drawer).getByText('Keep the previous behavior <safe>.')).toBeTruthy()
+    expect(reviewComments('session-comments')).toHaveLength(1)
+    expect(serializeReviewComments('session-comments')).toContain('kind="del" old_line="5"')
+    expect(serializeReviewComments('session-comments')).toContain('&lt;safe&gt;')
+
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Keep the previous behavior <safe>.' }))
+    const existingEditor = within(drawer).getByRole('textbox', { name: 'Edit comment on line 5' })
+    fireEvent.change(existingEditor, { target: { value: 'Do not keep this edit.' } })
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Cancel' }))
+    expect(within(drawer).getByText('Keep the previous behavior <safe>.')).toBeTruthy()
+    expect(reviewComments('session-comments')[0]?.body).toBe('Keep the previous behavior <safe>.')
+
+    fireEvent.click(within(drawer).getAllByRole('button', { name: /unchanged lines/ })[0]!)
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Add comment on line 1' }))
+    const contextEditor = within(drawer).getByRole('textbox', { name: 'Edit comment on line 1' })
+    fireEvent.change(contextEditor, { target: { value: 'This context also matters.' } })
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Save' }))
+    expect(reviewComments('session-comments')).toHaveLength(2)
+    expect(serializeReviewComments('session-comments')).toContain(
+      '<comment kind="context" old_line="1" new_line="1">',
+    )
+
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Close' }))
+    fireEvent.click(view.getByRole('button', { name: 'Review src/example.ts' }))
+    const reopened = view.getByRole('dialog', { name: 'Review' })
+    expect(within(reopened).getByText('Keep the previous behavior <safe>.')).toBeTruthy()
+    fireEvent.click(within(reopened).getAllByRole('button', { name: /unchanged lines/ })[0]!)
+    expect(within(reopened).getByText('This context also matters.')).toBeTruthy()
+    fireEvent.click(within(reopened).getAllByRole('button', { name: 'Delete' })[0]!)
+    fireEvent.click(within(reopened).getByRole('button', { name: 'Delete' }))
+    expect(reviewComments('session-comments')).toHaveLength(0)
+  })
+
   it('focuses one file from its row, opens it in the editor, and restores focus on close', () => {
     const openFile = vi.fn<(path: string) => void>()
     const view = render(<ProducedFiles matched={changedReviews} openFile={openFile} t={t} />)
@@ -634,6 +709,32 @@ describe('ProducedFiles review card', () => {
   })
 })
 
+describe('review comment composer chip', () => {
+  const t = makeTranslate(en)
+
+  it('opens a compact comment preview and can remove the aggregate', () => {
+    setReviewComment({
+      sessionId: 'dock-session', turn: 3, closingSeq: 12, body: 'Please keep this behavior.',
+      anchor: {
+        path: 'src/client/index.ts', hunkIndex: 0, rowIndex: 2, kind: 'add',
+        oldLine: null, newLine: 19, text: 'const value = true', excerpt: '+ const value = true',
+      },
+    })
+    const props = { sessionId: 'dock-session', t } as unknown as ReviewCommentsDockProps
+    const view = render(<ReviewCommentsDock {...props} />)
+
+    fireEvent.click(view.getByRole('button', { name: 'Preview 1 review comments' }))
+    const preview = view.getByRole('dialog', { name: 'Review comment preview' })
+    expect(within(preview).getByText('src/client/index.ts')).toBeTruthy()
+    expect(within(preview).getByText('right line 19')).toBeTruthy()
+    expect(within(preview).getByText('Please keep this behavior.')).toBeTruthy()
+
+    fireEvent.click(view.getByRole('button', { name: 'Remove all review comments' }))
+    expect(view.queryByRole('dialog', { name: 'Review comment preview' })).toBeNull()
+    expect(reviewComments('dock-session')).toHaveLength(0)
+  })
+})
+
 describe('producedFileMentions resolver', () => {
   const label = (path: string) => `Open ${path}`
 
@@ -665,9 +766,13 @@ describe('plugin registration', () => {
   it('registers the Remote, turn definition, tail entry, dictionaries, and mention service', async () => {
     let definition: unknown
     let slot: {
-      options: { inject?: (sessionId: string) => unknown; locale?: string; name?: string }
+      options: { id?: string; inject?: (sessionId: string) => unknown; locale?: string; name?: string }
       component: unknown
     } | undefined
+    const registrations: Array<{
+      options: { id?: string; inject?: (sessionId: string) => unknown; locale?: string; name?: string }
+      component: unknown
+    }> = []
     let service: ChatFileMentions | undefined
     const registerLocale = vi.fn(() => () => {})
     const disposeRemote = vi.fn(async () => {})
@@ -694,6 +799,11 @@ describe('plugin registration', () => {
     // but not feature namespaces mounted after the runtime started.
     const sessionScope = cordis.plugin({ inject: ['remote'], apply: () => {} })
     await sessionScope
+    const inputSnapshot = {
+      draft: '', draftRev: 0, phase: 'plain' as const, occurrences: [],
+    }
+    const disposeSource = vi.fn()
+    const registerSource = vi.fn(() => disposeSource)
     const ctx = {
       remote: { $mount: mountRemote },
       sessions: {
@@ -703,15 +813,22 @@ describe('plugin registration', () => {
         } }) },
       },
       conversationEvents: { register: (value: unknown) => { definition = value; return () => {} } },
+      conversation: { input: { for: () => ({
+        state: { getSnapshot: () => inputSnapshot, subscribe: () => () => {} },
+        setDraft: vi.fn(),
+      }) } },
+      inputTriggers: { registerSource },
       effect: (setup: () => void) => { setup() },
       locale: { register: registerLocale, bind: () => makeTranslate(en) },
       slots: {
         inject: (_name: string, setup: () => void) => { setup() },
         register: (
-          options: { inject?: (sessionId: string) => unknown; locale?: string; name?: string },
+          options: { id?: string; inject?: (sessionId: string) => unknown; locale?: string; name?: string },
           component: unknown,
         ) => {
-          slot = { options, component }
+          const registration = { options, component }
+          registrations.push(registration)
+          if (options.name === 'conversation.chat.turnTail') slot = registration
           return () => {}
         },
       },
@@ -721,15 +838,26 @@ describe('plugin registration', () => {
     }
 
     const dispose = await apply(ctx as never)
-    expect(inject).toEqual(['slots', 'locale', 'conversationEvents', 'remote', 'sessions'])
+    expect(inject).toEqual([
+      'slots', 'locale', 'conversationEvents', 'remote', 'sessions', 'conversation', 'inputTriggers',
+    ])
+    expect(registerSource).toHaveBeenCalledOnce()
     expect(mountRemote).toHaveBeenCalledOnce()
     expect(definition).toBe(deliverablesDefinition)
     expect(registerLocale).toHaveBeenCalledWith('file-review', { zh, en })
+    expect(registrations).toContainEqual({
+      options: expect.objectContaining({
+        name: 'conversation.input.dock', id: 'file-review-comments', locale: NS,
+      }),
+      component: ReviewCommentsDock,
+    })
     expect(slot?.component).toBe(ProducedFiles)
     expect(slot?.options.locale).toBe(NS)
     expect(slot?.options.inject).toBeTypeOf('function')
     const reviewActions = slot?.options.inject?.('session-1') as {
       projectRoot?: string
+      sessionId?: string
+      syncComments?: () => void
       inspectChanges(request: {
         action: 'undo'
         files: readonly []
@@ -740,6 +868,8 @@ describe('plugin registration', () => {
       }): Promise<{ files: readonly [] }>
     }
     expect(reviewActions.projectRoot).toBe('/workspace/project')
+    expect(reviewActions.sessionId).toBe('session-1')
+    expect(reviewActions.syncComments).toBeTypeOf('function')
     await expect(reviewActions.inspectChanges({ action: 'undo', files: [] }))
       .resolves.toEqual({ files: [] })
     await expect(reviewActions.applyChanges({ action: 'undo', files: [] }))
@@ -757,6 +887,7 @@ describe('plugin registration', () => {
     expect(service?.forClosing(tailOwner(undefined, 2))).toBeUndefined()
     await dispose()
     expect(disposeRemote).toHaveBeenCalledOnce()
+    expect(disposeSource).toHaveBeenCalledOnce()
     await sessionScope.dispose()
     await fileReviewFixture.dispose()
     await remoteFixture.dispose()

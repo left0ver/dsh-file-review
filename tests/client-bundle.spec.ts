@@ -29,7 +29,9 @@ describe('published browser artifact', () => {
       return shared[id]
     }) as { apply?: unknown; inject?: unknown } | undefined
     expect(client?.apply).toBeTypeOf('function')
-    expect(client?.inject).toEqual(['slots', 'locale', 'conversationEvents', 'remote', 'sessions'])
+    expect(client?.inject).toEqual([
+      'slots', 'locale', 'conversationEvents', 'remote', 'sessions', 'conversation', 'inputTriggers',
+    ])
     expect(document.querySelectorAll('style[data-plugin="dsh-file-review"]')).toHaveLength(2)
   })
 })
