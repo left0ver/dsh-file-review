@@ -343,14 +343,19 @@ describe('ProducedFiles review card', () => {
       .toContain('styles/b.css\n+ one\n+ two')
   })
 
-  it('renders aggregate and per-file totals with a six-file preview', () => {
+  it('renders aggregate and per-file totals and expands the six-file preview', () => {
     const paths = ['deep/a.html', 'b.css', 'c.ts', 'd.ts', 'e.ts', 'f.ts', 'g.ts']
     const view = render(<ProducedFiles matched={reviews(paths)} openFile={() => {}} t={t} />)
     const card = view.getByRole('region', { name: 'Edited files' })
     expect(within(card).getByText('Edited 7 files')).toBeTruthy()
-    expect(within(card).getByText('1 more file')).toBeTruthy()
-    expect(within(card).getAllByRole('button')).toHaveLength(8)
+    const expand = within(card).getByRole('button', { name: '1 more file' })
+    expect(within(card).getAllByRole('button')).toHaveLength(9)
     expect(within(card).queryByRole('button', { name: 'Review g.ts' })).toBeNull()
+
+    fireEvent.click(expand)
+
+    expect(within(card).getByRole('button', { name: 'Review g.ts' })).toBeTruthy()
+    expect(within(card).queryByRole('button', { name: '1 more file' })).toBeNull()
     const first = within(card).getByRole('button', { name: 'Review deep/a.html' })
     expect(first.textContent).toContain('a.html')
     expect(first.getAttribute('title')).toBe('deep/a.html')

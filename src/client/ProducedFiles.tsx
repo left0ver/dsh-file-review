@@ -324,6 +324,7 @@ export function ProducedFiles({
   const [togglePending, setTogglePending] = useState(false)
   const [toast, setToast] = useState<ToggleNotice | null>(null)
   const [commentVersion, setCommentVersion] = useState(0)
+  const [isPreviewExpanded, setIsPreviewExpanded] = useState(false)
   const toastSeqRef = useRef(0)
   const reviewOwnerRef = useRef(Symbol('review-drawer-owner'))
   const cardRef = useRef<HTMLElement>(null)
@@ -392,7 +393,9 @@ export function ProducedFiles({
       && (diff.oldText !== '' || diff.oldStart !== undefined)
       && (diff.newText !== '' || diff.newStart !== undefined))).map(review => review.path)), [reviews])
   const hasReversibleFiles = reversiblePaths.size > 0
-  const shown = reviewsWithStats.slice(0, SHOWN_LIMIT)
+  const shown = isPreviewExpanded
+    ? reviewsWithStats
+    : reviewsWithStats.slice(0, SHOWN_LIMIT)
   const hidden = reviewsWithStats.length - shown.length
   const visibleReviews = useMemo(() => reviewScope?.kind === 'file'
     ? reviews.filter(review => review.path === reviewScope.path)
@@ -731,11 +734,16 @@ export function ProducedFiles({
             </button>
           ))}
           {hidden > 0 && (
-            <div className={css.moreFiles}>
+            <button
+              type="button"
+              className={css.moreFiles}
+              aria-expanded="false"
+              onClick={() => { setIsPreviewExpanded(true) }}
+            >
               {hidden === 1
                 ? t('produced.moreOne')
                 : t('produced.more', { count: String(hidden) })}
-            </div>
+            </button>
           )}
         </div>
       </section>
