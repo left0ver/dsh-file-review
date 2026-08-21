@@ -608,12 +608,17 @@
   outline-offset: -2px;
 }
 
-.reviewCommentPreview {
+.reviewCommentPreviewPositioner {
   position: absolute;
   z-index: 20;
-  display: flex;
   box-sizing: border-box;
   width: min(360px, calc(100vw - 48px));
+}
+
+.reviewCommentPreview {
+  display: flex;
+  box-sizing: border-box;
+  width: 100%;
   height: auto;
   max-height: min(420px, 60vh);
   flex-direction: column;
@@ -627,13 +632,15 @@
 }
 
 .reviewCommentPreviewAbove {
-  bottom: calc(100% + 8px);
+  bottom: 100%;
   left: 0;
+  padding-bottom: 8px;
 }
 
 .reviewCommentPreviewBelow {
-  top: calc(100% + 8px);
+  top: 100%;
   right: 0;
+  padding-top: 8px;
 }
 
 .commentPreviewCard {

@@ -51,9 +51,9 @@ export function ReviewCommentPill({
   const rootClass = variant === 'dock'
     ? css.reviewCommentPillRoot
     : `${css.reviewCommentPillRoot} ${css.reviewCommentPillRootMessage}`
-  const previewClass = placement === 'above-left'
-    ? `${css.reviewCommentPreview} ${css.reviewCommentPreviewAbove}`
-    : `${css.reviewCommentPreview} ${css.reviewCommentPreviewBelow}`
+  const positionerClass = placement === 'above-left'
+    ? `${css.reviewCommentPreviewPositioner} ${css.reviewCommentPreviewAbove}`
+    : `${css.reviewCommentPreviewPositioner} ${css.reviewCommentPreviewBelow}`
 
   return (
     <div
@@ -84,29 +84,34 @@ export function ReviewCommentPill({
       </div>
       {open && (
         <div
-          id={previewId}
-          className={previewClass}
-          role="tooltip"
-          aria-label={t('review.commentPreview')}
+          className={positionerClass}
+          data-review-comment-hover-bridge=""
         >
-          {comments.map((comment) => {
-            const side = comment.kind === 'del'
-              ? t('review.commentSideLeft')
-              : t('review.commentSideRight')
-            const line = comment.kind === 'del' ? comment.oldLine : comment.newLine
-            const path = displayProjectPath(comment.path, projectRoot)
-            return (
-              <article key={comment.key} className={css.commentPreviewCard}>
-                <header className={css.commentPreviewHeader}>
-                  <span className={css.commentPreviewPath} title={path}>{path}</span>
-                  <span className={css.commentPreviewLocation}>
-                    {t('review.commentLocation', { side, line: String(line ?? '') })}
-                  </span>
-                </header>
-                <p className={css.commentPreviewBody}>{comment.body}</p>
-              </article>
-            )
-          })}
+          <div
+            id={previewId}
+            className={css.reviewCommentPreview}
+            role="tooltip"
+            aria-label={t('review.commentPreview')}
+          >
+            {comments.map((comment) => {
+              const side = comment.kind === 'del'
+                ? t('review.commentSideLeft')
+                : t('review.commentSideRight')
+              const line = comment.kind === 'del' ? comment.oldLine : comment.newLine
+              const path = displayProjectPath(comment.path, projectRoot)
+              return (
+                <article key={comment.key} className={css.commentPreviewCard}>
+                  <header className={css.commentPreviewHeader}>
+                    <span className={css.commentPreviewPath} title={path}>{path}</span>
+                    <span className={css.commentPreviewLocation}>
+                      {t('review.commentLocation', { side, line: String(line ?? '') })}
+                    </span>
+                  </header>
+                  <p className={css.commentPreviewBody}>{comment.body}</p>
+                </article>
+              )
+            })}
+          </div>
         </div>
       )}
     </div>
