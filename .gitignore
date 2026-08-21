@@ -2,3 +2,5 @@ node_modules
 .pnpm-store
 lib
 *.tgz
+.codegraph
+.DS_Store

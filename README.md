@@ -28,7 +28,8 @@ English · [简体中文](README.zh.md)
 
 1. A diff panel for instantly reviewing every file the agent just changed.
 2. Undo support for reverting the agent's changes from the current turn.
-3. Line comments for added, removed, and context lines, collected as one compact composer chip with a click-to-preview panel, so the agent can answer a follow-up or address the review directly.
+3. Comment on changed lines and ask the agent to update the code based on the feedback.
+4. Multilingual support, including Chinese and English.
 
 ## Quick start
 
