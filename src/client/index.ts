@@ -15,6 +15,7 @@ import type { FileReviewRequest, FileReviewResult } from '../change-types.ts'
 import { TYPERT_REMOTE } from '../remote.ts'
 import { ProducedFiles } from './ProducedFiles.tsx'
 import { ReviewCommentsDock } from './ReviewCommentsDock.tsx'
+import { ReviewUserMessage } from './ReviewUserMessage.tsx'
 import { en, NS, zh, type DeliverablesKey } from './locales.ts'
 import {
   deliverablesDefinition, producedFileMentions, selectProducedFiles,
@@ -80,8 +81,23 @@ export async function apply(ctx: ClientContext): Promise<() => Promise<void>> {
       id: 'file-review-comments',
       order: -10,
       locale: NS,
+      inject: sessionId => ({
+        projectRoot: sessions.list.getSnapshot().byId[sessionId]?.cwd,
+      }),
     }, ReviewCommentsDock),
   )
+  for (const key of ['user', 'steering'] as const) {
+    ctx.slots.inject(
+      'conversation.chat.node',
+      () => ctx.slots.register({
+        name: 'conversation.chat.node',
+        key,
+        priority: -10,
+        locale: 'conversation',
+        inject: () => ({ reviewT: ctx.locale.bind(NS) }),
+      }, ReviewUserMessage),
+    )
+  }
   ctx.slots.inject(
     'conversation.chat.turnTail',
     () => ctx.slots.register({

@@ -159,6 +159,8 @@
 .commentRow {
   box-sizing: border-box;
   display: flex;
+  width: calc(100% - 68px);
+  max-width: 560px;
   flex-direction: column;
   min-width: 360px;
   min-height: 78px;
@@ -177,9 +179,7 @@
 .commentEditor {
   box-sizing: border-box;
   min-width: 0;
-  min-height: 52px;
   width: 100%;
-  flex: 1 1 auto;
   padding: 0;
   border: 0;
   background: transparent;
@@ -192,11 +192,25 @@
 }
 
 .commentBody {
+  display: flex;
+  min-height: 52px;
+  max-height: 176px;
+  flex: 0 0 auto;
+  align-items: flex-start;
+  justify-content: flex-start;
+  overflow-x: hidden;
+  overflow-y: auto;
+  appearance: none;
   cursor: text;
 }
 
 .commentEditor {
-  resize: vertical;
+  min-height: 52px;
+  max-height: 176px;
+  flex: 1 1 auto;
+  overflow-x: hidden;
+  overflow-y: hidden;
+  resize: none;
   outline: none;
 }
 

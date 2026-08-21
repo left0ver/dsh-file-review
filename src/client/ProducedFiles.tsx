@@ -21,6 +21,7 @@ import {
   subscribeReviewComments,
 } from './review-comments.ts'
 import css from './ProducedFiles.module.css'
+import { displayProjectPath } from './project-path.ts'
 
 /** Keep the turn-tail card compact; the drawer always contains every file. */
 const SHOWN_LIMIT = 6
@@ -159,21 +160,6 @@ export type ProducedFilesProps = Pick<TurnTailOwnerProps, 'openFile'> & {
   /** Reconcile the aggregate review-comment reference in the session composer. */
   syncComments?: (() => void) | undefined
 } & PropsLocale<typeof NS>
-
-/** Keep host paths intact for actions while presenting files relative to their project. */
-function displayPath(path: string, projectRoot: string | undefined): string {
-  if (projectRoot === undefined || projectRoot.length === 0) return path
-  const normalizedPath = path.replaceAll('\\', '/')
-  const normalizedRoot = projectRoot.replaceAll('\\', '/').replace(/\/+$/, '')
-  if (normalizedRoot.length === 0) return path
-  const windowsPath = /^[A-Za-z]:\//.test(normalizedPath)
-  const comparablePath = windowsPath ? normalizedPath.toLowerCase() : normalizedPath
-  const comparableRoot = windowsPath ? normalizedRoot.toLowerCase() : normalizedRoot
-  const prefix = `${comparableRoot}/`
-  return comparablePath.startsWith(prefix)
-    ? normalizedPath.slice(normalizedRoot.length + 1)
-    : path
-}
 
 const unavailableChanges = async (request: FileReviewRequest): Promise<FileReviewResult> => ({
   files: request.files.map(file => ({
@@ -817,7 +803,7 @@ export function ProducedFiles({
           <div className={css.drawerBody}>
             {visibleReviews.map((review) => {
               const stats = summarizeDiffs(review.diffs)
-              const relativePath = displayPath(review.path, projectRoot)
+              const relativePath = displayProjectPath(review.path, projectRoot)
               return (
                 <section key={review.path} className={css.reviewFile}>
                   <header className={css.reviewFileHeader}>

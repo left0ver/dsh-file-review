@@ -6,6 +6,7 @@
  */
 import { act, cleanup, fireEvent, render, within } from '@testing-library/react'
 import { Context, Service } from '@deepseek-ai/cordis'
+import { readFileSync } from 'node:fs'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type {
   ConversationEventInput, ConversationLocationDataStore, ConversationMatch,
@@ -16,6 +17,9 @@ import { ProducedFiles } from '../src/client/ProducedFiles.tsx'
 import {
   ReviewCommentsDock, type ReviewCommentsDockProps,
 } from '../src/client/ReviewCommentsDock.tsx'
+import {
+  projectReviewMessageText, ReviewUserMessage,
+} from '../src/client/ReviewUserMessage.tsx'
 import { summarizeDiffs, unifiedDiffText } from '../src/client/UnifiedDiff.tsx'
 import {
   clearAllReviewComments, reviewComments, serializeReviewComments, setReviewComment,
@@ -26,6 +30,11 @@ import {
 } from '../src/client/turn-deliverables.ts'
 import { apply, inject } from '../src/client/index.ts'
 import { en, NS, zh } from '../src/client/locales.ts'
+
+const unifiedDiffCss = readFileSync(
+  'src/client/UnifiedDiff.module.css',
+  'utf8',
+)
 
 afterEach(() => {
   cleanup()
@@ -526,7 +535,26 @@ describe('ProducedFiles review card', () => {
     editor = within(drawer).getByRole('textbox', { name: 'Edit comment on line 5' })
     fireEvent.change(editor, { target: { value: 'Keep the previous behavior <safe>.' } })
     fireEvent.click(within(drawer).getByRole('button', { name: 'Save' }))
-    expect(within(drawer).getByText('Keep the previous behavior <safe>.')).toBeTruthy()
+    const savedComment = within(drawer).getByRole('button', {
+      name: 'Keep the previous behavior <safe>.',
+    })
+    expect(savedComment.textContent).toBe('Keep the previous behavior <safe>.')
+    const savedBodyRule = /\.commentBody\s*\{([^}]*)\}/.exec(unifiedDiffCss)?.[1]
+    expect(savedBodyRule).toContain('display: flex')
+    expect(savedBodyRule).toContain('align-items: flex-start')
+    expect(savedBodyRule).toContain('justify-content: flex-start')
+    expect(savedBodyRule).toContain('appearance: none')
+    expect(savedBodyRule).toContain('min-height: 52px')
+    expect(savedBodyRule).toContain('max-height: 176px')
+    expect(savedBodyRule).toContain('flex: 0 0 auto')
+    expect(savedBodyRule).toContain('overflow-y: auto')
+    const commentRowRule = /\.commentRow\s*\{([^}]*)\}/.exec(unifiedDiffCss)?.[1]
+    expect(commentRowRule).toContain('width: calc(100% - 68px)')
+    expect(commentRowRule).toContain('max-width: 560px')
+    const commentEditorRule = [...unifiedDiffCss.matchAll(/(?:^|\n)\.commentEditor\s*\{([^}]*)\}/g)]
+      .at(-1)?.[1]
+    expect(commentEditorRule).toContain('max-height: 176px')
+    expect(commentEditorRule).toContain('overflow-y: hidden')
     expect(reviewComments('session-comments')).toHaveLength(1)
     expect(serializeReviewComments('session-comments')).toContain('kind="del" old_line="5"')
     expect(serializeReviewComments('session-comments')).toContain('&lt;safe&gt;')
@@ -557,6 +585,51 @@ describe('ProducedFiles review card', () => {
     fireEvent.click(within(reopened).getAllByRole('button', { name: 'Delete' })[0]!)
     fireEvent.click(within(reopened).getByRole('button', { name: 'Delete' }))
     expect(reviewComments('session-comments')).toHaveLength(0)
+  })
+
+  it('keeps comment height stable while auto-growing until the scroll limit', () => {
+    vi.spyOn(HTMLTextAreaElement.prototype, 'scrollHeight', 'get').mockImplementation(function () {
+      return Math.max(52, this.value.split('\n').length * 22)
+    })
+    const review = fileReview('src/height.ts', [{
+      path: 'src/height.ts',
+      oldText: 'before',
+      newText: 'after',
+      oldStart: 1,
+      newStart: 1,
+    }])
+    const view = render(
+      <ProducedFiles
+        matched={[review]}
+        openFile={() => {}}
+        sessionId="comment-height"
+        turn={turnLocation(2)}
+        seq={9}
+        t={t}
+      />,
+    )
+    fireEvent.click(view.getByRole('button', { name: 'Review src/height.ts' }))
+    const drawer = view.getByRole('dialog', { name: 'Review' })
+    fireEvent.click(within(drawer).getAllByRole('button', { name: 'Add comment on line 1' })[0]!)
+    let editor = within(drawer).getByRole('textbox', { name: 'Edit comment on line 1' })
+    expect(editor.style.height).toBe('52px')
+    expect(editor.style.overflowY).toBe('hidden')
+
+    const growingComment = ['one', 'two', 'three'].join('\n')
+    fireEvent.change(editor, { target: { value: growingComment } })
+    expect(editor.style.height).toBe('66px')
+    expect(editor.style.overflowY).toBe('hidden')
+
+    const longComment = Array.from({ length: 12 }, (_, index) => `line ${index + 1}`).join('\n')
+    fireEvent.change(editor, { target: { value: longComment } })
+    expect(editor.style.height).toBe('176px')
+    expect(editor.style.overflowY).toBe('auto')
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Save' }))
+
+    fireEvent.click(within(drawer).getByRole('button', { name: longComment }))
+    editor = within(drawer).getByRole('textbox', { name: 'Edit comment on line 1' })
+    expect(editor.style.height).toBe('176px')
+    expect(editor.style.overflowY).toBe('auto')
   })
 
   it('focuses one file from its row, opens it in the editor, and restores focus on close', () => {
@@ -712,26 +785,98 @@ describe('ProducedFiles review card', () => {
 describe('review comment composer chip', () => {
   const t = makeTranslate(en)
 
-  it('opens a compact comment preview and can remove the aggregate', () => {
+  it('previews comments on hover with project-relative paths and can remove the aggregate', () => {
+    const absolutePath = '/Users/test/projects/example/src/client/index.ts'
     setReviewComment({
       sessionId: 'dock-session', turn: 3, closingSeq: 12, body: 'Please keep this behavior.',
+      anchor: {
+        path: absolutePath, hunkIndex: 0, rowIndex: 2, kind: 'add',
+        oldLine: null, newLine: 19, text: 'const value = true', excerpt: '+ const value = true',
+      },
+    })
+    const props = {
+      sessionId: 'dock-session', projectRoot: '/Users/test/projects/example', t,
+    } as unknown as ReviewCommentsDockProps
+    const view = render(<ReviewCommentsDock {...props} />)
+
+    const pill = view.getByRole('button', { name: 'Preview 1 review comments' })
+    expect(view.queryByRole('tooltip')).toBeNull()
+    fireEvent.mouseEnter(pill)
+    const preview = view.getByRole('tooltip', { name: 'Review comment preview' })
+    expect(within(preview).getByText('src/client/index.ts')).toBeTruthy()
+    expect(within(preview).queryByText(absolutePath)).toBeNull()
+    expect(within(preview).getByText('right line 19')).toBeTruthy()
+    expect(within(preview).getByText('Please keep this behavior.')).toBeTruthy()
+    fireEvent.mouseLeave(pill)
+    expect(view.queryByRole('tooltip')).toBeNull()
+
+    fireEvent.click(view.getByRole('button', { name: 'Remove all review comments' }))
+    expect(view.queryByRole('tooltip')).toBeNull()
+    expect(reviewComments('dock-session')).toHaveLength(0)
+  })
+})
+
+describe('sent review comment projection', () => {
+  it('recognizes the leading review envelope and preserves following user text', () => {
+    setReviewComment({
+      sessionId: 'sent-session', turn: 3, closingSeq: 12, body: 'Keep this behavior.',
       anchor: {
         path: 'src/client/index.ts', hunkIndex: 0, rowIndex: 2, kind: 'add',
         oldLine: null, newLine: 19, text: 'const value = true', excerpt: '+ const value = true',
       },
     })
-    const props = { sessionId: 'dock-session', t } as unknown as ReviewCommentsDockProps
-    const view = render(<ReviewCommentsDock {...props} />)
+    const serialized = serializeReviewComments('sent-session')
 
-    fireEvent.click(view.getByRole('button', { name: 'Preview 1 review comments' }))
-    const preview = view.getByRole('dialog', { name: 'Review comment preview' })
+    expect(projectReviewMessageText(`${serialized}\n\nPlease apply it.`)).toEqual({
+      commentCount: 1,
+      comments: [{
+        path: 'src/client/index.ts',
+        kind: 'add',
+        oldLine: '',
+        newLine: '19',
+        body: 'Keep this behavior.',
+      }],
+      visibleText: 'Please apply it.',
+    })
+    expect(projectReviewMessageText(`Prefix\n${serialized}`)).toBeNull()
+  })
+
+  it('renders the model-only envelope as a compact comment count pill', () => {
+    const absolutePath = '/Users/test/projects/example/src/client/index.ts'
+    setReviewComment({
+      sessionId: 'rendered-session', turn: 3, closingSeq: 12, body: 'Keep this behavior.',
+      anchor: {
+        path: absolutePath, hunkIndex: 0, rowIndex: 2, kind: 'add',
+        oldLine: null, newLine: 19, text: 'const value = true', excerpt: '+ const value = true',
+      },
+    })
+    const serialized = serializeReviewComments('rendered-session')
+    const props = {
+      node: { data: {
+        content: [{ type: 'text', text: `${serialized}\n\nPlease apply it.` }],
+        time: Date.now(),
+      } },
+      loadImage: vi.fn(),
+      cwd: '/Users/test/projects/example',
+      t: (key: string) => key,
+      reviewT: makeTranslate(en),
+    } as unknown as Parameters<typeof ReviewUserMessage>[0]
+    const view = render(<ReviewUserMessage {...props} />)
+
+    expect(view.getByText('1 comment')).toBeTruthy()
+    expect(view.getByText('Please apply it.')).toBeTruthy()
+    expect(view.queryByText(/file_review_comments/)).toBeNull()
+
+    const pill = view.getByRole('button', { name: '1 comment' })
+    expect(view.queryByRole('tooltip')).toBeNull()
+    fireEvent.mouseEnter(pill)
+    const preview = view.getByRole('tooltip')
     expect(within(preview).getByText('src/client/index.ts')).toBeTruthy()
+    expect(within(preview).queryByText(absolutePath)).toBeNull()
     expect(within(preview).getByText('right line 19')).toBeTruthy()
-    expect(within(preview).getByText('Please keep this behavior.')).toBeTruthy()
-
-    fireEvent.click(view.getByRole('button', { name: 'Remove all review comments' }))
-    expect(view.queryByRole('dialog', { name: 'Review comment preview' })).toBeNull()
-    expect(reviewComments('dock-session')).toHaveLength(0)
+    expect(within(preview).getByText('Keep this behavior.')).toBeTruthy()
+    fireEvent.mouseLeave(pill)
+    expect(view.queryByRole('tooltip')).toBeNull()
   })
 })
 
@@ -770,7 +915,14 @@ describe('plugin registration', () => {
       component: unknown
     } | undefined
     const registrations: Array<{
-      options: { id?: string; inject?: (sessionId: string) => unknown; locale?: string; name?: string }
+      options: {
+        id?: string
+        inject?: (sessionId: string) => unknown
+        key?: string
+        locale?: string
+        name?: string
+        priority?: number
+      }
       component: unknown
     }> = []
     let service: ChatFileMentions | undefined
@@ -823,7 +975,14 @@ describe('plugin registration', () => {
       slots: {
         inject: (_name: string, setup: () => void) => { setup() },
         register: (
-          options: { id?: string; inject?: (sessionId: string) => unknown; locale?: string; name?: string },
+          options: {
+            id?: string
+            inject?: (sessionId: string) => unknown
+            key?: string
+            locale?: string
+            name?: string
+            priority?: number
+          },
           component: unknown,
         ) => {
           const registration = { options, component }
@@ -848,9 +1007,30 @@ describe('plugin registration', () => {
     expect(registrations).toContainEqual({
       options: expect.objectContaining({
         name: 'conversation.input.dock', id: 'file-review-comments', locale: NS,
+        inject: expect.any(Function),
       }),
       component: ReviewCommentsDock,
     })
+    const dockRegistration = registrations.find(
+      registration => registration.options.name === 'conversation.input.dock',
+    )
+    expect(dockRegistration?.options.inject?.('session-1')).toEqual({
+      projectRoot: '/workspace/project',
+    })
+    expect(registrations).toEqual(expect.arrayContaining([
+      {
+        options: expect.objectContaining({
+          name: 'conversation.chat.node', key: 'user', priority: -10, locale: 'conversation',
+        }),
+        component: ReviewUserMessage,
+      },
+      {
+        options: expect.objectContaining({
+          name: 'conversation.chat.node', key: 'steering', priority: -10, locale: 'conversation',
+        }),
+        component: ReviewUserMessage,
+      },
+    ]))
     expect(slot?.component).toBe(ProducedFiles)
     expect(slot?.options.locale).toBe(NS)
     expect(slot?.options.inject).toBeTypeOf('function')

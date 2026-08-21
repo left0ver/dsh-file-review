@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useMemo, useState } from 'react'
+import { Fragment, useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { diffArrays } from 'diff'
 import type { ProducedFileDiff as DiffHunk } from './turn-deliverables.ts'
 import { diffContentLines } from './diff-text.ts'
@@ -51,6 +51,56 @@ interface UnifiedHunk {
   readonly added: number
   readonly removed: number
   readonly unchangedBefore: number
+}
+
+const COMMENT_EDITOR_MIN_HEIGHT = 52
+const COMMENT_EDITOR_MAX_HEIGHT = 176
+
+interface CommentEditorProps {
+  readonly ariaLabel: string
+  readonly placeholder?: string | undefined
+  readonly value: string
+  readonly onChange: (value: string) => void
+  readonly onCommit: () => void
+  readonly onCancel: () => void
+}
+
+/** Grow with the draft until the shared saved/editing height cap, then scroll. */
+function CommentEditor({
+  ariaLabel, placeholder, value, onChange, onCommit, onCancel,
+}: CommentEditorProps) {
+  const editorRef = useRef<HTMLTextAreaElement>(null)
+
+  useLayoutEffect(() => {
+    const editor = editorRef.current
+    if (editor === null) return
+    editor.style.height = 'auto'
+    const contentHeight = Math.max(COMMENT_EDITOR_MIN_HEIGHT, editor.scrollHeight)
+    editor.style.height = `${Math.min(contentHeight, COMMENT_EDITOR_MAX_HEIGHT)}px`
+    editor.style.overflowY = contentHeight > COMMENT_EDITOR_MAX_HEIGHT ? 'auto' : 'hidden'
+  }, [value])
+
+  return (
+    <textarea
+      ref={editorRef}
+      autoFocus
+      className={css.commentEditor}
+      aria-label={ariaLabel}
+      placeholder={placeholder}
+      value={value}
+      onChange={event => { onChange(event.currentTarget.value) }}
+      onKeyDown={(event) => {
+        if ((event.metaKey || event.ctrlKey) && event.key === 'Enter' && value.trim() !== '') {
+          event.preventDefault()
+          onCommit()
+        }
+        if (event.key === 'Escape') {
+          event.preventDefault()
+          onCancel()
+        }
+      }}
+    />
+  )
 }
 
 export interface UnifiedDiffProps {
@@ -313,24 +363,13 @@ export function UnifiedDiff({
             {isEditing
               ? (
                 <>
-                  <textarea
-                    autoFocus
-                    className={css.commentEditor}
-                    aria-label={(labels.editComment?.(displayLine)) ?? `Edit comment on line ${displayLine}`}
+                  <CommentEditor
+                    ariaLabel={(labels.editComment?.(displayLine)) ?? `Edit comment on line ${displayLine}`}
                     placeholder={labels.commentPlaceholder}
                     value={commentDraft}
-                    onChange={event => { setCommentDraft(event.currentTarget.value) }}
-                    onKeyDown={(event) => {
-                      if ((event.metaKey || event.ctrlKey) && event.key === 'Enter'
-                        && commentDraft.trim() !== '') {
-                        event.preventDefault()
-                        commit()
-                      }
-                      if (event.key === 'Escape') {
-                        event.preventDefault()
-                        cancel()
-                      }
-                    }}
+                    onChange={setCommentDraft}
+                    onCommit={commit}
+                    onCancel={cancel}
                   />
                   <div className={css.commentActions}>
                     <button type="button" className={css.commentCancel} onClick={cancel}>
