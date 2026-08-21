@@ -233,20 +233,35 @@
 
 .commentActions {
   display: flex;
-  min-height: 32px;
+  min-height: 30px;
   align-items: center;
   justify-content: flex-end;
-  gap: 8px;
+  gap: 6px;
+}
+
+.commentHint {
+  min-width: 0;
+  margin-right: auto;
+  overflow: hidden;
+  color: var(--dsw-alias-label-caption);
+  font: var(--dsw-font-xs-13);
+  line-height: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .commentCancel,
 .commentSave {
-  min-height: 32px;
-  padding: 0 12px;
-  border: 0;
+  box-sizing: border-box;
+  min-width: 54px;
+  min-height: 30px;
+  padding: 0 11px;
+  border: 1px solid transparent;
   border-radius: 8px;
   cursor: pointer;
-  font: var(--dsw-font-sm-14);
+  font: var(--dsw-font-xs-13);
+  line-height: 28px;
+  transition: background-color 120ms ease, border-color 120ms ease, opacity 120ms ease;
 }
 
 .commentCancel {
@@ -256,6 +271,7 @@
 
 .commentCancel:hover {
   background: var(--dsw-alias-interactive-bg-hover);
+  border-color: var(--dsw-alias-border-l2);
   color: var(--dsw-alias-label-primary);
 }
 
@@ -263,6 +279,10 @@
   background: var(--dsw-alias-label-primary);
   color: var(--dsw-alias-bg-container, Canvas);
   font-weight: 600;
+}
+
+.commentSave:hover:not(:disabled) {
+  opacity: 0.86;
 }
 
 .commentSave:disabled {

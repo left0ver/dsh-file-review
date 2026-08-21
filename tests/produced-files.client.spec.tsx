@@ -612,8 +612,16 @@ describe('ProducedFiles review card', () => {
     const drawer = view.getByRole('dialog', { name: 'Review' })
     fireEvent.click(within(drawer).getAllByRole('button', { name: 'Add comment on line 1' })[0]!)
     let editor = within(drawer).getByRole('textbox', { name: 'Edit comment on line 1' })
+    expect(within(drawer).getByText('Shift+Enter for a new line')).toBeTruthy()
     expect(editor.style.height).toBe('52px')
     expect(editor.style.overflowY).toBe('hidden')
+
+    fireEvent.change(editor, { target: { value: 'IME composition' } })
+    expect(fireEvent.keyDown(editor, { key: 'Enter', isComposing: true })).toBe(true)
+    expect(reviewComments('comment-height')).toHaveLength(0)
+    expect(within(drawer).queryByRole('textbox', { name: 'Edit comment on line 1' })).not.toBeNull()
+    expect(fireEvent.keyDown(editor, { key: 'Enter', shiftKey: true })).toBe(true)
+    expect(reviewComments('comment-height')).toHaveLength(0)
 
     const growingComment = ['one', 'two', 'three'].join('\n')
     fireEvent.change(editor, { target: { value: growingComment } })
@@ -624,7 +632,8 @@ describe('ProducedFiles review card', () => {
     fireEvent.change(editor, { target: { value: longComment } })
     expect(editor.style.height).toBe('176px')
     expect(editor.style.overflowY).toBe('auto')
-    fireEvent.click(within(drawer).getByRole('button', { name: 'Save' }))
+    expect(fireEvent.keyDown(editor, { key: 'Enter' })).toBe(false)
+    expect(reviewComments('comment-height')[0]?.body).toBe(longComment)
 
     fireEvent.click(within(drawer).getByRole('button', { name: longComment }))
     editor = within(drawer).getByRole('textbox', { name: 'Edit comment on line 1' })

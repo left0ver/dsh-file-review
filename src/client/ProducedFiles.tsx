@@ -839,6 +839,7 @@ export function ProducedFiles({
                           addComment: line => t('review.commentAdd', { line: String(line) }),
                           editComment: line => t('review.commentEdit', { line: String(line) }),
                           commentPlaceholder: t('review.commentPlaceholder'),
+                          commentNewlineHint: t('review.commentNewlineHint'),
                           cancelComment: t('review.commentCancel'),
                           saveComment: t('review.commentSave'),
                           deleteComment: t('review.commentDelete'),

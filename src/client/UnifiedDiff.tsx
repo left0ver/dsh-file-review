@@ -16,6 +16,7 @@ export interface UnifiedDiffLabels {
   readonly addComment?: (line: number) => string
   readonly editComment?: (line: number) => string
   readonly commentPlaceholder?: string
+  readonly commentNewlineHint?: string
   readonly cancelComment?: string
   readonly saveComment?: string
   readonly deleteComment?: string
@@ -90,9 +91,9 @@ function CommentEditor({
       value={value}
       onChange={event => { onChange(event.currentTarget.value) }}
       onKeyDown={(event) => {
-        if ((event.metaKey || event.ctrlKey) && event.key === 'Enter' && value.trim() !== '') {
+        if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
           event.preventDefault()
-          onCommit()
+          if (value.trim() !== '') onCommit()
         }
         if (event.key === 'Escape') {
           event.preventDefault()
@@ -372,6 +373,9 @@ export function UnifiedDiff({
                     onCancel={cancel}
                   />
                   <div className={css.commentActions}>
+                    <span className={css.commentHint}>
+                      {labels.commentNewlineHint ?? 'Shift+Enter for a new line'}
+                    </span>
                     <button type="button" className={css.commentCancel} onClick={cancel}>
                       {labels.cancelComment ?? 'Cancel'}
                     </button>
