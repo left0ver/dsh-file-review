@@ -1,14 +1,18 @@
 /**
  * Turn-scoped produced-file definition and readers. Client-only and
- * model-free: the vocabulary is the mutation tools' own follow-along
- * `locations`, never the closing prose.
+ * model-free: Native calls use Host presentation views while PTC settlements
+ * use this plugin's validated durable marker, never the closing prose.
  */
 import type {
-  ConversationMatch, ConversationNodeDefinition, ToolResultNode,
+  ConversationNodeDefinition, ToolResultNode,
 } from '@deepseek-ai/dsh-client-runtime/client'
 import type { MarkdownFileMentions } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { TurnTailOwnerProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type { SessionEvent } from '@deepseek-ai/dsh-session'
 import type { ProducedFileDiff, ProducedFileReview } from '../change-types.ts'
+import {
+  markerFromContent, normalizeMutationPresentation, type PtcFileReviewMarker,
+} from '../ptc-marker.ts'
 
 export type { ProducedFileDiff, ProducedFileReview } from '../change-types.ts'
 
@@ -33,67 +37,15 @@ declare module '@deepseek-ai/dsh-client-runtime/client' {
 interface DeliverablesState extends DeliverablesTurnData {
   readonly turn: number
   readonly calls: ReadonlyMap<string, ToolResultNode['callView']>
+  readonly subCalls: ReadonlySet<string>
 }
 
-/**
- * Paths a call view reports having created or changed, by render intent rather
- * than tool name: a diff card, or a generic card whose kind is `edit` (the
- * shape `str_replace_editor`'s insert presents). Every other card produces
- * nothing to open — a read looked, a delete removed, a terminal ran. Only
- * root call views enter this Turn accumulator; nested Code Mode dispatches
- * preserve the pre-assembly behavior and do not contribute independently.
- */
-function producedPaths(view: ToolResultNode['callView']): readonly string[] {
-  if (view === null
-    || (view.card !== 'diff' && !(view.card === 'generic' && view.kind === 'edit'))) return []
-  const locations = (view as { locations?: unknown }).locations
-  if (!Array.isArray(locations)) return []
-  const paths: string[] = []
-  const seen = new Set<string>()
-  for (const location of locations) {
-    if (typeof location !== 'object' || location === null || Array.isArray(location)) continue
-    const path = (location as Record<string, unknown>).path
-    if (typeof path !== 'string' || seen.has(path)) continue
-    seen.add(path)
-    paths.push(path)
-  }
-  return paths
-}
-
-/** Validate diff hunks crossing the Host/browser transport. */
-function producedDiffs(view: unknown): readonly ProducedFileDiff[] {
-  if (typeof view !== 'object' || view === null || Array.isArray(view)) return []
-  const record = view as Record<string, unknown>
-  if (record.card !== 'diff' || !Array.isArray(record.diffs)) return []
-  const diffs: ProducedFileDiff[] = []
-  for (const value of record.diffs) {
-    if (typeof value !== 'object' || value === null || Array.isArray(value)) return []
-    const { path, oldText, newText, oldStart, newStart } = value as Record<string, unknown>
-    if (typeof path !== 'string'
-      || (oldText !== null && typeof oldText !== 'string')
-      || typeof newText !== 'string'
-      || (oldStart !== undefined
-        && (typeof oldStart !== 'number' || !Number.isInteger(oldStart) || oldStart < 1))
-      || (newStart !== undefined
-        && (typeof newStart !== 'number' || !Number.isInteger(newStart) || newStart < 1))) return []
-    diffs.push({
-      path,
-      oldText,
-      newText,
-      ...(typeof oldStart === 'number' ? { oldStart } : {}),
-      ...(typeof newStart === 'number' ? { newStart } : {}),
-    })
-  }
-  return diffs
-}
-
-/** Applied result hunks, or successful-call intent only when no result view exists. */
-function reviewDiffs(
-  callView: ToolResultNode['callView'],
-  resultView: ConversationMatch['view'],
-): readonly ProducedFileDiff[] {
-  if (resultView?.for === 'result') return producedDiffs(resultView.view)
-  return producedDiffs(callView)
+function dispatchMarker(event: SessionEvent): PtcFileReviewMarker | null {
+  if (event.type !== 'tool/code-dispatch' || event.data.isError === true) return null
+  return markerFromContent(event.data.content, {
+    rootCallId: String(event.data.rootCallId),
+    subCallId: String(event.data.subCallId),
+  })
 }
 
 /**
@@ -126,15 +78,12 @@ export function reviewsForClosing(
 /**
  * Files produced by one Turn data value.
  *
- * The source is the mutation tools' own follow-along `locations`, not the
- * closing prose: a produced file must be listed whether or not the model
- * remembered to name it. A mutation is recognized by render intent, not by
- * tool name — a diff card, or a generic card whose `kind` is `edit` (the shape
- * `str_replace_editor`'s insert presents) — so a new mutation tool joins by
- * declaring what it does. Reads contribute nothing (looking at a file does not
- * produce it), and neither do deletes (there is nothing left to open) or
- * failed calls. Paths keep first-seen order and appear once, so a file written
- * and then edited in the same turn is one entry.
+ * The source is the mutation tools' presentation contract, not the closing
+ * prose: Native calls arrive as Host views and PTC calls as the Adapter's
+ * marker. A mutation is recognized by render intent, never by tool name, so a
+ * new mutation tool joins by declaring what it does. Reads contribute nothing,
+ * and neither do deletes or failed calls. Paths keep first-seen order and
+ * appear once, so a file written and then edited in the same turn is one entry.
  *
  * The Conversation Location index owns turn membership before this function
  * runs, so paths cannot spill across turns and this derivation does not infer
@@ -178,11 +127,13 @@ export const deliverablesDefinition: ConversationNodeDefinition<DeliverablesStat
       && (event as { surfaceOp?: unknown }).surfaceOp === 'append') {
       return { id: String(event.data.turn), role: 'update' }
     }
+    const marker = dispatchMarker(event)
+    if (marker !== null) return { id: String(marker.turn), role: 'update' }
     return null
   },
   start: (_context, match) => {
     if (match.event.type !== 'turn/start') throw new Error('deliverables start requires turn/start')
-    return { turn: match.event.data.turn, calls: new Map(), produced: [] }
+    return { turn: match.event.data.turn, calls: new Map(), subCalls: new Set(), produced: [] }
   },
   update: (context, match) => {
     if (match.event.type === 'tool/call') {
@@ -193,20 +144,38 @@ export const deliverablesDefinition: ConversationNodeDefinition<DeliverablesStat
       )
       return { ...context.state, calls }
     }
-    if (match.event.type !== 'tool/result') return context.state
-    const result = match.event.data.message.content[0]
-    if (result.isError === true) return context.state
-    const callId = String(match.event.data.message.source.callId)
-    const callView = context.state.calls.get(callId) ?? null
-    const diffs = reviewDiffs(callView, match.view)
-    const additions = producedPaths(callView).map(path => ({
-      seq: match.event.seq,
-      path,
-      diffs: diffs.filter(diff => diff.path === path),
-    }))
-    return additions.length === 0
-      ? context.state
-      : { ...context.state, produced: [...context.state.produced, ...additions] }
+    if (match.event.type === 'tool/result') {
+      const result = match.event.data.message.content[0]
+      if (result.isError === true) return context.state
+      const callId = String(match.event.data.message.source.callId)
+      const callView = context.state.calls.get(callId) ?? null
+      const resultView = match.view?.for === 'result' ? match.view.view : undefined
+      const additions = normalizeMutationPresentation(callView, resultView).map(file => ({
+        seq: match.event.seq,
+        path: file.path,
+        diffs: file.diffs,
+      }))
+      return additions.length === 0
+        ? context.state
+        : { ...context.state, produced: [...context.state.produced, ...additions] }
+    }
+    const marker = dispatchMarker(match.event)
+    if (marker === null || marker.turn !== context.state.turn
+      || context.state.subCalls.has(marker.subCallId)) return context.state
+    const subCalls = new Set(context.state.subCalls)
+    subCalls.add(marker.subCallId)
+    return {
+      ...context.state,
+      subCalls,
+      produced: [
+        ...context.state.produced,
+        ...marker.files.map(file => ({
+          seq: match.event.seq,
+          path: file.path,
+          diffs: file.diffs,
+        })),
+      ],
+    }
   },
   buildLocationData: (context, scope) => scope !== 'turn' || context.state === undefined
     ? null

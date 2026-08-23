@@ -7,13 +7,15 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-system-prompt'
+import type {} from '@deepseek-ai/dsh-tools'
 import { FileReviewService } from './file-review-service.ts'
+import { registerPtcAdapter } from './ptc-adapter.ts'
 
 export type * from './change-types.ts'
 export { FileReviewService, transformFile } from './file-review-service.ts'
 
 /** Services required for the model guidance paired with the browser renderer. */
-export const inject = ['systemPrompt']
+export const inject = ['systemPrompt', 'tools']
 
 /** Stable final-response guidance owned by the matching renderer. */
 const FILE_REFERENCE_PROMPT = 'When you successfully create or modify files, mention the primary outputs in your final response. '
@@ -25,6 +27,7 @@ const FILE_REFERENCE_PROMPT = 'When you successfully create or modify files, men
  */
 export function apply(ctx: Context): void {
   new FileReviewService(ctx)
+  registerPtcAdapter(ctx)
   ctx.systemPrompt.section({
     name: 'ui:file-review-references',
     order: 190,

@@ -28,6 +28,7 @@ import {
   basename, deliverablesDefinition, producedFileMentions, producedForClosing, reviewsForClosing,
   selectProducedFiles, type DeliverablesTurnData, type ProducedFileDiff, type ProducedFileReview,
 } from '../src/client/turn-deliverables.ts'
+import { boundedPtcFileReviewMarker, markerBlock } from '../src/ptc-marker.ts'
 import { apply, inject } from '../src/client/index.ts'
 import { en, NS, zh } from '../src/client/locales.ts'
 
@@ -154,6 +155,40 @@ function edit(path: string): ToolResultNode['callView'] {
   return { card: 'generic', title: `insert ${path}`, kind: 'edit', locations: [{ path }] }
 }
 
+function ptc(
+  seq: number,
+  subCallId: string,
+  files: ReadonlyArray<{
+    readonly path: string
+    readonly diffs?: readonly ProducedFileDiff[]
+    readonly source?: 'result' | 'intent'
+  }>,
+  options: { readonly rootCallId?: string; readonly turn?: number; readonly isError?: boolean } = {},
+): ConversationEventInput {
+  const rootCallId = options.rootCallId ?? 'run-code'
+  const marker = boundedPtcFileReviewMarker({
+    turn: options.turn ?? 1,
+    step: 1,
+    rootCallId,
+    subCallId,
+    files: files.map(file => ({
+      path: file.path,
+      diffs: file.diffs ?? [],
+      source: file.source ?? 'result',
+    })),
+  })
+  if (marker === null) throw new Error('fixture marker exceeded its budget')
+  return at(seq, 'tool/code-dispatch', {
+    rootCallId,
+    parentCallId: rootCallId,
+    subCallId,
+    name: 'fixture',
+    arguments: {},
+    isError: options.isError ?? false,
+    content: [markerBlock(marker)],
+  })
+}
+
 function appliedDiff(
   ...diffs: ReadonlyArray<readonly [
     path: string, oldText: string | null, newText: string, oldStart?: number, newStart?: number,
@@ -248,7 +283,7 @@ describe('produced-file Turn data', () => {
     ])
   })
 
-  it('appends same-file hunks in settlement order and uses call intent only without a result view', () => {
+  it('appends same-file hunks in settlement order and falls back whenever result diff is unavailable', () => {
     const value = fold([
       at(1, 'turn/start', { turn: 1 }),
       call(2, 'first', diff('same.txt')),
@@ -266,7 +301,57 @@ describe('produced-file Turn data', () => {
         { path: 'same.txt', oldText: null, newText: 'x' },
         { path: 'same.txt', oldText: 'middle', newText: 'after', oldStart: 12, newStart: 12 },
       ]),
-      fileReview('broken.txt'),
+      fileReview('broken.txt', [{ path: 'broken.txt', oldText: null, newText: 'x' }]),
+    ])
+  })
+
+  it('folds PTC result and intent markers into the same Turn deliverables', () => {
+    const value = fold([
+      at(1, 'turn/start', { turn: 1 }),
+      ptc(2, 'run-code:code:0', [{
+        path: 'out.txt',
+        diffs: [{ path: 'out.txt', oldText: 'before', newText: 'after', oldStart: 4, newStart: 4 }],
+      }]),
+      ptc(3, 'run-code:code:1', [{
+        path: 'out.txt', source: 'intent',
+        diffs: [{ path: 'out.txt', oldText: 'after', newText: 'planned' }],
+      }, { path: 'notes.md', source: 'intent' }]),
+    ])
+
+    expect(reviewsForClosing(value)).toEqual([
+      fileReview('out.txt', [
+        { path: 'out.txt', oldText: 'before', newText: 'after', oldStart: 4, newStart: 4 },
+        { path: 'out.txt', oldText: 'after', newText: 'planned' },
+      ]),
+      fileReview('notes.md'),
+    ])
+  })
+
+  it('deduplicates PTC settlements and rejects failures or mismatched marker correlations', () => {
+    const accepted = ptc(2, 'run-code:code:0', [{ path: 'one.txt' }])
+    const duplicate = ptc(3, 'run-code:code:0', [{ path: 'duplicate.txt' }])
+    const failed = ptc(4, 'run-code:code:1', [{ path: 'failed.txt' }], { isError: true })
+    const mismatched = JSON.parse(JSON.stringify(
+      ptc(5, 'run-code:code:2', [{ path: 'forged.txt' }]),
+    )) as ConversationEventInput
+    ;(mismatched.event.data as { rootCallId: string }).rootCallId = 'different-root'
+    const value = fold([
+      at(1, 'turn/start', { turn: 1 }), accepted, duplicate, failed, mismatched,
+    ])
+    expect(producedForClosing(value)).toEqual(['one.txt'])
+  })
+
+  it('restores PTC previews after a JSON history round trip', () => {
+    const entries = [
+      at(1, 'turn/start', { turn: 1 }),
+      ptc(2, 'run-code:code:0', [{
+        path: 'persisted.txt', source: 'intent',
+        diffs: [{ path: 'persisted.txt', oldText: 'old', newText: 'new' }],
+      }]),
+    ]
+    const restored = JSON.parse(JSON.stringify(entries)) as ConversationEventInput[]
+    expect(reviewsForClosing(fold(restored))).toEqual([
+      fileReview('persisted.txt', [{ path: 'persisted.txt', oldText: 'old', newText: 'new' }]),
     ])
   })
 
