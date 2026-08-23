@@ -36,15 +36,23 @@ declare module '@deepseek-ai/dsh-client-runtime/client' {
 
 interface DeliverablesState extends DeliverablesTurnData {
   readonly turn: number
-  readonly calls: ReadonlyMap<string, ToolResultNode['callView']>
+  readonly calls: ReadonlyMap<string, {
+    readonly step: number
+    readonly view: ToolResultNode['callView']
+  }>
   readonly subCalls: ReadonlySet<string>
 }
 
 function dispatchMarker(event: SessionEvent): PtcFileReviewMarker | null {
-  if (event.type !== 'tool/code-dispatch' || event.data.isError === true) return null
-  return markerFromContent(event.data.content, {
-    rootCallId: String(event.data.rootCallId),
-    subCallId: String(event.data.subCallId),
+  if (event.type !== 'tool/code-dispatch') return null
+  const data = event.data as unknown as Record<string, unknown>
+  if (data.isError !== false
+    || typeof data.rootCallId !== 'string' || data.rootCallId === ''
+    || typeof data.subCallId !== 'string' || data.subCallId === ''
+    || !Array.isArray(data.content)) return null
+  return markerFromContent(data.content, {
+    rootCallId: data.rootCallId,
+    subCallId: data.subCallId,
   })
 }
 
@@ -137,20 +145,28 @@ export const deliverablesDefinition: ConversationNodeDefinition<DeliverablesStat
   },
   update: (context, match) => {
     if (match.event.type === 'tool/call') {
+      if (typeof match.event.data.callId !== 'string' || match.event.data.callId === '') {
+        return context.state
+      }
       const calls = new Map(context.state.calls)
       calls.set(
-        String(match.event.data.callId),
-        match.view?.for === 'call' ? match.view.view : null,
+        match.event.data.callId,
+        {
+          step: match.event.data.step,
+          view: match.view?.for === 'call' ? match.view.view : null,
+        },
       )
       return { ...context.state, calls }
     }
     if (match.event.type === 'tool/result') {
       const result = match.event.data.message.content[0]
       if (result.isError === true) return context.state
-      const callId = String(match.event.data.message.source.callId)
-      const callView = context.state.calls.get(callId) ?? null
+      const callId = match.event.data.message.source.callId
+      if (typeof callId !== 'string' || callId === '') return context.state
+      const call = context.state.calls.get(callId)
+      if (call === undefined) return context.state
       const resultView = match.view?.for === 'result' ? match.view.view : undefined
-      const additions = normalizeMutationPresentation(callView, resultView).map(file => ({
+      const additions = normalizeMutationPresentation(call.view, resultView).map(file => ({
         seq: match.event.seq,
         path: file.path,
         diffs: file.diffs,
@@ -160,7 +176,9 @@ export const deliverablesDefinition: ConversationNodeDefinition<DeliverablesStat
         : { ...context.state, produced: [...context.state.produced, ...additions] }
     }
     const marker = dispatchMarker(match.event)
+    const root = marker === null ? undefined : context.state.calls.get(marker.rootCallId)
     if (marker === null || marker.turn !== context.state.turn
+      || root === undefined || root.step !== marker.step
       || context.state.subCalls.has(marker.subCallId)) return context.state
     const subCalls = new Set(context.state.subCalls)
     subCalls.add(marker.subCallId)

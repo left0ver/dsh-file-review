@@ -117,11 +117,12 @@ function call(
   callId: string,
   view: ToolResultNode['callView'],
   turn = 1,
+  step = 1,
 ): ConversationEventInput {
   return at(
     seq,
     'tool/call',
-    { turn, step: 1, callId, name: 'fixture', arguments: '{}' },
+    { turn, step, callId, name: 'fixture', arguments: '{}' },
     { for: 'call', view: view ?? { card: 'generic', title: 'fixture' } },
   )
 }
@@ -163,12 +164,17 @@ function ptc(
     readonly diffs?: readonly ProducedFileDiff[]
     readonly source?: 'result' | 'intent'
   }>,
-  options: { readonly rootCallId?: string; readonly turn?: number; readonly isError?: boolean } = {},
+  options: {
+    readonly rootCallId?: string
+    readonly turn?: number
+    readonly step?: number
+    readonly isError?: boolean
+  } = {},
 ): ConversationEventInput {
   const rootCallId = options.rootCallId ?? 'run-code'
   const marker = boundedPtcFileReviewMarker({
     turn: options.turn ?? 1,
-    step: 1,
+    step: options.step ?? 1,
     rootCallId,
     subCallId,
     files: files.map(file => ({
@@ -283,7 +289,7 @@ describe('produced-file Turn data', () => {
     ])
   })
 
-  it('appends same-file hunks in settlement order and falls back whenever result diff is unavailable', () => {
+  it('appends same-file hunks and only falls back when result has no diff presentation', () => {
     const value = fold([
       at(1, 'turn/start', { turn: 1 }),
       call(2, 'first', diff('same.txt')),
@@ -294,6 +300,8 @@ describe('produced-file Turn data', () => {
       result(7, 'malformed', false, 1, {
         card: 'diff', diffs: [{ path: 'broken.txt', oldText: 'a', newText: 'b', oldStart: 0 }],
       } as never),
+      call(8, 'unchanged', diff('unchanged.txt')),
+      result(9, 'unchanged', false, 1, appliedDiff()),
     ])
 
     expect(reviewsForClosing(value)).toEqual([
@@ -301,18 +309,30 @@ describe('produced-file Turn data', () => {
         { path: 'same.txt', oldText: null, newText: 'x' },
         { path: 'same.txt', oldText: 'middle', newText: 'after', oldStart: 12, newStart: 12 },
       ]),
-      fileReview('broken.txt', [{ path: 'broken.txt', oldText: null, newText: 'x' }]),
+    ])
+  })
+
+  it('uses a partial result without adding unapplied intent files', () => {
+    const value = fold([
+      at(1, 'turn/start', { turn: 1 }),
+      call(2, 'partial', diff('applied.txt', 'planned.txt')),
+      result(3, 'partial', false, 1, appliedDiff(['applied.txt', 'old', 'actual'])),
+    ])
+
+    expect(reviewsForClosing(value)).toEqual([
+      fileReview('applied.txt', [{ path: 'applied.txt', oldText: 'old', newText: 'actual' }]),
     ])
   })
 
   it('folds PTC result and intent markers into the same Turn deliverables', () => {
     const value = fold([
       at(1, 'turn/start', { turn: 1 }),
-      ptc(2, 'run-code:code:0', [{
+      call(2, 'run-code', { card: 'generic', title: 'Run code', kind: 'execute' }),
+      ptc(3, 'run-code:code:0', [{
         path: 'out.txt',
         diffs: [{ path: 'out.txt', oldText: 'before', newText: 'after', oldStart: 4, newStart: 4 }],
       }]),
-      ptc(3, 'run-code:code:1', [{
+      ptc(4, 'run-code:code:1', [{
         path: 'out.txt', source: 'intent',
         diffs: [{ path: 'out.txt', oldText: 'after', newText: 'planned' }],
       }, { path: 'notes.md', source: 'intent' }]),
@@ -328,15 +348,25 @@ describe('produced-file Turn data', () => {
   })
 
   it('deduplicates PTC settlements and rejects failures or mismatched marker correlations', () => {
-    const accepted = ptc(2, 'run-code:code:0', [{ path: 'one.txt' }])
-    const duplicate = ptc(3, 'run-code:code:0', [{ path: 'duplicate.txt' }])
-    const failed = ptc(4, 'run-code:code:1', [{ path: 'failed.txt' }], { isError: true })
+    const accepted = ptc(3, 'run-code:code:0', [{ path: 'one.txt' }])
+    const duplicate = ptc(4, 'run-code:code:0', [{ path: 'duplicate.txt' }])
+    const failed = ptc(5, 'run-code:code:1', [{ path: 'failed.txt' }], { isError: true })
     const mismatched = JSON.parse(JSON.stringify(
-      ptc(5, 'run-code:code:2', [{ path: 'forged.txt' }]),
+      ptc(6, 'run-code:code:2', [{ path: 'forged.txt' }]),
     )) as ConversationEventInput
     ;(mismatched.event.data as { rootCallId: string }).rootCallId = 'different-root'
+    const wrongStep = ptc(7, 'run-code:code:3', [{ path: 'wrong-step.txt' }], { step: 2 })
+    const missingRoot = ptc(8, 'missing:code:0', [{ path: 'missing-root.txt' }], {
+      rootCallId: 'missing',
+    })
+    const invalidIds = JSON.parse(JSON.stringify(
+      ptc(9, 'run-code:code:4', [{ path: 'invalid-id.txt' }]),
+    )) as ConversationEventInput
+    ;(invalidIds.event.data as { rootCallId: unknown }).rootCallId = null
     const value = fold([
-      at(1, 'turn/start', { turn: 1 }), accepted, duplicate, failed, mismatched,
+      at(1, 'turn/start', { turn: 1 }),
+      call(2, 'run-code', { card: 'generic', title: 'Run code', kind: 'execute' }),
+      accepted, duplicate, failed, mismatched, wrongStep, missingRoot, invalidIds,
     ])
     expect(producedForClosing(value)).toEqual(['one.txt'])
   })
@@ -344,7 +374,8 @@ describe('produced-file Turn data', () => {
   it('restores PTC previews after a JSON history round trip', () => {
     const entries = [
       at(1, 'turn/start', { turn: 1 }),
-      ptc(2, 'run-code:code:0', [{
+      call(2, 'run-code', { card: 'generic', title: 'Run code', kind: 'execute' }),
+      ptc(3, 'run-code:code:0', [{
         path: 'persisted.txt', source: 'intent',
         diffs: [{ path: 'persisted.txt', oldText: 'old', newText: 'new' }],
       }]),
@@ -363,7 +394,7 @@ describe('produced-file Turn data', () => {
       result(3, 'no-view'),
       call(4, 'locationless-edit', { card: 'generic', title: 'Edit', kind: 'edit' }),
       result(5, 'locationless-edit'),
-      result(6, 'orphan'),
+      result(6, 'orphan', false, 1, appliedDiff(['orphan.txt', 'old', 'new'])),
       call(7, 'replacement', diff('replaced.txt')),
       {
         ...replacement,
@@ -376,7 +407,9 @@ describe('produced-file Turn data', () => {
         card: 'diff', title: 'Write', diffs: [], locations: [null, { path: 4 }],
       } as never),
       result(10, 'malformed-locations'),
-      at(11, 'turn/end', { turn: 1, reason: { kind: 'completed' } }),
+      call(11, 'delete', { card: 'generic', title: 'Delete', kind: 'delete' }),
+      result(12, 'delete', false, 1, appliedDiff(['deleted.txt', 'old', ''])),
+      at(13, 'turn/end', { turn: 1, reason: { kind: 'completed' } }),
     ])
 
     expect(producedForClosing(value)).toEqual([])

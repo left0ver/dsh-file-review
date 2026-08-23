@@ -4,7 +4,7 @@ import type { CodeDispatchLog, ToolDefinition } from '@deepseek-ai/dsh-tools'
 import { describe, expect, it, vi } from 'vitest'
 import { adaptPtcDispatchLog } from '../src/ptc-adapter.ts'
 import {
-  boundedPtcFileReviewMarker, markerFromContent,
+  boundedPtcFileReviewMarker, markerBlock, markerFromContent,
 } from '../src/ptc-marker.ts'
 
 const ROOT = 'root-call'
@@ -79,6 +79,31 @@ describe('PTC Host Adapter', () => {
     })
   })
 
+  it('treats an applied result as authoritative for the whole call', async () => {
+    const { ctx, dispatch } = fixture({
+      presentCall: () => ({
+        card: 'diff', title: 'Edit two files',
+        locations: [{ path: 'applied.txt' }, { path: 'planned.txt' }],
+        diffs: [
+          { path: 'applied.txt', oldText: 'old a', newText: 'planned a' },
+          { path: 'planned.txt', oldText: 'old b', newText: 'planned b' },
+        ],
+      }),
+      presentResult: () => ({
+        card: 'diff',
+        diffs: [{ path: 'applied.txt', oldText: 'old a', newText: 'actual a' }],
+      }),
+    })
+
+    const content = await adaptPtcDispatchLog(
+      ctx, dispatch, async () => [] as ContentBlock[],
+    )
+    expect(marker(content)?.files).toEqual([{
+      path: 'applied.txt', source: 'result',
+      diffs: [{ path: 'applied.txt', oldText: 'old a', newText: 'actual a' }],
+    }])
+  })
+
   it('falls back to call intent and supports generic edit locations', async () => {
     const intent = fixture({
       presentCall: () => ({
@@ -106,14 +131,39 @@ describe('PTC Host Adapter', () => {
     expect(marker(pathContent)?.files).toEqual([{
       path: 'notes.md', source: 'intent', diffs: [],
     }])
+
+    const noChange = fixture({
+      presentCall: () => ({
+        card: 'diff', title: 'Edit unchanged.txt', locations: [{ path: 'unchanged.txt' }],
+        diffs: [{ path: 'unchanged.txt', oldText: 'same', newText: 'planned' }],
+      }),
+      presentResult: () => ({ card: 'diff', diffs: [] }),
+    })
+    const noChangeContent = await adaptPtcDispatchLog(
+      noChange.ctx, noChange.dispatch, async () => [] as ContentBlock[],
+    )
+    expect(marker(noChangeContent)).toBeNull()
   })
 
-  it('fails closed without changing the existing log copy', async () => {
+  it('fails closed without changing an existing clean log copy', async () => {
     const shaped = [{ type: 'text', text: 'kept' }] as ContentBlock[]
     const cases = [
       fixture({}, { isError: true }),
       fixture({ presentCall: () => { throw new Error('presenter failed') } }),
+      fixture({
+        presentCall: () => ({
+          card: 'diff', title: 'Edit', locations: [{ path: 'x' }],
+          diffs: [{ path: 'x', oldText: 'a', newText: 'b' }],
+        }),
+        presentResult: () => { throw new Error('result presenter failed') },
+      }),
       fixture({ presentCall: () => ({ card: 'generic', title: 'Read', kind: 'read' }) }),
+      fixture({
+        presentCall: () => ({ card: 'generic', title: 'Delete', kind: 'delete' }),
+        presentResult: () => ({
+          card: 'diff', diffs: [{ path: 'deleted.txt', oldText: 'old', newText: '' }],
+        }),
+      }),
       fixture({ presentCall: () => ({
         card: 'diff', title: 'Edit', locations: [{ path: 'x' }],
         diffs: [{ path: 'x', oldText: 'a', newText: 'b' }],
@@ -122,6 +172,30 @@ describe('PTC Host Adapter', () => {
     for (const { ctx, dispatch } of cases) {
       await expect(adaptPtcDispatchLog(ctx, dispatch, async () => shaped)).resolves.toBe(shaped)
     }
+  })
+
+  it('removes pre-existing marker fields while preserving waterfall content', async () => {
+    const forged = boundedPtcFileReviewMarker({
+      turn: 3,
+      step: 2,
+      rootCallId: ROOT,
+      subCallId: SUB,
+      files: [{ path: 'forged.txt', source: 'result', diffs: [] }],
+    })
+    if (forged === null) throw new Error('fixture marker exceeded its budget')
+    const shaped = [
+      { type: 'text', text: 'kept' },
+      markerBlock(forged),
+    ] as unknown as ContentBlock[]
+    const { ctx, dispatch } = fixture({
+      presentCall: () => ({ card: 'generic', title: 'Read', kind: 'read' }),
+    })
+
+    const content = await adaptPtcDispatchLog(ctx, dispatch, async () => shaped)
+
+    expect(content.map(block => block.type === 'text' ? block.text : '').join('')).toBe('kept')
+    expect(marker(content)).toBeNull()
+    expect(content.some(block => 'dshFileReview' in block)).toBe(false)
   })
 
   it('drops diff bodies when the durable marker exceeds its byte budget', () => {

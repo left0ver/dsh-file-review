@@ -46,20 +46,25 @@ function pathOf(value: unknown): string | null {
   return item !== null && typeof item.path === 'string' && item.path !== '' ? item.path : null
 }
 
-/** Strictly validate diff hunks crossing either presentation or log boundaries. */
-export function presentationDiffs(value: unknown): readonly ProducedFileDiff[] {
+type DiffPresentation =
+  | { readonly kind: 'absent' }
+  | { readonly kind: 'invalid' }
+  | { readonly kind: 'present'; readonly diffs: readonly ProducedFileDiff[] }
+
+function diffPresentation(value: unknown): DiffPresentation {
   const view = record(value)
-  if (view?.card !== 'diff' || !Array.isArray(view.diffs)) return []
+  if (view?.card !== 'diff') return { kind: 'absent' }
+  if (!Array.isArray(view.diffs)) return { kind: 'invalid' }
   const diffs: ProducedFileDiff[] = []
   for (const candidate of view.diffs) {
     const diff = record(candidate)
-    if (diff === null) return []
+    if (diff === null) return { kind: 'invalid' }
     const { path, oldText, newText, oldStart, newStart } = diff
     if (typeof path !== 'string' || path === ''
       || (oldText !== null && typeof oldText !== 'string')
       || typeof newText !== 'string'
       || (oldStart !== undefined && !positiveInteger(oldStart))
-      || (newStart !== undefined && !positiveInteger(newStart))) return []
+      || (newStart !== undefined && !positiveInteger(newStart))) return { kind: 'invalid' }
     diffs.push({
       path,
       oldText,
@@ -68,7 +73,19 @@ export function presentationDiffs(value: unknown): readonly ProducedFileDiff[] {
       ...(typeof newStart === 'number' ? { newStart } : {}),
     })
   }
-  return diffs
+  return { kind: 'present', diffs }
+}
+
+/** Strictly validate diff hunks crossing either presentation or log boundaries. */
+export function presentationDiffs(value: unknown): readonly ProducedFileDiff[] {
+  const parsed = diffPresentation(value)
+  return parsed.kind === 'present' ? parsed.diffs : []
+}
+
+function isMutationCall(view: unknown): boolean {
+  const item = record(view)
+  return item !== null
+    && (item.card === 'diff' || (item.card === 'generic' && item.kind === 'edit'))
 }
 
 function locationPaths(view: unknown): readonly string[] {
@@ -85,6 +102,24 @@ function appendPath(paths: string[], seen: Set<string>, path: string): void {
   paths.push(path)
 }
 
+function resultChanges(
+  diffs: readonly ProducedFileDiff[],
+): readonly PresentedFileChange[] {
+  const files: Array<{ path: string; diffs: ProducedFileDiff[]; source: 'result' }> = []
+  const byPath = new Map<string, ProducedFileDiff[]>()
+  for (const diff of diffs) {
+    const existing = byPath.get(diff.path)
+    if (existing !== undefined) {
+      existing.push(diff)
+      continue
+    }
+    const grouped = [diff]
+    byPath.set(diff.path, grouped)
+    files.push({ path: diff.path, diffs: grouped, source: 'result' })
+  }
+  return files
+}
+
 /**
  * Normalize tool presentation without knowing the tool name. Applied result
  * hunks win; call-time intent is the accepted fallback when they are absent.
@@ -93,22 +128,23 @@ export function normalizeMutationPresentation(
   callView: unknown,
   resultView: unknown,
 ): readonly PresentedFileChange[] {
-  const resultDiffs = presentationDiffs(resultView)
-  const intentDiffs = presentationDiffs(callView)
+  if (!isMutationCall(callView)) return []
+  const result = diffPresentation(resultView)
+  if (result.kind === 'invalid') return []
+  if (result.kind === 'present') return resultChanges(result.diffs)
+
+  const intent = diffPresentation(callView)
+  if (intent.kind === 'invalid') return []
+  const intentDiffs = intent.kind === 'present' ? intent.diffs : []
   const paths: string[] = []
   const seen = new Set<string>()
   for (const path of locationPaths(callView)) appendPath(paths, seen, path)
   for (const diff of intentDiffs) appendPath(paths, seen, diff.path)
-  for (const diff of resultDiffs) appendPath(paths, seen, diff.path)
-  return paths.map((path) => {
-    const applied = resultDiffs.filter(diff => diff.path === path)
-    if (applied.length > 0) return { path, diffs: applied, source: 'result' as const }
-    return {
-      path,
-      diffs: intentDiffs.filter(diff => diff.path === path),
-      source: 'intent' as const,
-    }
-  })
+  return paths.map(path => ({
+    path,
+    diffs: intentDiffs.filter(diff => diff.path === path),
+    source: 'intent' as const,
+  }))
 }
 
 function parseDiff(value: unknown, expectedPath: string): ProducedFileDiff | null {
