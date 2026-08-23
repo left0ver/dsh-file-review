@@ -4,3 +4,4 @@ lib
 *.tgz
 .codegraph
 .DS_Store
+.codex
