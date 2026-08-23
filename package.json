@@ -69,7 +69,9 @@
     "typecheck": "tsc --noEmit",
     "test": "npm run build && vitest run && npm run test:pack",
     "test:pack": "node scripts/verify-pack.mjs",
-    "prepack": "npm run typecheck && npm test"
+    "prepack": "npm run typecheck && npm test",
+    "release": "npm publish --registry=https://registry.npmjs.org/",
+    "postpublish": "nrm use taobao"
   },
   "dependencies": {
     "diff": "^9.0.0",
