@@ -27,7 +27,8 @@ English · [简体中文](README.zh.md)
 ## Features
 
 1. Review every file the agent just changed in the `Diff` panel, with support for both standard mode and PTC mode.
-2. Undo support for reverting the agent's changes from the current turn.
+2. Undo support is currently available in standard, PTC, and Creator modes for text edits and newly created files performed by the agent.
+   > DSH does not currently provide a file-deletion tool, so this plugin cannot yet undo deleted files. Support will be added once DSH provides such a tool.
 3. Add comments to changed lines and ask the agent to continue making updates based on the feedback, or ask questions about the changes.
 4. Multilingual support, including Chinese and English.
 
@@ -85,6 +86,10 @@ dsh plugin --profile web update dsh-file-review
 ```sh
 dsh plugin --profile web remove dsh-file-review
 ```
+
+## Roadmap
+
+- [ ] Add undo support for deleted files.
 
 ## Friendly Links
 
