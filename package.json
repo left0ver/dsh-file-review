@@ -67,6 +67,7 @@
     "build:types": "tsc --emitDeclarationOnly --outDir lib/types",
     "build": "npm run build:types && tsdown",
     "typecheck": "tsc --noEmit",
+    "test:smoke": "vitest run tests/smoke.spec.ts",
     "test": "npm run build && vitest run && npm run test:pack",
     "test:pack": "node scripts/verify-pack.mjs",
     "prepack": "npm run typecheck && npm test",
