@@ -285,7 +285,7 @@ describe('produced-file Turn data', () => {
     expect(reviewsForClosing(value)).toEqual([
       fileReview('out/index.html', [{ path: 'out/index.html', oldText: 'old html', newText: 'new html' }]),
       fileReview('out/app.css', [{ path: 'out/app.css', oldText: 'old css', newText: 'new css' }]),
-      fileReview('notes.md'),
+      { ...fileReview('notes.md'), complete: false },
     ])
   })
 
@@ -336,6 +336,10 @@ describe('produced-file Turn data', () => {
         path: 'out.txt', source: 'intent',
         diffs: [{ path: 'out.txt', oldText: 'after', newText: 'planned' }],
       }, { path: 'notes.md', source: 'intent' }]),
+      ptc(5, 'run-code:code:2', [{
+        path: 'notes.md',
+        diffs: [{ path: 'notes.md', oldText: 'before', newText: 'after' }],
+      }]),
     ])
 
     expect(reviewsForClosing(value)).toEqual([
@@ -343,7 +347,46 @@ describe('produced-file Turn data', () => {
         { path: 'out.txt', oldText: 'before', newText: 'after', oldStart: 4, newStart: 4 },
         { path: 'out.txt', oldText: 'after', newText: 'planned' },
       ]),
-      fileReview('notes.md'),
+      {
+        ...fileReview('notes.md', [{ path: 'notes.md', oldText: 'before', newText: 'after' }]),
+        complete: false,
+      },
+    ])
+  })
+
+  it('folds a native lifecycle marker instead of its ambiguous presentation diff', () => {
+    const callId = 'native-create'
+    const captured = boundedPtcFileReviewMarker({
+      turn: 1,
+      step: 1,
+      rootCallId: callId,
+      subCallId: callId,
+      files: [{
+        path: 'created.txt', source: 'result',
+        diffs: [{
+          path: 'created.txt', oldText: null, newText: 'created', oldStart: 1, newStart: 1,
+          lifecycle: { kind: 'create', mode: 0o640 },
+        }],
+      }],
+    })
+    if (captured === null) throw new Error('fixture marker exceeded its budget')
+    const settled = result(3, callId, false, 1, appliedDiff([
+      'created.txt', null, 'created', 1, 1,
+    ]))
+    const toolResult = (settled.event.data as {
+      message: { content: Array<{ content: unknown[] }> }
+    }).message.content[0]
+    if (toolResult === undefined) throw new Error('missing fixture tool result')
+    toolResult.content = [markerBlock(captured)]
+
+    const value = fold([
+      at(1, 'turn/start', { turn: 1 }),
+      call(2, callId, diff('created.txt')),
+      settled,
+    ])
+
+    expect(reviewsForClosing(value)).toEqual([
+      fileReview('created.txt', captured.files[0]?.diffs),
     ])
   })
 
@@ -541,6 +584,78 @@ describe('ProducedFiles review card', () => {
     await vi.waitFor(() => { expect(view.getByRole('button', { name: 'Undo' })).toBeTruthy() })
     expect(view.getByRole('alert').textContent).toContain('Changes reapplied')
     expect(applyChanges.mock.calls[1]?.[0].action).toBe('redo')
+  })
+
+  it('enables Undo for explicit create/delete lifecycles but not legacy null snapshots', async () => {
+    const lifecycleReviews = [
+      fileReview('created.txt', [{
+        path: 'created.txt', oldText: null, newText: 'created\n', oldStart: 1, newStart: 1,
+        lifecycle: { kind: 'create', mode: 0o644 },
+      }]),
+      fileReview('deleted.txt', [{
+        path: 'deleted.txt', oldText: 'deleted\n', newText: '', oldStart: 1, newStart: 1,
+        lifecycle: { kind: 'delete', mode: 0o600 },
+      }]),
+    ]
+    const inspectChanges = vi.fn(async () => ({ files: lifecycleReviews.map(review => ({
+      path: review.path, state: 'applied' as const, changed: false,
+    })) }))
+    const applyChanges = vi.fn(async () => ({ files: lifecycleReviews.map(review => ({
+      path: review.path, state: 'undone' as const, changed: true,
+    })) }))
+    const view = render(
+      <ProducedFiles
+        matched={[lifecycleReviews[0]!]}
+        openFile={() => {}}
+        inspectChanges={inspectChanges}
+        applyChanges={applyChanges}
+        t={t}
+      />,
+    )
+
+    await vi.waitFor(() => {
+      expect((view.getByRole('button', { name: 'Undo' }) as HTMLButtonElement).disabled).toBe(false)
+    })
+
+    view.rerender(
+      <ProducedFiles
+        matched={[lifecycleReviews[1]!]}
+        openFile={() => {}}
+        inspectChanges={inspectChanges}
+        applyChanges={applyChanges}
+        t={t}
+      />,
+    )
+    await vi.waitFor(() => {
+      expect((view.getByRole('button', { name: 'Undo' }) as HTMLButtonElement).disabled).toBe(false)
+    })
+
+    view.rerender(
+      <ProducedFiles
+        matched={[fileReview('legacy.txt', [{
+          path: 'legacy.txt', oldText: null, newText: 'unknown provenance',
+        }])]}
+        openFile={() => {}}
+        t={t}
+      />,
+    )
+    await vi.waitFor(() => {
+      expect((view.getByRole('button', { name: 'Undo' }) as HTMLButtonElement).disabled).toBe(true)
+    })
+
+    view.rerender(
+      <ProducedFiles
+        matched={[{
+          path: 'truncated.txt', complete: false,
+          diffs: [{ path: 'truncated.txt', oldText: 'before', newText: 'after' }],
+        }]}
+        openFile={() => {}}
+        t={t}
+      />,
+    )
+    await vi.waitFor(() => {
+      expect((view.getByRole('button', { name: 'Undo' }) as HTMLButtonElement).disabled).toBe(true)
+    })
   })
 
   it('keeps Undo in a mixed state and disables it when no file is reversible', async () => {

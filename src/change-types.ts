@@ -7,12 +7,19 @@ export interface ProducedFileDiff {
   readonly newText: string
   readonly oldStart?: number | undefined
   readonly newStart?: number | undefined
+  /** Explicit whole-file lifecycle captured around a successful mutation. */
+  readonly lifecycle?: {
+    readonly kind: 'create' | 'delete'
+    readonly mode: number
+  } | undefined
 }
 
 /** One produced file and the applied hunks available for review. */
 export interface ProducedFileReview {
   readonly path: string
   readonly diffs: readonly ProducedFileDiff[]
+  /** False when at least one operation on this path lacked a complete snapshot. */
+  readonly complete?: false | undefined
 }
 
 /** Direction requested by the produced-files toggle. */
@@ -22,6 +29,8 @@ export type FileReviewAction = 'undo' | 'redo'
 export interface FileReviewChange {
   readonly path: string
   readonly diffs: readonly ProducedFileDiff[]
+  /** False when marker truncation or capture failure made the sequence incomplete. */
+  readonly complete?: false | undefined
 }
 
 /** Host request for status inspection or one toggle direction. */
@@ -45,4 +54,3 @@ export interface FileReviewFileResult {
 export interface FileReviewResult {
   readonly files: readonly FileReviewFileResult[]
 }
-

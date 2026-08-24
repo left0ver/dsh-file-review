@@ -11,11 +11,19 @@ const diffSchema = z.object({
   newText: z.string(),
   oldStart: z.number().int().min(1).optional(),
   newStart: z.number().int().min(1).optional(),
+  lifecycle: z.object({
+    kind: z.enum(['create', 'delete']),
+    mode: z.number().int().min(0).max(0o777),
+  }).optional(),
 })
 
 const requestSchema = z.object({
   action: z.enum(['undo', 'redo']),
-  files: z.array(z.object({ path: z.string(), diffs: z.array(diffSchema) })),
+  files: z.array(z.object({
+    path: z.string(),
+    diffs: z.array(diffSchema),
+    complete: z.literal(false).optional(),
+  })),
 })
 
 const resultSchema = z.object({

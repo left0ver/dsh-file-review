@@ -9,6 +9,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-system-prompt'
 import type {} from '@deepseek-ai/dsh-tools'
 import { FileReviewService } from './file-review-service.ts'
+import { registerFileLifecycleCapture } from './file-lifecycle-capture.ts'
 import { registerPtcAdapter } from './ptc-adapter.ts'
 
 export type * from './change-types.ts'
@@ -27,6 +28,7 @@ const FILE_REFERENCE_PROMPT = 'When you successfully create or modify files, men
  */
 export function apply(ctx: Context): void {
   new FileReviewService(ctx)
+  registerFileLifecycleCapture(ctx)
   registerPtcAdapter(ctx)
   ctx.systemPrompt.section({
     name: 'ui:file-review-references',

@@ -5,7 +5,7 @@ import type { ContentBlock } from '@deepseek-ai/dsh-llm'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
 import type { CodeDispatchLog, ToolCallView, ToolResultView } from '@deepseek-ai/dsh-tools'
 import {
-  boundedPtcFileReviewMarker, markerBlock, normalizeMutationPresentation,
+  boundedPtcFileReviewMarker, markerBlock, markerFromContent, normalizeMutationPresentation,
 } from './ptc-marker.ts'
 
 interface DispatchStart {
@@ -89,6 +89,10 @@ export async function adaptPtcDispatchLog(
     if (start === null) return loggedContent
     const root = rootCall(events, start.rootCallId)
     if (root === null) return loggedContent
+    const captured = markerFromContent(dispatch.content, {
+      rootCallId: start.rootCallId,
+      subCallId: start.subCallId,
+    })
     const definition = ctx.tools.get(dispatch.name, dispatch.agent)
     if (definition === undefined) return loggedContent
     const call = definition.presentCall === undefined
@@ -102,7 +106,10 @@ export async function adaptPtcDispatchLog(
         isError: false,
       }))
     if (result.kind === 'error') return loggedContent
-    const files = normalizeMutationPresentation(call.view, result.view)
+    const files = captured !== null
+      && captured.turn === root.turn && captured.step === root.step
+      ? captured.files
+      : normalizeMutationPresentation(call.view, result.view)
     if (files.length === 0) return loggedContent
     const marker = boundedPtcFileReviewMarker({
       turn: root.turn,

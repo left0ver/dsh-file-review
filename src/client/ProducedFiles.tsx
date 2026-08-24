@@ -10,6 +10,7 @@ import type { TurnTailOwnerProps } from '@deepseek-ai/dsh-client-ui-conversation
 import type {
   FileReviewAction, FileReviewRequest, FileReviewResult,
 } from '../change-types.ts'
+import { isReversibleChange } from '../file-review-change.ts'
 import { basename, type ProducedFileReview } from './turn-deliverables.ts'
 import type { NS } from './locales.ts'
 import {
@@ -384,14 +385,11 @@ export function ProducedFiles({
   const toggleFiles = useMemo(() => reviews.map(review => ({
     path: review.path,
     diffs: review.diffs,
+    ...(review.complete === false ? { complete: false as const } : {}),
   })), [reviews])
-  const reversiblePaths = useMemo(() => new Set(reviews.filter(review =>
-    review.diffs.length > 0 && review.diffs.every(diff =>
-      diff.path === review.path
-      && diff.oldText !== null
-      && diff.oldText !== diff.newText
-      && (diff.oldText !== '' || diff.oldStart !== undefined)
-      && (diff.newText !== '' || diff.newStart !== undefined))).map(review => review.path)), [reviews])
+  const reversiblePaths = useMemo(() => new Set(
+    reviews.filter(review => isReversibleChange(review)).map(review => review.path),
+  ), [reviews])
   const hasReversibleFiles = reversiblePaths.size > 0
   const shown = isPreviewExpanded
     ? reviewsWithStats

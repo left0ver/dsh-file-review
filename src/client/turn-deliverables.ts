@@ -20,6 +20,7 @@ interface ProducedPath {
   readonly seq: number
   readonly path: string
   readonly diffs: readonly ProducedFileDiff[]
+  readonly complete?: false | undefined
 }
 
 /** Immutable produced-file facts published against one Turn. */
@@ -56,6 +57,14 @@ function dispatchMarker(event: SessionEvent): PtcFileReviewMarker | null {
   })
 }
 
+function nativeResultMarker(event: SessionEvent): PtcFileReviewMarker | null {
+  if (event.type !== 'tool/result') return null
+  const callId = event.data.message.source.callId
+  const result = event.data.message.content[0]
+  if (typeof callId !== 'string' || callId === '' || !Array.isArray(result?.content)) return null
+  return markerFromContent(result.content, { rootCallId: callId, subCallId: callId })
+}
+
 /**
  * Files and review hunks available at one closing Assistant boundary.
  * @param data - engine-published Deliverables data for one Turn.
@@ -67,17 +76,22 @@ export function reviewsForClosing(
   seq = Number.POSITIVE_INFINITY,
 ): readonly ProducedFileReview[] {
   if (data === undefined) return []
-  const reviews: Array<{ path: string; diffs: ProducedFileDiff[] }> = []
-  const byPath = new Map<string, { path: string; diffs: ProducedFileDiff[] }>()
+  const reviews: Array<{ path: string; diffs: ProducedFileDiff[]; complete?: false }> = []
+  const byPath = new Map<string, { path: string; diffs: ProducedFileDiff[]; complete?: false }>()
   for (const produced of data.produced) {
     if (produced.seq > seq) continue
     const review = byPath.get(produced.path)
     if (review === undefined) {
-      const created = { path: produced.path, diffs: [...produced.diffs] }
+      const created = {
+        path: produced.path,
+        diffs: [...produced.diffs],
+        ...(produced.complete === false ? { complete: false as const } : {}),
+      }
       byPath.set(produced.path, created)
       reviews.push(created)
     } else {
       review.diffs.push(...produced.diffs)
+      if (produced.complete === false) review.complete = false
     }
   }
   return reviews
@@ -89,9 +103,10 @@ export function reviewsForClosing(
  * The source is the mutation tools' presentation contract, not the closing
  * prose: Native calls arrive as Host views and PTC calls as the Adapter's
  * marker. A mutation is recognized by render intent, never by tool name, so a
- * new mutation tool joins by declaring what it does. Reads contribute nothing,
- * and neither do deletes or failed calls. Paths keep first-seen order and
- * appear once, so a file written and then edited in the same turn is one entry.
+ * new mutation tool joins by declaring what it does. Reads and failed calls
+ * contribute nothing; successful deletes are included when their mutation
+ * intent names a path. Paths keep first-seen order and appear once, so a file
+ * written and then edited in the same turn is one entry.
  *
  * The Conversation Location index owns turn membership before this function
  * runs, so paths cannot spill across turns and this derivation does not infer
@@ -166,10 +181,16 @@ export const deliverablesDefinition: ConversationNodeDefinition<DeliverablesStat
       const call = context.state.calls.get(callId)
       if (call === undefined) return context.state
       const resultView = match.view?.for === 'result' ? match.view.view : undefined
-      const additions = normalizeMutationPresentation(call.view, resultView).map(file => ({
+      const captured = nativeResultMarker(match.event)
+      const files = captured !== null
+        && captured.turn === context.state.turn && captured.step === call.step
+        ? captured.files
+        : normalizeMutationPresentation(call.view, resultView)
+      const additions = files.map(file => ({
         seq: match.event.seq,
         path: file.path,
         diffs: file.diffs,
+        ...(file.diffs.length === 0 ? { complete: false as const } : {}),
       }))
       return additions.length === 0
         ? context.state
@@ -191,6 +212,7 @@ export const deliverablesDefinition: ConversationNodeDefinition<DeliverablesStat
           seq: match.event.seq,
           path: file.path,
           diffs: file.diffs,
+          ...(file.diffs.length === 0 ? { complete: false as const } : {}),
         })),
       ],
     }

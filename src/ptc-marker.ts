@@ -2,7 +2,7 @@
 
 import type { ProducedFileDiff } from './change-types.ts'
 
-export const PTC_FILE_REVIEW_SCHEMA = 1
+export const PTC_FILE_REVIEW_SCHEMA = 2
 export const PTC_FILE_REVIEW_MAX_BYTES = 256 * 1024
 
 export type PtcFileReviewSource = 'result' | 'intent'
@@ -16,7 +16,7 @@ export interface PresentedFileChange {
 
 /** Versioned payload persisted on an invisible PTC result content block. */
 export interface PtcFileReviewMarker {
-  readonly schema: typeof PTC_FILE_REVIEW_SCHEMA
+  readonly schema: 1 | typeof PTC_FILE_REVIEW_SCHEMA
   readonly turn: number
   readonly step: number
   readonly rootCallId: string
@@ -84,14 +84,16 @@ export function presentationDiffs(value: unknown): readonly ProducedFileDiff[] {
 
 function isMutationCall(view: unknown): boolean {
   const item = record(view)
-  return item !== null
-    && (item.card === 'diff' || (item.card === 'generic' && item.kind === 'edit'))
+  if (item === null) return false
+  if (item.card === 'diff' || (item.card === 'generic' && item.kind === 'edit')) return true
+  return item.card === 'generic' && item.kind === 'delete' && locationPaths(item).length > 0
 }
 
 function locationPaths(view: unknown): readonly string[] {
   const item = record(view)
   if (item === null
-    || (item.card !== 'diff' && !(item.card === 'generic' && item.kind === 'edit'))
+    || (item.card !== 'diff'
+      && !(item.card === 'generic' && (item.kind === 'edit' || item.kind === 'delete')))
     || !Array.isArray(item.locations)) return []
   return item.locations.map(pathOf).filter((path): path is string => path !== null)
 }
@@ -147,32 +149,56 @@ export function normalizeMutationPresentation(
   }))
 }
 
-function parseDiff(value: unknown, expectedPath: string): ProducedFileDiff | null {
+function parseLifecycle(value: unknown): ProducedFileDiff['lifecycle'] | null {
+  const lifecycle = record(value)
+  if (lifecycle === null
+    || (lifecycle.kind !== 'create' && lifecycle.kind !== 'delete')
+    || typeof lifecycle.mode !== 'number' || !Number.isInteger(lifecycle.mode)
+    || lifecycle.mode < 0 || lifecycle.mode > 0o777) return null
+  return { kind: lifecycle.kind, mode: lifecycle.mode }
+}
+
+function parseDiff(
+  value: unknown,
+  expectedPath: string,
+  schema: PtcFileReviewMarker['schema'],
+): ProducedFileDiff | null {
   const item = record(value)
   if (item === null || item.path !== expectedPath) return null
-  const { path, oldText, newText, oldStart, newStart } = item
+  const { path, oldText, newText, oldStart, newStart, lifecycle: rawLifecycle } = item
   if (typeof path !== 'string'
     || (oldText !== null && typeof oldText !== 'string')
     || typeof newText !== 'string'
     || (oldStart !== undefined && !positiveInteger(oldStart))
     || (newStart !== undefined && !positiveInteger(newStart))) return null
+  const lifecycle = rawLifecycle === undefined ? undefined : parseLifecycle(rawLifecycle)
+  if ((rawLifecycle !== undefined && lifecycle === null)
+    || (schema === 1 && rawLifecycle !== undefined)
+    || (lifecycle?.kind === 'create' && oldText !== null)
+    || (lifecycle?.kind === 'delete' && (typeof oldText !== 'string' || newText !== ''))) {
+    return null
+  }
   return {
     path,
     oldText,
     newText,
     ...(typeof oldStart === 'number' ? { oldStart } : {}),
     ...(typeof newStart === 'number' ? { newStart } : {}),
+    ...(lifecycle !== undefined && lifecycle !== null ? { lifecycle } : {}),
   }
 }
 
-function parseFile(value: unknown): PresentedFileChange | null {
+function parseFile(
+  value: unknown,
+  schema: PtcFileReviewMarker['schema'],
+): PresentedFileChange | null {
   const item = record(value)
   if (item === null || typeof item.path !== 'string' || item.path === ''
     || (item.source !== 'result' && item.source !== 'intent')
     || !Array.isArray(item.diffs)) return null
   const diffs: ProducedFileDiff[] = []
   for (const value of item.diffs) {
-    const diff = parseDiff(value, item.path)
+    const diff = parseDiff(value, item.path, schema)
     if (diff === null) return null
     diffs.push(diff)
   }
@@ -185,7 +211,7 @@ export function parsePtcFileReviewMarker(
   expected?: { readonly rootCallId: string; readonly subCallId: string },
 ): PtcFileReviewMarker | null {
   const marker = record(value)
-  if (marker === null || marker.schema !== PTC_FILE_REVIEW_SCHEMA
+  if (marker === null || (marker.schema !== 1 && marker.schema !== PTC_FILE_REVIEW_SCHEMA)
     || typeof marker.turn !== 'number' || !Number.isInteger(marker.turn) || marker.turn < 0
     || typeof marker.step !== 'number' || !Number.isInteger(marker.step) || marker.step < 0
     || typeof marker.rootCallId !== 'string' || marker.rootCallId === ''
@@ -196,7 +222,7 @@ export function parsePtcFileReviewMarker(
   const files: PresentedFileChange[] = []
   const seen = new Set<string>()
   for (const value of marker.files) {
-    const file = parseFile(value)
+    const file = parseFile(value, marker.schema)
     if (file === null || seen.has(file.path) || (marker.truncated === true && file.diffs.length > 0)) {
       return null
     }
@@ -205,7 +231,7 @@ export function parsePtcFileReviewMarker(
   }
   if (files.length === 0) return null
   return {
-    schema: PTC_FILE_REVIEW_SCHEMA,
+    schema: marker.schema,
     turn: marker.turn,
     step: marker.step,
     rootCallId: marker.rootCallId,

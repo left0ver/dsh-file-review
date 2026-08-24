@@ -48,6 +48,77 @@ function marker(content: readonly unknown[]) {
 }
 
 describe('PTC Host Adapter', () => {
+  it('round-trips v2 lifecycle diffs while continuing to parse v1 markers', () => {
+    const current = boundedPtcFileReviewMarker({
+      turn: 3,
+      step: 2,
+      rootCallId: ROOT,
+      subCallId: SUB,
+      files: [{
+        path: 'created.txt',
+        source: 'result',
+        diffs: [{
+          path: 'created.txt', oldText: null, newText: 'created',
+          lifecycle: { kind: 'create', mode: 0o640 },
+        }],
+      }],
+    })
+    if (current === null) throw new Error('fixture marker exceeded its budget')
+    expect(current.schema).toBe(2)
+    expect(marker([markerBlock(current)])?.files[0]?.diffs[0]).toEqual({
+      path: 'created.txt', oldText: null, newText: 'created',
+      lifecycle: { kind: 'create', mode: 0o640 },
+    })
+
+    const legacy = {
+      schema: 1,
+      turn: 3,
+      step: 2,
+      rootCallId: ROOT,
+      subCallId: SUB,
+      files: [{
+        path: 'legacy.txt', source: 'result',
+        diffs: [{ path: 'legacy.txt', oldText: null, newText: 'legacy' }],
+      }],
+      truncated: false,
+    }
+    expect(marker([{ type: 'text', text: '', dshFileReview: legacy }])?.schema).toBe(1)
+  })
+
+  it('keeps captured lifecycle truth when shaping a nested PTC result', async () => {
+    const { ctx, dispatch } = fixture({
+      presentCall: () => ({
+        card: 'diff', title: 'Write created.txt', locations: [{ path: 'created.txt' }],
+        diffs: [{ path: 'created.txt', oldText: null, newText: 'created' }],
+      }),
+    })
+    const captured = boundedPtcFileReviewMarker({
+      turn: 3,
+      step: 2,
+      rootCallId: ROOT,
+      subCallId: SUB,
+      files: [{
+        path: 'created.txt', source: 'result',
+        diffs: [{
+          path: 'created.txt', oldText: null, newText: 'created', oldStart: 1, newStart: 1,
+          lifecycle: { kind: 'create', mode: 0o640 },
+        }],
+      }],
+    })
+    if (captured === null) throw new Error('fixture marker exceeded its budget')
+    const original = [
+      { type: 'text', text: 'complete result' },
+      markerBlock(captured),
+    ] as unknown as ContentBlock[]
+    ;(dispatch as { content: ContentBlock[] }).content = original
+
+    const content = await adaptPtcDispatchLog(ctx, dispatch, async () => original)
+
+    expect(content.filter(block => block.type === 'text').map(block => block.text).join(''))
+      .toBe('complete result')
+    expect(marker(content)?.files).toEqual(captured.files)
+  })
+
   it('prefers applied result diffs and keeps existing shaped text invisible', async () => {
     const { ctx, dispatch } = fixture({
       presentCall: () => ({
@@ -66,7 +137,7 @@ describe('PTC Host Adapter', () => {
     expect(content.filter(block => block.type === 'text').map(block => block.text).join(''))
       .toBe('shaped preview')
     expect(marker(content)).toEqual({
-      schema: 1,
+      schema: 2,
       turn: 3,
       step: 2,
       rootCallId: ROOT,
@@ -130,6 +201,18 @@ describe('PTC Host Adapter', () => {
     )
     expect(marker(pathContent)?.files).toEqual([{
       path: 'notes.md', source: 'intent', diffs: [],
+    }])
+
+    const uncapturedDelete = fixture({
+      presentCall: () => ({
+        card: 'generic', title: 'Delete', kind: 'delete', locations: [{ path: 'old.txt' }],
+      }),
+    })
+    const deleteContent = await adaptPtcDispatchLog(
+      uncapturedDelete.ctx, uncapturedDelete.dispatch, async () => [] as ContentBlock[],
+    )
+    expect(marker(deleteContent)?.files).toEqual([{
+      path: 'old.txt', source: 'intent', diffs: [],
     }])
 
     const noChange = fixture({
