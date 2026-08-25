@@ -15,6 +15,9 @@ import type {
 import type { ChatFileMentions, TurnTailOwnerProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { ProducedFiles } from '../src/client/ProducedFiles.tsx'
 import {
+  FileReviewSettingsCard, type FileReviewSettingsCardProps,
+} from '../src/client/FileReviewSettingsCard.tsx'
+import {
   ReviewCommentsDock, type ReviewCommentsDockProps,
 } from '../src/client/ReviewCommentsDock.tsx'
 import {
@@ -727,6 +730,7 @@ describe('ProducedFiles review card', () => {
     expect(within(drawer).getByText('styles/b.css')).toBeTruthy()
     expect(drawer.querySelectorAll('[data-diff-layout="unified"]')).toHaveLength(2)
     const firstDiff = drawer.querySelectorAll('[data-diff-layout="unified"]')[0]
+    expect(firstDiff?.getAttribute('data-word-wrap')).toBe('false')
     const firstDiffLines = firstDiff?.querySelectorAll('[data-line-kind]') ?? []
     expect([...firstDiffLines].map(line => line.childElementCount)).toEqual([3, 3, 3])
     expect([...firstDiffLines].map(line => line.firstElementChild?.textContent)).toEqual(['7', '7', '8'])
@@ -736,6 +740,34 @@ describe('ProducedFiles review card', () => {
     expect(writeText.mock.calls[0]?.[0]).toContain('deep/a.html')
     expect(writeText.mock.calls[0]?.[0]).toContain('styles/b.css')
     expect(within(drawer).getByRole('button', { name: 'Copied' })).toBeTruthy()
+  })
+
+  it('visually wraps long lines without changing their logical text', () => {
+    const longText = `const message = '${'long content '.repeat(24)}'`
+    const review = fileReview('src/long-line.ts', [{
+      path: 'src/long-line.ts', oldText: 'const message = short', newText: longText,
+    }])
+    const wordWrap = { getSnapshot: () => true, subscribe: () => () => {} }
+    const view = render(
+      <ProducedFiles matched={[review]} openFile={() => {}} wordWrap={wordWrap} t={t} />,
+    )
+
+    fireEvent.click(view.getByRole('button', { name: 'Review src/long-line.ts' }))
+    const drawer = view.getByRole('dialog', { name: 'Review' })
+    const diff = drawer.querySelector('[data-diff-layout="unified"]')
+    expect(diff?.getAttribute('data-word-wrap')).toBe('true')
+    const added = diff?.querySelector('[data-line-kind="add"]')
+    expect(added?.lastElementChild?.textContent).toBe(longText)
+    expect(unifiedDiffText(review.diffs)).toContain(`+ ${longText}`)
+
+    const wrapLineRule = /\.unifiedBodyWrap \.unifiedLine\s*\{([^}]*)\}/
+      .exec(unifiedDiffCss)?.[1]
+    expect(wrapLineRule).toContain('grid-template-columns: 48px 24px minmax(0, 1fr)')
+    expect(wrapLineRule).toContain('min-width: 0')
+    expect(wrapLineRule).toContain('white-space: pre-wrap')
+    const wrapTextRule = /\.unifiedBodyWrap \.unifiedText\s*\{([^}]*)\}/
+      .exec(unifiedDiffCss)?.[1]
+    expect(wrapTextRule).toContain('overflow-wrap: anywhere')
   })
 
   it('comments added, deleted, and expanded context lines while retaining comments on reopen', () => {
@@ -1162,6 +1194,36 @@ describe('producedFileMentions resolver', () => {
   })
 })
 
+describe('FileReview settings card', () => {
+  it('discloses the word-wrap switch and saves its next value', async () => {
+    const snapshot = {
+      status: 'ready' as const,
+      value: { wordWrap: false },
+      base: { wordWrap: false },
+      user: {},
+      revision: 1,
+      writable: true,
+      mode: 'host' as const,
+    }
+    const setWordWrap = vi.fn(async () => {})
+    const props = {
+      t: makeTranslate(en),
+      useFileReviewSettings: <Selected,>(
+        select: (value: typeof snapshot) => Selected,
+      ) => select(snapshot),
+      setWordWrap,
+    } as unknown as FileReviewSettingsCardProps
+    const view = render(<FileReviewSettingsCard {...props} />)
+
+    expect(view.queryByRole('switch')).toBeNull()
+    fireEvent.click(view.getByRole('button', { name: 'Expand: File review' }))
+    const toggle = view.getByRole('switch', { name: 'Automatically wrap long lines' })
+    expect(toggle.getAttribute('aria-checked')).toBe('false')
+    fireEvent.click(toggle)
+    await vi.waitFor(() => { expect(setWordWrap).toHaveBeenCalledExactlyOnceWith(true) })
+  })
+})
+
 describe('plugin registration', () => {
   it('registers the Remote, turn definition, tail entry, dictionaries, and mention service', async () => {
     let definition: unknown
@@ -1176,6 +1238,7 @@ describe('plugin registration', () => {
         key?: string
         locale?: string
         name?: string
+        order?: number
         priority?: number
       }
       component: unknown
@@ -1211,8 +1274,35 @@ describe('plugin registration', () => {
     }
     const disposeSource = vi.fn()
     const registerSource = vi.fn(() => disposeSource)
+    let settingsValue = { wordWrap: false }
+    const settingsListeners = new Set<() => void>()
+    const publishWordWrap = (value: boolean): void => {
+      settingsValue = { wordWrap: value }
+      for (const listener of settingsListeners) listener()
+    }
+    const settingsScope = {
+      getSnapshot: () => ({
+        status: 'ready' as const,
+        value: settingsValue,
+        base: { wordWrap: false },
+        user: {},
+        revision: 1,
+        writable: true,
+        mode: 'host' as const,
+      }),
+      subscribe: (listener: () => void) => {
+        settingsListeners.add(listener)
+        return () => { settingsListeners.delete(listener) }
+      },
+      set: vi.fn(async (_field: string, value: unknown) => {
+        publishWordWrap(value === true)
+      }),
+      unset: vi.fn(async () => { publishWordWrap(false) }),
+    }
+    const bindSettings = vi.fn(() => settingsScope)
     const ctx = {
       remote: { $mount: mountRemote },
+      settingsScope: { bind: bindSettings },
       sessions: {
         scope: vi.fn(() => sessionScope.ctx),
         list: { getSnapshot: () => ({ byId: {
@@ -1253,12 +1343,29 @@ describe('plugin registration', () => {
 
     const dispose = await apply(ctx as never)
     expect(inject).toEqual([
-      'slots', 'locale', 'conversationEvents', 'remote', 'sessions', 'conversation', 'inputTriggers',
+      'slots', 'locale', 'conversationEvents', 'remote', 'connection', 'settingsScope',
+      'sessions', 'conversation', 'inputTriggers',
     ])
+    expect(bindSettings).toHaveBeenCalledWith({ namespace: 'file-review' })
+    publishWordWrap(true)
     expect(registerSource).toHaveBeenCalledOnce()
     expect(mountRemote).toHaveBeenCalledOnce()
     expect(definition).toBe(deliverablesDefinition)
     expect(registerLocale).toHaveBeenCalledWith('file-review', { zh, en })
+    const settingsRegistration = registrations.find(
+      registration => registration.options.name === 'settings.plugin.item',
+    )
+    expect(settingsRegistration).toEqual({
+      options: expect.objectContaining({
+        name: 'settings.plugin.item',
+        key: 'file-review',
+        id: 'file-review',
+        order: 30,
+        locale: NS,
+        inject: expect.any(Function),
+      }),
+      component: FileReviewSettingsCard,
+    })
     expect(registrations).toContainEqual({
       options: expect.objectContaining({
         name: 'conversation.input.dock', id: 'file-review-comments', locale: NS,
@@ -1292,6 +1399,7 @@ describe('plugin registration', () => {
     const reviewActions = slot?.options.inject?.('session-1') as {
       projectRoot?: string
       sessionId?: string
+      wordWrap: { getSnapshot(): boolean }
       syncComments?: () => void
       inspectChanges(request: {
         action: 'undo'
@@ -1304,11 +1412,20 @@ describe('plugin registration', () => {
     }
     expect(reviewActions.projectRoot).toBe('/workspace/project')
     expect(reviewActions.sessionId).toBe('session-1')
+    expect(reviewActions.wordWrap.getSnapshot()).toBe(true)
     expect(reviewActions.syncComments).toBeTypeOf('function')
     await expect(reviewActions.inspectChanges({ action: 'undo', files: [] }))
       .resolves.toEqual({ files: [] })
     await expect(reviewActions.applyChanges({ action: 'undo', files: [] }))
       .resolves.toEqual({ files: [] })
+    const settingsActions = settingsRegistration?.options.inject?.('') as {
+      hooks: { fileReviewSettings: typeof settingsScope }
+      setWordWrap(value: boolean): Promise<void>
+    }
+    expect(settingsActions.hooks.fileReviewSettings).toBe(settingsScope)
+    await settingsActions.setWordWrap(false)
+    expect(settingsScope.set).toHaveBeenCalledExactlyOnceWith('wordWrap', false)
+    expect(reviewActions.wordWrap.getSnapshot()).toBe(false)
 
     const opened: string[] = []
     const owner = tailOwner(

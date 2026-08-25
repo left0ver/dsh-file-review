@@ -1,10 +1,14 @@
 // ProducedFiles: the review card a finished turn ends with. Paths and hunks
 // come from mutation-tool results, never from the closing prose.
 
-import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import {
+  useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState,
+  useSyncExternalStore,
+} from 'react'
 import type {
   CSSProperties, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent,
 } from 'react'
+import type { ObservableSnapshot } from '@deepseek-ai/dsh-client-runtime/client'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type { TurnTailOwnerProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {
@@ -35,6 +39,11 @@ const MOBILE_BREAKPOINT = 760
 const HOST_DRAWER_TRACK_PROPERTY = '--dsh-file-review-drawer-width'
 const SUCCESS_NOTICE_DURATION = 2000
 const ERROR_NOTICE_DURATION = 5000
+
+const DEFAULT_WORD_WRAP_SOURCE: ObservableSnapshot<boolean> = {
+  getSnapshot: () => false,
+  subscribe: () => () => {},
+}
 
 /** Review drawers share the host's single details column, so only one may own it at a time. */
 let activeReviewOwner: symbol | null = null
@@ -160,6 +169,8 @@ export type ProducedFilesProps = Pick<TurnTailOwnerProps, 'openFile'> & {
   seq?: number | undefined
   /** Reconcile the aggregate review-comment reference in the session composer. */
   syncComments?: (() => void) | undefined
+  /** Live display-only preference for visually wrapping logical diff lines. */
+  wordWrap?: ObservableSnapshot<boolean> | undefined
 } & PropsLocale<typeof NS>
 
 const unavailableChanges = async (request: FileReviewRequest): Promise<FileReviewResult> => ({
@@ -311,8 +322,13 @@ function Stats({ stats, label }: { readonly stats: UnifiedDiffStats; readonly la
 export function ProducedFiles({
   matched: reviews, openFile, projectRoot,
   inspectChanges = unavailableChanges, applyChanges = unavailableChanges,
-  sessionId, turn, seq = 0, syncComments, t,
+  sessionId, turn, seq = 0, syncComments, wordWrap: wordWrapSource = DEFAULT_WORD_WRAP_SOURCE, t,
 }: ProducedFilesProps) {
+  const wordWrap = useSyncExternalStore(
+    wordWrapSource.subscribe,
+    wordWrapSource.getSnapshot,
+    wordWrapSource.getSnapshot,
+  )
   const drawerTitleId = useId()
   const [reviewScope, setReviewScope] = useState<ReviewScope | null>(null)
   const [copied, setCopied] = useState(false)
@@ -837,6 +853,7 @@ export function ProducedFiles({
                         contextLines={3}
                         showCopyButton={false}
                         showFileHeaders={false}
+                        wordWrap={wordWrap}
                         labels={{
                           copy: t('review.copy'),
                           copied: t('review.copied'),

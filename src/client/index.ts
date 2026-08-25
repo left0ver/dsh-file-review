@@ -10,10 +10,16 @@
 import type { ClientContext, ISessions, SessionId } from '@deepseek-ai/dsh-client-runtime/client'
 import type { ChatFileMentions } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
+import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
+import type {} from '@deepseek-ai/dsh-client-ui-settings-plugins/client'
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import type { FileReviewRequest, FileReviewResult } from '../change-types.ts'
 import { TYPERT_REMOTE } from '../remote.ts'
+import {
+  DEFAULT_WORD_WRAP, FILE_REVIEW_SETTINGS_NAMESPACE, type Config,
+} from '../settings-contract.ts'
 import { ProducedFiles } from './ProducedFiles.tsx'
+import { FileReviewSettingsCard } from './FileReviewSettingsCard.tsx'
 import { ReviewCommentsDock } from './ReviewCommentsDock.tsx'
 import { ReviewUserMessage } from './ReviewUserMessage.tsx'
 import { en, NS, zh, type DeliverablesKey } from './locales.ts'
@@ -36,6 +42,8 @@ export const inject = [
   'locale',
   'conversationEvents',
   'remote',
+  'connection',
+  'settingsScope',
   'sessions',
   'conversation',
   'inputTriggers',
@@ -53,6 +61,13 @@ interface FileReviewRemote {
 export async function apply(ctx: ClientContext): Promise<() => Promise<void>> {
   const disposeRemote = await ctx.remote.$mount(TYPERT_REMOTE)
   const disposeReviewSource = ctx.inputTriggers.registerSource(reviewCommentSource())
+  const settings = ctx.settingsScope.bind<Config>({
+    namespace: FILE_REVIEW_SETTINGS_NAMESPACE,
+  })
+  const wordWrap = {
+    getSnapshot: () => settings.getSnapshot().value?.wordWrap ?? DEFAULT_WORD_WRAP,
+    subscribe: (listener: () => void) => settings.subscribe(listener),
+  }
   const reviewBindings = new Map<string, ReturnType<typeof bindReviewReference>>()
   // The package ships Host and browser halves in one TypeScript program. The Host
   // SessionStore and browser ISessions intentionally share the Cordis key, so keep
@@ -74,6 +89,24 @@ export async function apply(ctx: ClientContext): Promise<() => Promise<void>> {
   }
   ctx.conversationEvents.register(deliverablesDefinition)
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'file-review: dictionaries')
+  const settingsCell = {
+    // rc.7 declares this slot keyed; rc.6 used a list id.
+    key: FILE_REVIEW_SETTINGS_NAMESPACE,
+    id: FILE_REVIEW_SETTINGS_NAMESPACE,
+    order: 30,
+  } as const
+  ctx.slots.inject(
+    'settings.plugin.item',
+    () => ctx.slots.register({
+      name: 'settings.plugin.item',
+      ...settingsCell,
+      locale: NS,
+      inject: () => ({
+        hooks: { fileReviewSettings: settings },
+        setWordWrap: (value: boolean) => settings.set('wordWrap', value),
+      }),
+    }, FileReviewSettingsCard),
+  )
   ctx.slots.inject(
     'conversation.input.dock',
     () => ctx.slots.register({
@@ -126,6 +159,7 @@ export async function apply(ctx: ClientContext): Promise<() => Promise<void>> {
         return {
           projectRoot,
           sessionId,
+          wordWrap,
           syncComments: reviewBinding?.sync,
           inspectChanges: (request: FileReviewRequest) => invoke('status', request),
           applyChanges: (request: FileReviewRequest) => invoke('apply', request),

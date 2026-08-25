@@ -111,6 +111,8 @@ export interface UnifiedDiffProps {
   readonly className?: string | undefined
   readonly showCopyButton?: boolean | undefined
   readonly showFileHeaders?: boolean | undefined
+  /** Visually wrap long logical lines without mutating their text. */
+  readonly wordWrap?: boolean | undefined
   readonly commentFor?: ((anchor: DiffLineAnchor) => string | undefined) | undefined
   readonly onCommentChange?: ((anchor: DiffLineAnchor, body: string) => void) | undefined
   readonly onCommentDelete?: ((anchor: DiffLineAnchor) => void) | undefined
@@ -287,6 +289,7 @@ export function UnifiedDiff({
   className,
   showCopyButton = true,
   showFileHeaders = true,
+  wordWrap = false,
   commentFor,
   onCommentChange,
   onCommentDelete,
@@ -435,6 +438,7 @@ export function UnifiedDiff({
       className={`${css.unifiedBlock} ${showFileHeaders ? '' : css.unifiedEmbedded} ${className ?? ''}`}
       data-diff=""
       data-diff-layout="unified"
+      data-word-wrap={wordWrap ? 'true' : 'false'}
     >
       {showCopyButton && (
         <button type="button" className={css.unifiedCopyButton} onClick={onCopy}>
@@ -460,7 +464,7 @@ export function UnifiedDiff({
               : !firstForPath && (hunk?.unchangedBefore ?? 0) === 0
                 ? <div className={css.unifiedHunkHeader}>@@ -{diff.oldStart ?? 1} +{diff.newStart ?? 1} @@</div>
                 : null}
-            <div className={css.unifiedBody}>
+            <div className={`${css.unifiedBody} ${wordWrap ? css.unifiedBodyWrap : ''}`}>
               {(hunk?.unchangedBefore ?? 0) > 0 && (
                 <div className={css.unifiedOmitted}>
                   <span aria-hidden="true">↕</span>

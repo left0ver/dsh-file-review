@@ -5,6 +5,13 @@ export const NS = 'file-review'
 
 /** English dictionary (the key-set source of truth). */
 export const en = {
+  'settings.title': 'File review',
+  'settings.description': 'Configuration options for the File Review plugin.',
+  'settings.expand': 'Expand',
+  'settings.collapse': 'Collapse',
+  'settings.readOnly': 'The settings file is read-only.',
+  'settings.wordWrap.title': 'Automatically wrap long lines',
+  'settings.wordWrap.description': 'Controls whether long single-line text wraps automatically during review. Defaults to false.',
   'produced.summary': 'Edited files',
   'produced.editedOne': 'Edited 1 file',
   'produced.edited': 'Edited {count} files',
@@ -64,6 +71,13 @@ export type DeliverablesKey = keyof typeof en
 
 /** Simplified Chinese dictionary. */
 export const zh: Record<DeliverablesKey, string> = {
+  'settings.title': '文件审查',
+  'settings.description': 'file review插件的配置项',
+  'settings.expand': '展开',
+  'settings.collapse': '收起',
+  'settings.readOnly': '配置文件为只读。',
+  'settings.wordWrap.title': '是否自动换行显示',
+  'settings.wordWrap.description': '控制review的时候对于单行文本很长的情况下是否自动换行显示，默认为False',
   'produced.summary': '已编辑文件',
   'produced.editedOne': '已编辑 1 个文件',
   'produced.edited': '已编辑 {count} 个文件',

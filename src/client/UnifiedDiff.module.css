@@ -78,6 +78,10 @@
   font: var(--dsw-font-markdown-code-block);
 }
 
+.unifiedBodyWrap {
+  overflow-x: hidden;
+}
+
 .unifiedLine {
   display: grid;
   grid-template-columns: 48px 24px minmax(max-content, 1fr);
@@ -140,6 +144,21 @@
 
 .unifiedText {
   padding-right: 14px;
+}
+
+.unifiedBodyWrap .unifiedLine {
+  grid-template-columns: 48px 24px minmax(0, 1fr);
+  min-width: 0;
+  white-space: pre-wrap;
+}
+
+.unifiedBodyWrap .unifiedLineNumber {
+  align-items: flex-start;
+}
+
+.unifiedBodyWrap .unifiedText {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .unified_del {

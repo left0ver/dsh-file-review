@@ -6,14 +6,27 @@
  */
 
 import type { Context } from '@deepseek-ai/cordis'
+import z from '@deepseek-ai/schemastery'
+import { installSettingsSection, settingsNamespace } from '@deepseek-ai/dsh-settings'
 import type {} from '@deepseek-ai/dsh-system-prompt'
 import type {} from '@deepseek-ai/dsh-tools'
 import { FileReviewService } from './file-review-service.ts'
 import { registerFileLifecycleCapture } from './file-lifecycle-capture.ts'
 import { registerPtcAdapter } from './ptc-adapter.ts'
+import {
+  DEFAULT_WORD_WRAP, FILE_REVIEW_SETTINGS_NAMESPACE, type Config as ConfigShape,
+} from './settings-contract.ts'
 
 export type * from './change-types.ts'
 export { FileReviewService, transformFile } from './file-review-service.ts'
+export { DEFAULT_WORD_WRAP, FILE_REVIEW_SETTINGS_NAMESPACE } from './settings-contract.ts'
+
+export type Config = ConfigShape
+
+/** Plugin configuration and durable settings schema. */
+export const Config: z<ConfigShape> = z.object({
+  wordWrap: z.boolean().default(DEFAULT_WORD_WRAP),
+})
 
 /** Services required for the model guidance paired with the browser renderer. */
 export const inject = ['systemPrompt', 'tools']
@@ -26,7 +39,19 @@ const FILE_REFERENCE_PROMPT = 'When you successfully create or modify files, men
  * Register model guidance for the file-reference renderer shipped by this package.
  * @param ctx - host context carrying the system-prompt registry.
  */
-export function apply(ctx: Context): void {
+export function apply(ctx: Context, config: ConfigShape = {}): void {
+  installSettingsSection(
+    ctx,
+    settingsNamespace(FILE_REVIEW_SETTINGS_NAMESPACE),
+    Config,
+    config,
+    {
+      // The Host owns persistence; the browser mirrors this section through
+      // settingsScope, so no Host-side projection needs rebuilding on change.
+      setSource: () => {},
+      onChange: () => {},
+    },
+  )
   new FileReviewService(ctx)
   registerFileLifecycleCapture(ctx)
   registerPtcAdapter(ctx)

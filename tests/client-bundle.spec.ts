@@ -30,8 +30,9 @@ describe('published browser artifact', () => {
     }) as { apply?: unknown; inject?: unknown } | undefined
     expect(client?.apply).toBeTypeOf('function')
     expect(client?.inject).toEqual([
-      'slots', 'locale', 'conversationEvents', 'remote', 'sessions', 'conversation', 'inputTriggers',
+      'slots', 'locale', 'conversationEvents', 'remote', 'connection', 'settingsScope',
+      'sessions', 'conversation', 'inputTriggers',
     ])
-    expect(document.querySelectorAll('style[data-plugin="dsh-file-review"]')).toHaveLength(2)
+    expect(document.querySelectorAll('style[data-plugin="dsh-file-review"]')).toHaveLength(3)
   })
 })
