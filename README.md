@@ -30,7 +30,7 @@ English · [简体中文](README.zh.md)
 2. Undo support is currently available in standard, PTC, and Creator modes for text edits and newly created files performed by the agent.
    > DSH does not currently provide a file-deletion tool, so this plugin cannot yet undo deleted files. Support will be added once DSH provides such a tool.
 3. Add comments to changed lines and ask the agent to continue making updates based on the feedback, or ask questions about the changes.
-4. Optionally wrap long diff lines under Settings → Plugins → Plugin configuration → File review. Wrapping changes only the presentation; copied text and line identity stay unchanged. The default is off.
+4. Support automatically wrapping long text while reviewing. Enable it under Settings → Plugins → Plugin configuration → File review; it is disabled by default.
 5. Multilingual support, including Chinese and English.
 
 ## Quick start
