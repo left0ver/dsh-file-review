@@ -26,12 +26,13 @@ English · [简体中文](README.zh.md)
 
 ## Features
 
-1. Review every file the agent just changed in the `Diff` panel, with support for both standard mode and PTC mode.
-2. Undo support is currently available in standard, PTC, and Creator modes for text edits and newly created files performed by the agent.
+1. This plugin supports standard, PTC, and Creator modes, but **does not currently support Minimal mode**.
+2. Review every file the agent just changed in the `Diff` panel.
+3. Undo edited and newly created files. **Undoing deleted files is not currently supported.**
    > DSH does not currently provide a file-deletion tool, so this plugin cannot yet undo deleted files. Support will be added once DSH provides such a tool.
-3. Add comments to changed lines and ask the agent to continue making updates based on the feedback, or ask questions about the changes.
-4. Support automatically wrapping long text while reviewing. Enable it under Settings → Plugins → Plugin configuration → File review; it is disabled by default.
-5. Multilingual support, including Chinese and English.
+4. Add comments to changed lines and ask the agent to continue making updates based on the feedback, or ask questions about the changes.
+5. Support automatically wrapping long text while reviewing. Enable it under Settings → Plugins → Plugin configuration → File review; it is disabled by default.
+6. Multilingual support, including Chinese and English.
 
 ## Quick start
 
