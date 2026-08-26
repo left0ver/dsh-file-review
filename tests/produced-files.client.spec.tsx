@@ -742,6 +742,65 @@ describe('ProducedFiles review card', () => {
     expect(within(drawer).getByRole('button', { name: 'Copied' })).toBeTruthy()
   })
 
+  it('does not invent missing legacy coordinates and preserves a known side', () => {
+    const review = fileReview('legacy.txt', [
+      { path: 'legacy.txt', oldText: 'before', newText: 'after' },
+      { path: 'legacy.txt', oldText: 'second before', newText: 'second after' },
+      { path: 'legacy.txt', oldText: 'third before', newText: 'third after', newStart: 9 },
+    ])
+    const view = render(
+      <ProducedFiles
+        matched={[review]}
+        openFile={() => {}}
+        sessionId="legacy-session"
+        turn={turnLocation(4)}
+        seq={20}
+        t={t}
+      />,
+    )
+
+    fireEvent.click(view.getByRole('button', { name: 'Review legacy.txt' }))
+    const drawer = view.getByRole('dialog', { name: 'Review' })
+    const lines = drawer.querySelectorAll('[data-line-kind]')
+    expect([...lines].map(line => line.firstElementChild?.lastElementChild?.textContent))
+      .toEqual(['', '', '', '', '', '9'])
+    expect([...lines].slice(0, 5).every(line => !line.hasAttribute('data-old-line')
+      && !line.hasAttribute('data-new-line'))).toBe(true)
+    expect(lines[5]?.getAttribute('data-new-line')).toBe('9')
+    expect(within(drawer).getByText('@@ -? +? @@')).toBeTruthy()
+    expect(within(drawer).getByText('@@ -? +9 @@')).toBeTruthy()
+    expect(within(drawer).getByRole('button', { name: 'Add comment on line 9' })).toBeTruthy()
+    expect(within(drawer).queryByRole('button', { name: 'Add comment on line 0' })).toBeNull()
+    expect(unifiedDiffText(review.diffs)).toContain('@@ -? +? @@')
+    expect(unifiedDiffText(review.diffs)).toContain('@@ -? +9 @@')
+  })
+
+  it('shows up to five unchanged lines inline and collapses a larger hunk gap', () => {
+    const inline = ['old-a', 'keep-1', 'keep-2', 'keep-3', 'keep-4', 'keep-5', 'old-b']
+    const review = fileReview('threshold.txt', [
+      {
+        path: 'threshold.txt',
+        oldText: inline.join('\n') + '\n',
+        newText: ['new-a', ...inline.slice(1, -1), 'new-b'].join('\n') + '\n',
+        oldStart: 1,
+        newStart: 1,
+      },
+      {
+        path: 'threshold.txt', oldText: 'old-c\n', newText: 'new-c\n',
+        oldStart: 14, newStart: 14,
+      },
+    ])
+    const view = render(<ProducedFiles matched={[review]} openFile={() => {}} t={t} />)
+
+    fireEvent.click(view.getByRole('button', { name: 'Review threshold.txt' }))
+    const drawer = view.getByRole('dialog', { name: 'Review' })
+    for (let line = 1; line <= 5; line++) {
+      expect(within(drawer).getByText(`keep-${line}`)).toBeTruthy()
+    }
+    expect(within(drawer).queryByText('5 unchanged lines')).toBeNull()
+    expect(within(drawer).getByText('6 unchanged lines')).toBeTruthy()
+  })
+
   it('visually wraps long lines without changing their logical text', () => {
     const longText = `const message = '${'long content '.repeat(24)}'`
     const review = fileReview('src/long-line.ts', [{

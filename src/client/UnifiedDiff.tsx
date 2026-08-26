@@ -118,30 +118,31 @@ export interface UnifiedDiffProps {
   readonly onCommentDelete?: ((anchor: DiffLineAnchor) => void) | undefined
 }
 
+/** Expand one recorded hunk into renderable lines without inventing missing coordinates. */
 function hunkLines(diff: DiffHunk): UnifiedLine[] {
   const oldLines = diff.oldText === null ? [] : diffContentLines(diff.oldText)
   const newLines = diffContentLines(diff.newText)
   const changes = diffArrays(oldLines, newLines)
   const lines: UnifiedLine[] = []
-  let oldNumber = diff.oldStart ?? 1
-  let newNumber = diff.newStart ?? 1
+  let oldNumber: number | null = diff.oldStart ?? null
+  let newNumber: number | null = diff.newStart ?? null
 
   for (const change of changes) {
     if (change.removed) {
       for (const text of change.value) {
         lines.push({ rowIndex: lines.length, kind: 'del', oldNumber, newNumber: null, text })
-        oldNumber++
+        if (oldNumber !== null) oldNumber++
       }
     } else if (change.added) {
       for (const text of change.value) {
         lines.push({ rowIndex: lines.length, kind: 'add', oldNumber: null, newNumber, text })
-        newNumber++
+        if (newNumber !== null) newNumber++
       }
     } else {
       for (const text of change.value) {
         lines.push({ rowIndex: lines.length, kind: 'context', oldNumber, newNumber, text })
-        oldNumber++
-        newNumber++
+        if (oldNumber !== null) oldNumber++
+        if (newNumber !== null) newNumber++
       }
     }
   }
@@ -211,13 +212,13 @@ function buildHunks(diffs: readonly DiffHunk[], contextLines: number): UnifiedHu
   })
 }
 
-/** Serialize recorded hunks as one plain-text unified diff. */
+/** Serialize recorded hunks as plain text, preserving unknown coordinates as question marks. */
 export function unifiedDiffText(diffs: readonly DiffHunk[]): string {
   let previousPath: string | undefined
   const output: string[] = []
   for (const diff of diffs) {
     if (diff.path !== previousPath) output.push(diff.path)
-    else output.push(`@@ -${diff.oldStart ?? 1} +${diff.newStart ?? 1} @@`)
+    else output.push(`@@ -${diff.oldStart ?? '?'} +${diff.newStart ?? '?'} @@`)
     previousPath = diff.path
     for (const line of hunkLines(diff)) {
       const prefix = line.kind === 'del' ? '-' : line.kind === 'add' ? '+' : ' '
@@ -345,7 +346,7 @@ export function UnifiedDiff({
           data-new-line={line.newNumber ?? undefined}
         >
           <span className={css.unifiedLineNumber}>
-            {commentsEnabled && (
+            {commentsEnabled && displayLine > 0 && (
               <button
                 type="button"
                 className={css.commentTrigger}
@@ -462,7 +463,7 @@ export function UnifiedDiff({
                 </header>
               )
               : !firstForPath && (hunk?.unchangedBefore ?? 0) === 0
-                ? <div className={css.unifiedHunkHeader}>@@ -{diff.oldStart ?? 1} +{diff.newStart ?? 1} @@</div>
+                ? <div className={css.unifiedHunkHeader}>@@ -{diff.oldStart ?? '?'} +{diff.newStart ?? '?'} @@</div>
                 : null}
             <div className={`${css.unifiedBody} ${wordWrap ? css.unifiedBodyWrap : ''}`}>
               {(hunk?.unchangedBefore ?? 0) > 0 && (

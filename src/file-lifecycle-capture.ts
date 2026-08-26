@@ -1,4 +1,4 @@
-/** Capture exact whole-file lifecycle transitions around successful mutation tools. */
+/** Capture exact file transitions around successful mutation tools. */
 
 import { lstat, readFile, realpath } from 'node:fs/promises'
 import { isAbsolute, relative, resolve } from 'node:path'
@@ -8,6 +8,8 @@ import type {
   PostToolDecision, ToolCallView, ToolDispatchExecution, ToolExecution,
   ToolExecutionResult, ToolExecutionToken,
 } from '@deepseek-ai/dsh-tools'
+import { structuredPatch, type StructuredPatchHunk } from 'diff'
+import type { ProducedFileDiff } from './change-types.ts'
 import type { PresentedFileChange } from './ptc-marker.ts'
 import {
   boundedPtcFileReviewMarker, markerBlock, normalizeMutationPresentation,
@@ -24,6 +26,8 @@ interface FileCapture {
 }
 
 type CapturedImage = MissingCapture | FileCapture
+
+const INLINE_UNCHANGED_LINES = 5
 
 interface CapturedResult {
   readonly files: readonly PresentedFileChange[]
@@ -104,7 +108,81 @@ async function captureImages(
   return new Map(entries)
 }
 
-function lifecycleFiles(
+/** Find the string offset of a one-based line, or null when that line does not exist. */
+function offsetAtLine(text: string, line: number): number | null {
+  let offset = 0
+  for (let current = 1; current < line; current += 1) {
+    const next = text.indexOf('\n', offset)
+    if (next === -1) return null
+    offset = next + 1
+  }
+  return offset
+}
+
+/** Slice an exact line range while preserving its original newline characters. */
+function lineRange(text: string, start: number, count: number): string | null {
+  const from = offsetAtLine(text, start)
+  if (from === null) return null
+  if (count === 0) return ''
+  let to = from
+  for (let current = 0; current < count; current += 1) {
+    const next = text.indexOf('\n', to)
+    if (next === -1) return current === count - 1 ? text.slice(from) : null
+    to = next + 1
+  }
+  return text.slice(from, to)
+}
+
+type HunkRange = Pick<StructuredPatchHunk, 'oldStart' | 'oldLines' | 'newStart' | 'newLines'>
+
+/** Keep up to five unchanged lines inline by joining compatible neighboring hunks. */
+function mergeNearbyHunks(hunks: readonly StructuredPatchHunk[]): HunkRange[] {
+  const merged: HunkRange[] = []
+  for (const hunk of hunks) {
+    const previous = merged.at(-1)
+    if (previous !== undefined) {
+      const oldGap = hunk.oldStart - (previous.oldStart + previous.oldLines)
+      const newGap = hunk.newStart - (previous.newStart + previous.newLines)
+      if (oldGap === newGap && oldGap >= 0 && oldGap <= INLINE_UNCHANGED_LINES) {
+        previous.oldLines = hunk.oldStart + hunk.oldLines - previous.oldStart
+        previous.newLines = hunk.newStart + hunk.newLines - previous.newStart
+        continue
+      }
+    }
+    merged.push({
+      oldStart: hunk.oldStart,
+      oldLines: hunk.oldLines,
+      newStart: hunk.newStart,
+      newLines: hunk.newLines,
+    })
+  }
+  return merged
+}
+
+/** Derive authoritative, line-addressed hunks from complete before/after file images. */
+function snapshotDiffs(
+  path: string,
+  oldText: string,
+  newText: string,
+): readonly ProducedFileDiff[] {
+  const patch = structuredPatch(path, path, oldText, newText, undefined, undefined, { context: 0 })
+  return mergeNearbyHunks(patch.hunks).flatMap((hunk) => {
+    const oldRange = lineRange(oldText, hunk.oldStart, hunk.oldLines)
+    const newRange = lineRange(newText, hunk.newStart, hunk.newLines)
+    return oldRange === null || newRange === null
+      ? []
+      : [{
+          path,
+          oldText: oldRange,
+          newText: newRange,
+          oldStart: hunk.oldStart,
+          newStart: hunk.newStart,
+        }]
+  })
+}
+
+/** Convert captured file images into review changes for creates, deletes, and edits. */
+function snapshotFiles(
   paths: readonly string[],
   before: ReadonlyMap<string, CapturedImage | null>,
   after: ReadonlyMap<string, CapturedImage | null>,
@@ -131,16 +209,21 @@ function lifecycleFiles(
           lifecycle: { kind: 'delete', mode: oldImage.mode },
         }],
       })
+    } else if (oldImage?.kind === 'file' && newImage?.kind === 'file'
+      && oldImage.text !== newImage.text) {
+      const diffs = snapshotDiffs(path, oldImage.text, newImage.text)
+      if (diffs.length > 0) files.push({ path, source: 'result', diffs })
     }
   }
   return files
 }
 
+/** Prefer snapshot-derived diffs while retaining tool presentation for uncaptured paths. */
 function mergePresentedFiles(
   presented: readonly PresentedFileChange[],
-  lifecycle: readonly PresentedFileChange[],
+  captured: readonly PresentedFileChange[],
 ): readonly PresentedFileChange[] {
-  const replacements = new Map(lifecycle.map(file => [file.path, file]))
+  const replacements = new Map(captured.map(file => [file.path, file]))
   const merged = presented.map(file => {
     const replacement = replacements.get(file.path)
     replacements.delete(file.path)
@@ -149,7 +232,7 @@ function mergePresentedFiles(
   return [...merged, ...replacements.values()]
 }
 
-/** Register lifecycle capture without changing mutation-tool success or failure semantics. */
+/** Register snapshot capture without changing mutation-tool success or failure semantics. */
 export function registerFileLifecycleCapture(ctx: Context): void {
   const captured = new Map<ToolExecutionToken, CapturedResult>()
 
@@ -180,7 +263,7 @@ export function registerFileLifecycleCapture(ctx: Context): void {
     if (result.isError) return result
     try {
       const after = await captureImages(root, paths)
-      const lifecycle = lifecycleFiles(paths, before, after)
+      const snapshots = snapshotFiles(paths, before, after)
       let presented: readonly PresentedFileChange[]
       try {
         const resultView = ctx.tools.get(exec.name, agent)?.presentResult?.(exec.arguments, result)
@@ -188,9 +271,9 @@ export function registerFileLifecycleCapture(ctx: Context): void {
       } catch {
         presented = normalizeMutationPresentation(callView, undefined)
       }
-      const files = mergePresentedFiles(presented, lifecycle)
+      const files = mergePresentedFiles(presented, snapshots)
       const owner = rootCall(agent, exec.rootCallId)
-      if (lifecycle.length > 0 && files.length > 0 && owner !== null) {
+      if (snapshots.length > 0 && files.length > 0 && owner !== null) {
         captured.set(exec.token, {
           files,
           turn: owner.turn,
@@ -211,11 +294,11 @@ export function registerFileLifecycleCapture(ctx: Context): void {
     next,
   ): Promise<PostToolDecision> => {
     const decision = await next()
-    const lifecycle = captured.get(exec.token)
+    const snapshot = captured.get(exec.token)
     captured.delete(exec.token)
-    if (result.isError || lifecycle === undefined || decision.kind !== 'accept'
+    if (result.isError || snapshot === undefined || decision.kind !== 'accept'
       || 'value' in decision) return decision
-    const marker = boundedPtcFileReviewMarker(lifecycle)
+    const marker = boundedPtcFileReviewMarker(snapshot)
     if (marker === null) return decision
     return {
       ...decision,

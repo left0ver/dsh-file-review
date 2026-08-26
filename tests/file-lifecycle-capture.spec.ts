@@ -138,6 +138,79 @@ describe('tool lifecycle capture', () => {
       }])
   })
 
+  it('captures insert/delete coordinates and keeps at most five unchanged lines inline', async () => {
+    const root = await workspace()
+    const filename = join(root, 'edited.txt')
+    const before = [
+      'repeat', 'lead-1', 'lead-2', 'lead-3', 'lead-4', 'lead-5', 'lead-6', 'repeat',
+      'five-1', 'five-2', 'five-3', 'five-4', 'five-5', 'second-old',
+      'six-1', 'six-2', 'six-3', 'six-4', 'six-5', 'six-6', 'distant-old', 'tail',
+    ].join('\n') + '\n'
+    const after = [
+      'inserted', 'repeat', 'lead-1', 'lead-2', 'lead-3', 'lead-4', 'lead-5', 'lead-6',
+      'changed', 'five-1', 'five-2', 'five-3', 'five-4', 'five-5', 'second-new',
+      'six-1', 'six-2', 'six-3', 'six-4', 'six-5', 'six-6', 'tail',
+    ].join('\n') + '\n'
+    await writeFile(filename, before)
+    const callId = 'edit-call'
+    ctx = new Context()
+    await ctx.plugin(SystemPrompt, { persona: '' })
+    await ctx.plugin(Tools, {})
+    const mounted = ctx.plugin({ apply, inject })
+    await mounted.await()
+    ctx.tools.register(defineTool({
+      name: 'fixture_edit',
+      description: 'edit a fixture file',
+      parameters: { path: { type: 'string', required: true } },
+      output: {
+        schema: { type: 'string' },
+        render: (_args, value) => [{ type: 'text', text: value }],
+      },
+      presentCall: args => ({
+        card: 'diff', title: `Edit ${args.path}`, locations: [{ path: args.path }],
+        diffs: [{ path: args.path, oldText: 'repeat', newText: 'changed' }],
+      }),
+      presentResult: args => ({
+        card: 'diff',
+        diffs: [{ path: args.path, oldText: 'repeat', newText: 'changed' }],
+      }),
+      async execute(args) {
+        await writeFile(join(root, args.path), after)
+        return args.path
+      },
+    }))
+
+    const result = await ctx.tools.execute({
+      callId,
+      name: 'fixture_edit',
+      arguments: { path: 'edited.txt' },
+      agent: agent(root, callId),
+      signal: new AbortController().signal,
+    })
+
+    expect(result.isError).toBe(false)
+    expect(markerFromContent(result.content, { rootCallId: callId, subCallId: callId })?.files)
+      .toEqual([{
+        path: 'edited.txt', source: 'result',
+        diffs: [
+          {
+            path: 'edited.txt', oldText: '', newText: 'inserted\n',
+            oldStart: 1, newStart: 1,
+          },
+          {
+            path: 'edited.txt',
+            oldText: 'repeat\nfive-1\nfive-2\nfive-3\nfive-4\nfive-5\nsecond-old\n',
+            newText: 'changed\nfive-1\nfive-2\nfive-3\nfive-4\nfive-5\nsecond-new\n',
+            oldStart: 8, newStart: 9,
+          },
+          {
+            path: 'edited.txt', oldText: 'distant-old\n', newText: '',
+            oldStart: 21, newStart: 22,
+          },
+        ],
+      }])
+  })
+
   it('keeps ordinary edit diffs beside captured lifecycle diffs from the same call', async () => {
     const root = await workspace()
     await writeFile(join(root, 'edited.txt'), 'old')
@@ -198,7 +271,9 @@ describe('tool lifecycle capture', () => {
       },
       {
         path: 'edited.txt', source: 'result',
-        diffs: [{ path: 'edited.txt', oldText: 'old', newText: 'new' }],
+        diffs: [{
+          path: 'edited.txt', oldText: 'old', newText: 'new', oldStart: 1, newStart: 1,
+        }],
       },
     ])
   })
