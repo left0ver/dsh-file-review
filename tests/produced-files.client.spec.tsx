@@ -1014,25 +1014,47 @@ describe('ProducedFiles review card', () => {
     expect(openFile).toHaveBeenCalledExactlyOnceWith(absolutePath)
   })
 
-  it('keeps only one review drawer open across multiple produced-file cards', () => {
+  it('transfers the review drawer between produced-file cards from file and review buttons', () => {
     const view = render(
       <>
-        <ProducedFiles matched={[fileReview('first.md')]} openFile={() => {}} t={t} />
-        <ProducedFiles matched={[fileReview('second.md')]} openFile={() => {}} t={t} />
+        <ProducedFiles
+          matched={[fileReview('first.md'), fileReview('first-extra.md')]}
+          openFile={() => {}}
+          t={t}
+        />
+        <ProducedFiles
+          matched={[fileReview('second.md'), fileReview('second-extra.md')]}
+          openFile={() => {}}
+          t={t}
+        />
       </>,
     )
 
     fireEvent.click(view.getByRole('button', { name: 'Review first.md' }))
     expect(view.getAllByRole('dialog', { name: 'Review' })).toHaveLength(1)
-    fireEvent.click(view.getByRole('button', { name: 'Review second.md' }))
-    expect(view.getAllByRole('dialog', { name: 'Review' })).toHaveLength(1)
-    expect(view.getByRole('dialog', { name: 'Review' }).textContent).toContain('first.md')
+    let drawer = view.getByRole('dialog', { name: 'Review' })
+    expect(within(drawer).getByText('first.md')).toBeTruthy()
+    expect(within(drawer).queryByText('first-extra.md')).toBeNull()
 
-    fireEvent.click(within(view.getByRole('dialog', { name: 'Review' }))
-      .getByRole('button', { name: 'Close' }))
+    fireEvent.click(view.getAllByRole('button', { name: 'Review all produced files' })[1]!)
+    expect(view.getAllByRole('dialog', { name: 'Review' })).toHaveLength(1)
+    drawer = view.getByRole('dialog', { name: 'Review' })
+    expect(within(drawer).getByText('second.md')).toBeTruthy()
+    expect(within(drawer).getByText('second-extra.md')).toBeTruthy()
+    expect(within(drawer).queryByText('first.md')).toBeNull()
+
+    fireEvent.click(view.getAllByRole('button', { name: 'Review all produced files' })[0]!)
+    expect(view.getAllByRole('dialog', { name: 'Review' })).toHaveLength(1)
+    drawer = view.getByRole('dialog', { name: 'Review' })
+    expect(within(drawer).getByText('first.md')).toBeTruthy()
+    expect(within(drawer).getByText('first-extra.md')).toBeTruthy()
+    expect(within(drawer).queryByText('second.md')).toBeNull()
+
     fireEvent.click(view.getByRole('button', { name: 'Review second.md' }))
     expect(view.getAllByRole('dialog', { name: 'Review' })).toHaveLength(1)
-    expect(view.getByRole('dialog', { name: 'Review' }).textContent).toContain('second.md')
+    drawer = view.getByRole('dialog', { name: 'Review' })
+    expect(within(drawer).getByText('second.md')).toBeTruthy()
+    expect(within(drawer).queryByText('second-extra.md')).toBeNull()
   })
 
   it('resizes the drawer by dragging or keyboard and persists the chosen width', () => {
@@ -1100,6 +1122,70 @@ describe('ProducedFiles review card', () => {
     expect(frame.style.getPropertyValue('--dsh-file-review-drawer-width')).toBe('')
     expect(details.style.visibility).toBe('')
     expect(details.style.pointerEvents).toBe('')
+    expect(details.getAttribute('aria-hidden')).toBeNull()
+  })
+
+  it('keeps the host split owned by the new drawer after a cross-turn takeover', () => {
+    const host = (showFirst: boolean) => (
+      <div
+        data-testid="host-frame"
+        style={{ display: 'grid', gridTemplateColumns: '280px minmax(0, 1fr) 0px' }}
+      >
+        <aside style={{ width: 280 }} />
+        <main>
+          {showFirst && (
+            <ProducedFiles
+              key="first"
+              matched={[fileReview('first.md')]}
+              openFile={() => {}}
+              t={t}
+            />
+          )}
+          <ProducedFiles
+            key="second"
+            matched={[fileReview('second.md')]}
+            openFile={() => {}}
+            t={t}
+          />
+        </main>
+        <aside data-testid="host-details">Native details</aside>
+      </div>
+    )
+    const view = render(host(true))
+    const frame = view.getByTestId('host-frame')
+    const details = view.getByTestId('host-details')
+    let detailsWidth = 0
+    vi.spyOn(details, 'getBoundingClientRect').mockImplementation(
+      () => ({ width: detailsWidth }) as DOMRect,
+    )
+
+    fireEvent.click(view.getByRole('button', { name: 'Review first.md' }))
+    expect(frame.style.gridTemplateColumns)
+      .toBe('280px minmax(0, 1fr) var(--dsh-file-review-drawer-width)')
+
+    // The host animates the released details track, so it can still report a visible width
+    // while the next turn takes ownership of the shared review drawer.
+    detailsWidth = 320
+    fireEvent.click(view.getByRole('button', { name: 'Review second.md' }))
+    expect(view.getAllByRole('dialog', { name: 'Review' })).toHaveLength(1)
+    expect(within(view.getByRole('dialog', { name: 'Review' })).getByText('second.md'))
+      .toBeTruthy()
+    expect(frame.style.gridTemplateColumns)
+      .toBe('280px minmax(0, 1fr) var(--dsh-file-review-drawer-width)')
+    expect(details.style.visibility).toBe('hidden')
+    expect(details.getAttribute('aria-hidden')).toBe('true')
+
+    view.rerender(host(false))
+    expect(within(view.getByRole('dialog', { name: 'Review' })).getByText('second.md'))
+      .toBeTruthy()
+    expect(frame.style.gridTemplateColumns)
+      .toBe('280px minmax(0, 1fr) var(--dsh-file-review-drawer-width)')
+    expect(details.style.visibility).toBe('hidden')
+
+    fireEvent.click(within(view.getByRole('dialog', { name: 'Review' }))
+      .getByRole('button', { name: 'Close' }))
+    expect(frame.style.gridTemplateColumns).toBe('280px minmax(0, 1fr) 0px')
+    expect(details.style.visibility).toBe('')
     expect(details.getAttribute('aria-hidden')).toBeNull()
   })
 

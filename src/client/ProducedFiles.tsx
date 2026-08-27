@@ -45,17 +45,24 @@ const DEFAULT_WORD_WRAP_SOURCE: ObservableSnapshot<boolean> = {
   subscribe: () => () => {},
 }
 
-/** Review drawers share the host's single details column, so only one may own it at a time. */
-let activeReviewOwner: symbol | null = null
+/** Review drawers share the host's single details column, so ownership transfers on activation. */
+interface ActiveReviewDrawer {
+  readonly owner: symbol
+  readonly close: () => void
+}
 
-function claimReviewDrawer(owner: symbol): boolean {
-  if (activeReviewOwner !== null) return activeReviewOwner === owner
-  activeReviewOwner = owner
-  return true
+let activeReviewDrawer: ActiveReviewDrawer | null = null
+
+function activateReviewDrawer(owner: symbol, close: () => void): boolean {
+  if (activeReviewDrawer?.owner === owner) return false
+  const previous = activeReviewDrawer
+  activeReviewDrawer = { owner, close }
+  previous?.close()
+  return previous !== null
 }
 
 function releaseReviewDrawer(owner: symbol): void {
-  if (activeReviewOwner === owner) activeReviewOwner = null
+  if (activeReviewDrawer?.owner === owner) activeReviewDrawer = null
 }
 
 type ReviewScope = { readonly kind: 'all' } | { readonly kind: 'file'; readonly path: string }
@@ -122,7 +129,10 @@ function persistDrawerRatio(ratio: number | null): void {
 }
 
 /** Locate the host's sidebar / conversation / details grid without relying on hashed classes. */
-function findHostSplitLayout(anchor: HTMLElement): HostSplitLayout | null {
+function findHostSplitLayout(
+  anchor: HTMLElement,
+  allowOccupiedDetails = false,
+): HostSplitLayout | null {
   let directChild: HTMLElement = anchor
   for (let candidate = anchor.parentElement; candidate !== null; candidate = candidate.parentElement) {
     if (getComputedStyle(candidate).display === 'grid') {
@@ -134,7 +144,7 @@ function findHostSplitLayout(anchor: HTMLElement): HostSplitLayout | null {
         const sidebar = children[centerIndex - 1]
         const details = children[centerIndex + 1]
         if (sidebar !== undefined && details !== undefined
-          && details.getBoundingClientRect().width <= 1) {
+          && (allowOccupiedDetails || details.getBoundingClientRect().width <= 1)) {
           return { frame: candidate, sidebar, center: directChild, details }
         }
       }
@@ -344,8 +354,10 @@ export function ProducedFiles({
   const [isPreviewExpanded, setIsPreviewExpanded] = useState(false)
   const toastSeqRef = useRef(0)
   const reviewOwnerRef = useRef(Symbol('review-drawer-owner'))
+  const reviewTakeoverRef = useRef(false)
   const cardRef = useRef<HTMLElement>(null)
   const hostSplitRef = useRef<ActiveHostSplit | null>(null)
+  const hostSplitCleanupRef = useRef<(() => void) | null>(null)
   const closeButtonRef = useRef<HTMLButtonElement>(null)
   const triggerRef = useRef<HTMLButtonElement | null>(null)
   const copyResetRef = useRef<number | null>(null)
@@ -500,16 +512,17 @@ export function ProducedFiles({
     statusPending, toggleAction, toggleFiles, togglePending,
   ])
 
-  const openReview = useCallback((scope: ReviewScope, trigger: HTMLButtonElement) => {
-    if (!claimReviewDrawer(reviewOwnerRef.current)) return
-    triggerRef.current = trigger
-    setCopied(false)
-    setReviewScope(scope)
-  }, [])
   const closeReview = useCallback(() => {
+    hostSplitCleanupRef.current?.()
     releaseReviewDrawer(reviewOwnerRef.current)
     setReviewScope(null)
   }, [])
+  const openReview = useCallback((scope: ReviewScope, trigger: HTMLButtonElement) => {
+    reviewTakeoverRef.current = activateReviewDrawer(reviewOwnerRef.current, closeReview)
+    triggerRef.current = trigger
+    setCopied(false)
+    setReviewScope(scope)
+  }, [closeReview])
 
   useEffect(() => () => { releaseReviewDrawer(reviewOwnerRef.current) }, [])
 
@@ -538,12 +551,14 @@ export function ProducedFiles({
   const reviewIsOpen = reviewScope !== null
 
   useLayoutEffect(() => {
+    const allowOccupiedDetails = reviewTakeoverRef.current
+    reviewTakeoverRef.current = false
     if (!reviewIsOpen || currentViewportWidth <= MOBILE_BREAKPOINT
       || cardRef.current === null) {
       setIsHostSplit(false)
       return
     }
-    const layout = findHostSplitLayout(cardRef.current)
+    const layout = findHostSplitLayout(cardRef.current, allowOccupiedDetails)
     if (layout === null) {
       setIsHostSplit(false)
       return
@@ -566,7 +581,10 @@ export function ProducedFiles({
     }
     setIsHostSplit(true)
 
-    return () => {
+    let cleaned = false
+    const cleanup = (): void => {
+      if (cleaned) return
+      cleaned = true
       if (layout.frame.style.gridTemplateColumns === splitColumns) {
         layout.frame.style.gridTemplateColumns = previousGridTemplateColumns
       }
@@ -583,7 +601,10 @@ export function ProducedFiles({
         layout.details.setAttribute('aria-hidden', previousDetailsAriaHidden)
       }
       hostSplitRef.current = null
+      if (hostSplitCleanupRef.current === cleanup) hostSplitCleanupRef.current = null
     }
+    hostSplitCleanupRef.current = cleanup
+    return cleanup
   }, [currentViewportWidth, reviewIsOpen])
 
   useLayoutEffect(() => {
