@@ -66,6 +66,8 @@
     }
   },
   "scripts": {
+    "check:readme-i18n": "node scripts/verify-readme-i18n.mjs",
+    "update:readme-i18n": "node scripts/verify-readme-i18n.mjs --write",
     "build:types": "tsc --emitDeclarationOnly --outDir lib/types",
     "build": "npm run build:types && tsdown",
     "typecheck": "tsc --noEmit",
