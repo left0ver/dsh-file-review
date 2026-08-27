@@ -1,6 +1,6 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
-#   pnpm run verify-translation-pairing --write plugins/dsh-file-review/README.md
-README.md: 93b4ee6b2855beeea53849cbc6aec2ca041d0a8f
-README.zh.md: 1a2ffb8139e61759dcf88e6003dbd0e0d63e9a50
+# Git blob hashes from the last human-confirmed bilingual README review.
+# CI checks structure and requires both languages to change together. After confirming
+# that their meaning is aligned, update this record with:
+#   npm run update:readme-i18n
+README.md: 64b6912912b62acdbf10c7955f725430ea1126cc
+README.zh.md: fb615c6ce13bcbaa398e49a69379301879489fd7
