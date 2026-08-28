@@ -1016,7 +1016,7 @@ describe('ProducedFiles review card', () => {
 
   it('transfers the review drawer between produced-file cards from file and review buttons', () => {
     const view = render(
-      <>
+      <main data-testid="session-scroll-container">
         <ProducedFiles
           matched={[fileReview('first.md'), fileReview('first-extra.md')]}
           openFile={() => {}}
@@ -1027,16 +1027,23 @@ describe('ProducedFiles review card', () => {
           openFile={() => {}}
           t={t}
         />
-      </>,
+      </main>,
     )
 
-    fireEvent.click(view.getByRole('button', { name: 'Review first.md' }))
+    const session = view.getByTestId('session-scroll-container')
+    const firstTrigger = view.getByRole('button', { name: 'Review first.md' })
+    vi.spyOn(firstTrigger, 'focus').mockImplementation((options) => {
+      if (options?.preventScroll !== true) session.scrollTop = 0
+    })
+    fireEvent.click(firstTrigger)
+    session.scrollTop = 1050
     expect(view.getAllByRole('dialog', { name: 'Review' })).toHaveLength(1)
     let drawer = view.getByRole('dialog', { name: 'Review' })
     expect(within(drawer).getByText('first.md')).toBeTruthy()
     expect(within(drawer).queryByText('first-extra.md')).toBeNull()
 
     fireEvent.click(view.getAllByRole('button', { name: 'Review all produced files' })[1]!)
+    expect(session.scrollTop).toBe(1050)
     expect(view.getAllByRole('dialog', { name: 'Review' })).toHaveLength(1)
     drawer = view.getByRole('dialog', { name: 'Review' })
     expect(within(drawer).getByText('second.md')).toBeTruthy()

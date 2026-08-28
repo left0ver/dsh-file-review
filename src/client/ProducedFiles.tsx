@@ -535,7 +535,7 @@ export function ProducedFiles({
     document.addEventListener('keydown', onKeyDown)
     return () => {
       document.removeEventListener('keydown', onKeyDown)
-      triggerRef.current?.focus()
+      triggerRef.current?.focus({ preventScroll: true })
     }
   }, [closeReview, reviewScope])
 
