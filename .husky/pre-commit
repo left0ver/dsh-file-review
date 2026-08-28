@@ -1,3 +1,4 @@
+npm run check:readme-i18n
 npx lint-staged
 
 echo "lint successful"
