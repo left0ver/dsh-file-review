@@ -1,0 +1,7 @@
+{
+  "*.{js,jsx,mjs,cjs,ts,tsx,mts,cts}": [
+    "oxlint",
+    "oxfmt"
+  ],
+  "*.{css,json,jsonc,md,mdx,yaml,yml}": "oxfmt"
+}

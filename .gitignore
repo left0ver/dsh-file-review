@@ -5,3 +5,9 @@ lib
 .codegraph
 .DS_Store
 .codex
+.e2e/
+midscene_run/
+test-results/
+playwright-report/
+.env.e2e
+__pycache__

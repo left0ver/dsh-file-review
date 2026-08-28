@@ -66,6 +66,11 @@
     }
   },
   "scripts": {
+    "fmt": "oxfmt",
+    "fmt:check": "oxfmt --check",
+    "lint": "oxlint",
+    "lint:fix": "oxlint --fix",
+    "prepare": "husky",
     "check:readme-i18n": "node scripts/verify-readme-i18n.mjs",
     "update:readme-i18n": "node scripts/verify-readme-i18n.mjs --write",
     "build:types": "tsc --emitDeclarationOnly --outDir lib/types",
@@ -83,9 +88,9 @@
     "zod": "^4.4.3"
   },
   "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.1",
     "@deepseek-ai/dsh-agent": ">=0.1.0-rc.5 <0.2.0",
     "@deepseek-ai/dsh-atomic-write": ">=0.1.0-rc.5 <0.2.0",
-    "@deepseek-ai/cordis": "^4.0.1",
     "@deepseek-ai/dsh-client-locale": ">=0.1.0-rc.5 <0.2.0",
     "@deepseek-ai/dsh-client-runtime": ">=0.1.0-rc.5 <0.2.0",
     "@deepseek-ai/dsh-client-ui-conversation": ">=0.1.0-rc.5 <0.2.0",
@@ -104,9 +109,9 @@
     "react": "^18.2.0"
   },
   "devDependencies": {
+    "@deepseek-ai/cordis": "^4.0.1",
     "@deepseek-ai/dsh-agent": "0.1.0-rc.6",
     "@deepseek-ai/dsh-atomic-write": "0.1.0-rc.6",
-    "@deepseek-ai/cordis": "^4.0.1",
     "@deepseek-ai/dsh-client-locale": "0.1.0-rc.6",
     "@deepseek-ai/dsh-client-runtime": "0.1.0-rc.6",
     "@deepseek-ai/dsh-client-ui-conversation": "0.1.0-rc.6",
@@ -122,15 +127,23 @@
     "@deepseek-ai/dsh-tools": "0.1.0-rc.6",
     "@deepseek-ai/dsh-typert-protocol": "0.1.0-rc.6",
     "@deepseek-ai/dsh-typert-registry": "0.1.0-rc.6",
+    "@midscene/web": "^1.12.0",
+    "@playwright/test": "^1.62.1",
     "@testing-library/react": "^16.3.2",
+    "@types/node": "^26.0.0",
     "@types/react": "~18.3.1",
     "@types/react-dom": "~18.3.0",
-    "@types/node": "^26.0.0",
+    "husky": "^9.1.7",
     "jsdom": "^27.0.0",
     "lightningcss": "^1.32.0",
+    "lint-staged": "^17.3.0",
+    "oxfmt": "^0.65.0",
+    "oxlint": "^1.80.0",
+    "playwright": "^1.62.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "tsdown": "^0.22.14",
+    "tsx": "^4.23.12",
     "typescript": "^6.0.3",
     "vitest": "^4.1.8"
   }
