@@ -75,8 +75,7 @@
     "test": "npm run build && vitest run && npm run test:pack",
     "test:pack": "node scripts/verify-pack.mjs",
     "prepack": "npm run typecheck && npm test",
-    "release": "npm publish --registry=https://registry.npmjs.org/",
-    "postpublish": "nrm use taobao"
+    "release": "npm publish --registry=https://registry.npmjs.org/"
   },
   "dependencies": {
     "@deepseek-ai/schemastery": "^3.18.1",
