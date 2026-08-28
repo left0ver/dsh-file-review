@@ -3,4 +3,4 @@
 # that their meaning is aligned, update this record with:
 #   npm run update:readme-i18n
 README.md: 64b6912912b62acdbf10c7955f725430ea1126cc
-README.zh.md: fb615c6ce13bcbaa398e49a69379301879489fd7
+README.zh.md: e3154e38f5d8ad49fe89cfd8c67bac975e040a03
