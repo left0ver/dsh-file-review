@@ -170,9 +170,9 @@ jobs:
           BODY_FILE="${NOTES_FILE}.body"
           tail -n +2 "$NOTES_FILE" > "$BODY_FILE"
 
-          RELEASE_JSON="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${TARGET_TAG}" 2>/dev/null || true)"
-          if [[ -n "$RELEASE_JSON" ]]; then
-            IS_DRAFT="$(echo "$RELEASE_JSON" | jq -r '.draft')"
+          if IS_DRAFT="$(
+            gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${TARGET_TAG}" --jq '.draft' 2>/dev/null
+          )"; then
             if [[ "$IS_DRAFT" != "true" ]]; then
               echo "::error::Release $TARGET_TAG is already published; refusing to overwrite it"
               exit 1
