@@ -16,7 +16,9 @@ import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import type { FileReviewRequest, FileReviewResult } from '../change-types.ts'
 import { TYPERT_REMOTE } from '../remote.ts'
 import {
-  DEFAULT_WORD_WRAP, FILE_REVIEW_SETTINGS_NAMESPACE, type Config,
+  DEFAULT_WORD_WRAP,
+  FILE_REVIEW_SETTINGS_NAMESPACE,
+  type Config,
 } from '../settings-contract.ts'
 import { ProducedFiles } from './ProducedFiles.tsx'
 import { FileReviewSettingsCard } from './FileReviewSettingsCard.tsx'
@@ -24,7 +26,9 @@ import { ReviewCommentsDock } from './ReviewCommentsDock.tsx'
 import { ReviewUserMessage } from './ReviewUserMessage.tsx'
 import { en, NS, zh, type DeliverablesKey } from './locales.ts'
 import {
-  deliverablesDefinition, producedFileMentions, selectProducedFiles,
+  deliverablesDefinition,
+  producedFileMentions,
+  selectProducedFiles,
 } from './turn-deliverables.ts'
 import { bindReviewReference, reviewCommentSource } from './review-reference.ts'
 import { clearAllReviewComments } from './review-comments.ts'
@@ -73,7 +77,9 @@ export async function apply(ctx: ClientContext): Promise<() => Promise<void>> {
   // SessionStore and browser ISessions intentionally share the Cordis key, so keep
   // this platform-specific narrowing at the browser entry boundary.
   const sessions = (ctx as unknown as { readonly sessions: ISessions }).sessions
-  const reviewBindingFor = (sessionId: SessionId): ReturnType<typeof bindReviewReference> | undefined => {
+  const reviewBindingFor = (
+    sessionId: SessionId,
+  ): ReturnType<typeof bindReviewReference> | undefined => {
     let binding = reviewBindings.get(sessionId)
     if (binding !== undefined) return binding
     const scope = sessions.scope(sessionId)
@@ -95,77 +101,85 @@ export async function apply(ctx: ClientContext): Promise<() => Promise<void>> {
     id: FILE_REVIEW_SETTINGS_NAMESPACE,
     order: 30,
   } as const
-  ctx.slots.inject(
-    'settings.plugin.item',
-    () => ctx.slots.register({
-      name: 'settings.plugin.item',
-      ...settingsCell,
-      locale: NS,
-      inject: () => ({
-        hooks: { fileReviewSettings: settings },
-        setWordWrap: (value: boolean) => settings.set('wordWrap', value),
-      }),
-    }, FileReviewSettingsCard),
+  ctx.slots.inject('settings.plugin.item', () =>
+    ctx.slots.register(
+      {
+        name: 'settings.plugin.item',
+        ...settingsCell,
+        locale: NS,
+        inject: () => ({
+          hooks: { fileReviewSettings: settings },
+          setWordWrap: (value: boolean) => settings.set('wordWrap', value),
+        }),
+      },
+      FileReviewSettingsCard,
+    ),
   )
-  ctx.slots.inject(
-    'conversation.input.dock',
-    () => ctx.slots.register({
-      name: 'conversation.input.dock',
-      id: 'file-review-comments',
-      order: -10,
-      locale: NS,
-      inject: sessionId => ({
-        projectRoot: sessions.list.getSnapshot().byId[sessionId]?.cwd,
-      }),
-    }, ReviewCommentsDock),
+  ctx.slots.inject('conversation.input.dock', () =>
+    ctx.slots.register(
+      {
+        name: 'conversation.input.dock',
+        id: 'file-review-comments',
+        order: -10,
+        locale: NS,
+        inject: (sessionId) => ({
+          projectRoot: sessions.list.getSnapshot().byId[sessionId]?.cwd,
+        }),
+      },
+      ReviewCommentsDock,
+    ),
   )
   for (const key of ['user', 'steering'] as const) {
-    ctx.slots.inject(
-      'conversation.chat.node',
-      () => ctx.slots.register({
-        name: 'conversation.chat.node',
-        key,
-        priority: -10,
-        locale: 'conversation',
-        inject: () => ({ reviewT: ctx.locale.bind(NS) }),
-      }, ReviewUserMessage),
+    ctx.slots.inject('conversation.chat.node', () =>
+      ctx.slots.register(
+        {
+          name: 'conversation.chat.node',
+          key,
+          priority: -10,
+          locale: 'conversation',
+          inject: () => ({ reviewT: ctx.locale.bind(NS) }),
+        },
+        ReviewUserMessage,
+      ),
     )
   }
-  ctx.slots.inject(
-    'conversation.chat.turnTail',
-    () => ctx.slots.register({
-      name: 'conversation.chat.turnTail',
-      select: selectProducedFiles,
-      locale: NS,
-      inject: (sessionId) => {
-        const projectRoot = sessions.list.getSnapshot().byId[sessionId]?.cwd
-        const reviewBinding = reviewBindingFor(sessionId)
-        const invoke = async (
-          method: 'status' | 'apply',
-          request: FileReviewRequest,
-        ): Promise<FileReviewResult> => {
-          const scope = sessions.scope(sessionId)
-          if (scope === undefined) throw new Error('Session is unavailable')
-          // Session scopes are minted by the client runtime and cannot statically
-          // inject namespaces contributed later by feature plugins. `get()` is the
-          // Cordis escape hatch for an explicitly mounted dynamic service; tracing
-          // still binds the Remote call to this Session scope.
-          const fileReview = scope.get('remote.fileReview') as FileReviewRemote | undefined
-          if (fileReview === undefined) throw new Error('File review Remote is unavailable')
-          const result = await fileReview[method](request)
-          if (!result.ok) throw new Error(result.error.message)
-          return result.value
-        }
-        return {
-          projectRoot,
-          sessionId,
-          wordWrap,
-          syncComments: reviewBinding?.sync,
-          inspectChanges: (request: FileReviewRequest) => invoke('status', request),
-          applyChanges: (request: FileReviewRequest) => invoke('apply', request),
-        }
+  ctx.slots.inject('conversation.chat.turnTail', () =>
+    ctx.slots.register(
+      {
+        name: 'conversation.chat.turnTail',
+        select: selectProducedFiles,
+        locale: NS,
+        inject: (sessionId) => {
+          const projectRoot = sessions.list.getSnapshot().byId[sessionId]?.cwd
+          const reviewBinding = reviewBindingFor(sessionId)
+          const invoke = async (
+            method: 'status' | 'apply',
+            request: FileReviewRequest,
+          ): Promise<FileReviewResult> => {
+            const scope = sessions.scope(sessionId)
+            if (scope === undefined) throw new Error('Session is unavailable')
+            // Session scopes are minted by the client runtime and cannot statically
+            // inject namespaces contributed later by feature plugins. `get()` is the
+            // Cordis escape hatch for an explicitly mounted dynamic service; tracing
+            // still binds the Remote call to this Session scope.
+            const fileReview = scope.get('remote.fileReview') as FileReviewRemote | undefined
+            if (fileReview === undefined) throw new Error('File review Remote is unavailable')
+            const result = await fileReview[method](request)
+            if (!result.ok) throw new Error(result.error.message)
+            return result.value
+          }
+          return {
+            projectRoot,
+            sessionId,
+            wordWrap,
+            syncComments: reviewBinding?.sync,
+            inspectChanges: (request: FileReviewRequest) => invoke('status', request),
+            applyChanges: (request: FileReviewRequest) => invoke('apply', request),
+          }
+        },
       },
-    }, ProducedFiles),
+      ProducedFiles,
+    ),
   )
   // The prose side of the same vocabulary: the chat view reaches this face
   // via ctx.get, so its absence — this plugin composed out — is the off state.
@@ -177,9 +191,9 @@ export async function apply(ctx: ClientContext): Promise<() => Promise<void>> {
       const reviews = selectProducedFiles(owner)
       if (reviews === null) return undefined
       return producedFileMentions(
-        reviews.map(review => review.path),
+        reviews.map((review) => review.path),
         owner.openFile,
-        path => t('produced.open', { name: path }),
+        (path) => t('produced.open', { name: path }),
       )
     },
   }

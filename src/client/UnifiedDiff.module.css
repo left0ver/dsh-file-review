@@ -280,7 +280,10 @@
   cursor: pointer;
   font: var(--dsw-font-xs-13);
   line-height: 28px;
-  transition: background-color 120ms ease, border-color 120ms ease, opacity 120ms ease;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    opacity 120ms ease;
 }
 
 .commentCancel {

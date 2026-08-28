@@ -8,7 +8,5 @@ export function displayProjectPath(path: string, projectRoot: string | undefined
   const comparablePath = windowsPath ? normalizedPath.toLowerCase() : normalizedPath
   const comparableRoot = windowsPath ? normalizedRoot.toLowerCase() : normalizedRoot
   const prefix = `${comparableRoot}/`
-  return comparablePath.startsWith(prefix)
-    ? normalizedPath.slice(normalizedRoot.length + 1)
-    : path
+  return comparablePath.startsWith(prefix) ? normalizedPath.slice(normalizedRoot.length + 1) : path
 }

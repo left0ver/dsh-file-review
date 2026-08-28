@@ -2,12 +2,12 @@ import { Context } from '@deepseek-ai/cordis'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import Tools from '@deepseek-ai/dsh-tools'
 import {
-  SettingsProvider, settingsNamespace, type SettingsNamespace,
+  SettingsProvider,
+  settingsNamespace,
+  type SettingsNamespace,
 } from '@deepseek-ai/dsh-settings'
 import { afterEach, describe, expect, it } from 'vitest'
-import {
-  apply, Config, FILE_REVIEW_SETTINGS_NAMESPACE, inject,
-} from '../src/index.ts'
+import { apply, Config, FILE_REVIEW_SETTINGS_NAMESPACE, inject } from '../src/index.ts'
 
 class MemorySettings extends SettingsProvider {
   readonly writable = true
@@ -37,9 +37,13 @@ describe('file-review settings', () => {
   it('registers a live settings section over the plugin entry config', async () => {
     ctx = new Context()
     let settings: MemorySettings | undefined
-    await ctx.plugin({
-      apply(scoped) { settings = new MemorySettings(scoped) },
-    }).await()
+    await ctx
+      .plugin({
+        apply(scoped) {
+          settings = new MemorySettings(scoped)
+        },
+      })
+      .await()
     await ctx.plugin(SystemPrompt, { persona: '' })
     await ctx.plugin(Tools, {})
     await ctx.plugin({ apply, inject }, { wordWrap: true }).await()

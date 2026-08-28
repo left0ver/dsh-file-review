@@ -53,7 +53,8 @@ function projectedComments(serialized: string): readonly ProjectedReviewComment[
   while ((fileMatch = filePattern.exec(serialized)) !== null) {
     const path = unescapeXml(fileMatch[1] ?? '')
     const fileBody = fileMatch[2] ?? ''
-    const commentPattern = /<comment kind="(context|del|add)" old_line="([^"]*)" new_line="([^"]*)">([\s\S]*?)<\/comment>/g
+    const commentPattern =
+      /<comment kind="(context|del|add)" old_line="([^"]*)" new_line="([^"]*)">([\s\S]*?)<\/comment>/g
     let commentMatch: RegExpExecArray | null
     while ((commentMatch = commentPattern.exec(fileBody)) !== null) {
       const feedback = /<feedback>([\s\S]*?)<\/feedback>/.exec(commentMatch[4] ?? '')
@@ -90,7 +91,11 @@ function contentParts(content: readonly unknown[]): ContentParts {
   const images: Array<{ attachment: ImageAttachment }> = []
   const rest: unknown[] = []
   for (const block of content) {
-    const value = block as { readonly type?: unknown; readonly text?: unknown; readonly attachment?: unknown }
+    const value = block as {
+      readonly type?: unknown
+      readonly text?: unknown
+      readonly attachment?: unknown
+    }
     if (value.type === 'text' && typeof value.text === 'string') texts.push(value.text)
     else if (value.type === 'image' && value.attachment !== undefined) {
       images.push({ attachment: value.attachment as ImageAttachment })
@@ -116,7 +121,9 @@ function projectPlainReferences(text: string): ReactNode {
         key={tokenStart}
         className={css.reviewMessageReference}
         data-ref-chip={label.startsWith('@') ? 'subagent' : 'skill'}
-      >{label}</span>,
+      >
+        {label}
+      </span>,
     )
     cursor = tokenStart + label.length
   }
@@ -133,13 +140,15 @@ function messageClock(time: number, t: UserMessageProps['t']): string {
   const value = new Date(time)
   const today = new Date()
   const clock = `${pad2(value.getHours())}:${pad2(value.getMinutes())}`
-  if (value.getFullYear() === today.getFullYear()
-    && value.getMonth() === today.getMonth()
-    && value.getDate() === today.getDate()) return clock
+  if (
+    value.getFullYear() === today.getFullYear() &&
+    value.getMonth() === today.getMonth() &&
+    value.getDate() === today.getDate()
+  )
+    return clock
   const params = { y: value.getFullYear(), m: value.getMonth() + 1, d: value.getDate() }
-  const date = value.getFullYear() === today.getFullYear()
-    ? t('clock.md', params)
-    : t('clock.ymd', params)
+  const date =
+    value.getFullYear() === today.getFullYear() ? t('clock.md', params) : t('clock.ymd', params)
   return `${date} ${clock}`
 }
 
@@ -170,7 +179,12 @@ function CopyIcon() {
   )
 }
 
-function ReviewMessageImage({ attachment, load, multiple, t }: {
+function ReviewMessageImage({
+  attachment,
+  load,
+  multiple,
+  t,
+}: {
   readonly attachment: ImageAttachment
   readonly load: UserMessageProps['loadImage']
   readonly multiple: boolean
@@ -185,12 +199,17 @@ function ReviewMessageImage({ attachment, load, multiple, t }: {
     let current = true
     setSource(null)
     setFailed(false)
-    void load(attachment).then((url) => {
-      if (current) setSource(url)
-    }, () => {
-      if (current) setFailed(true)
-    })
-    return () => { current = false }
+    void load(attachment).then(
+      (url) => {
+        if (current) setSource(url)
+      },
+      () => {
+        if (current) setFailed(true)
+      },
+    )
+    return () => {
+      current = false
+    }
   }, [attachment, attempt, load])
 
   if (failed) {
@@ -198,11 +217,16 @@ function ReviewMessageImage({ attachment, load, multiple, t }: {
       <button
         type="button"
         className={css.reviewMessageImageRetry}
-        onClick={() => { setAttempt(value => value + 1) }}
-      >{t('image.loadFailed')}</button>
+        onClick={() => {
+          setAttempt((value) => value + 1)
+        }}
+      >
+        {t('image.loadFailed')}
+      </button>
     )
   }
-  if (source === null) return <span className={css.reviewMessageImageLoading}>{t('image.loading')}</span>
+  if (source === null)
+    return <span className={css.reviewMessageImageLoading}>{t('image.loading')}</span>
   const label = t('image.label')
   return (
     <>
@@ -211,7 +235,9 @@ function ReviewMessageImage({ attachment, load, multiple, t }: {
         className={`${css.reviewMessageImageButton} ${multiple ? css.reviewMessageImageTile : ''}`}
         title={t('image.openOriginal')}
         aria-label={t('image.openOriginalLabel', { label })}
-        onClick={() => { setOpen(true) }}
+        onClick={() => {
+          setOpen(true)
+        }}
       >
         <img src={source} alt={label} className={css.reviewMessageImage} />
       </button>
@@ -229,8 +255,12 @@ function ReviewMessageImage({ attachment, load, multiple, t }: {
             type="button"
             className={css.reviewMessageLightboxClose}
             aria-label={t('image.closePreview')}
-            onClick={() => { setOpen(false) }}
-          >×</button>
+            onClick={() => {
+              setOpen(false)
+            }}
+          >
+            ×
+          </button>
           <img src={source} alt={label} className={css.reviewMessageLightboxImage} />
         </div>
       )}
@@ -238,7 +268,11 @@ function ReviewMessageImage({ attachment, load, multiple, t }: {
   )
 }
 
-function ReviewMessageImages({ images, load, t }: {
+function ReviewMessageImages({
+  images,
+  load,
+  t,
+}: {
   readonly images: ContentParts['images']
   readonly load: UserMessageProps['loadImage']
   readonly t: UserMessageProps['t']
@@ -274,7 +308,11 @@ function ExtraBlock({ value, label }: { readonly value: unknown; readonly label:
   )
 }
 
-function MessageActions({ text, time, t }: {
+function MessageActions({
+  text,
+  time,
+  t,
+}: {
   readonly text: string
   readonly time: number
   readonly t: UserMessageProps['t']
@@ -282,9 +320,12 @@ function MessageActions({ text, time, t }: {
   const [copied, setCopied] = useState(false)
   const timer = useRef<number | null>(null)
 
-  useEffect(() => () => {
-    if (timer.current !== null) window.clearTimeout(timer.current)
-  }, [])
+  useEffect(
+    () => () => {
+      if (timer.current !== null) window.clearTimeout(timer.current)
+    },
+    [],
+  )
 
   const copy = useCallback(() => {
     if (copied) return
@@ -320,14 +361,16 @@ export function ReviewUserMessage({ node, cwd, loadImage, t, reviewT }: UserMess
   const { text, images, rest } = contentParts(content)
   const projection = projectReviewMessageText(text)
   const visibleText = projection?.visibleText ?? text
-  const countLabel = projection === null
-    ? null
-    : projection.commentCount === 1
-      ? reviewT('review.commentCountOne')
-      : reviewT('review.commentCount', { count: String(projection.commentCount) })
-  const copyText = projection === null
-    ? text
-    : [countLabel, visibleText].filter(value => value !== null && value !== '').join('\n\n')
+  const countLabel =
+    projection === null
+      ? null
+      : projection.commentCount === 1
+        ? reviewT('review.commentCountOne')
+        : reviewT('review.commentCount', { count: String(projection.commentCount) })
+  const copyText =
+    projection === null
+      ? text
+      : [countLabel, visibleText].filter((value) => value !== null && value !== '').join('\n\n')
   const showBubble = visibleText !== '' || rest.length > 0
 
   return (
@@ -350,11 +393,7 @@ export function ReviewUserMessage({ node, cwd, loadImage, t, reviewT }: UserMess
           <div className={css.reviewMessageBubble}>
             {projectPlainReferences(visibleText)}
             {rest.map((block, index) => (
-              <ExtraBlock
-                key={index}
-                label={t('message.extraBlock')}
-                value={block}
-              />
+              <ExtraBlock key={index} label={t('message.extraBlock')} value={block} />
             ))}
           </div>
         )}

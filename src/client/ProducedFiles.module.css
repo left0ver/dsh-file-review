@@ -702,7 +702,7 @@
 
 /* The interactive dock owns presentation; retain the placeholder occurrence
    only for model serialization and composer submit eligibility. */
-[data-decoration="chip"][title="​"] {
+[data-decoration='chip'][title='​'] {
   position: absolute;
   width: 0;
   height: 0;
@@ -755,7 +755,7 @@
 
 .reviewMessageCommentPill:hover,
 .reviewMessageCommentPill:focus-visible,
-.reviewMessageCommentPill[aria-expanded="true"] {
+.reviewMessageCommentPill[aria-expanded='true'] {
   background: var(--dsw-alias-interactive-bg-hover);
 }
 
@@ -996,6 +996,12 @@
 }
 
 @keyframes drawer-enter {
-  from { transform: translateX(20px); opacity: 0; }
-  to { transform: translateX(0); opacity: 1; }
+  from {
+    transform: translateX(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
 }

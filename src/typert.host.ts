@@ -9,14 +9,16 @@ export const TYPERT: TypertContribution = {
   schemas: [],
   invocations: FILE_REVIEW_INVOCATIONS,
   model: {
-    services: [{
-      key: 'fileReview',
-      exportName: 'FileReviewService',
-      summary: 'Safely inspect and toggle one turn of produced text changes.',
-      tags: [],
-      members: [],
-      types: [],
-    }],
+    services: [
+      {
+        key: 'fileReview',
+        exportName: 'FileReviewService',
+        summary: 'Safely inspect and toggle one turn of produced text changes.',
+        tags: [],
+        members: [],
+        types: [],
+      },
+    ],
     events: [],
     objects: [],
   },

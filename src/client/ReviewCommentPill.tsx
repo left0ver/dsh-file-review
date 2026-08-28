@@ -41,31 +41,47 @@ function CommentIcon({ variant }: Pick<ReviewCommentPillProps, 'variant'>) {
 
 /** One interaction contract for draft and historical review-comment references. */
 export function ReviewCommentPill({
-  comments, projectRoot, t, placement, variant, buttonLabel, trailingAction,
+  comments,
+  projectRoot,
+  t,
+  placement,
+  variant,
+  buttonLabel,
+  trailingAction,
 }: ReviewCommentPillProps) {
   const previewId = useId()
   const [open, setOpen] = useState(false)
-  const countLabel = comments.length === 1
-    ? t('review.commentCountOne')
-    : t('review.commentCount', { count: String(comments.length) })
-  const rootClass = variant === 'dock'
-    ? css.reviewCommentPillRoot
-    : `${css.reviewCommentPillRoot} ${css.reviewCommentPillRootMessage}`
-  const positionerClass = placement === 'above-left'
-    ? `${css.reviewCommentPreviewPositioner} ${css.reviewCommentPreviewAbove}`
-    : `${css.reviewCommentPreviewPositioner} ${css.reviewCommentPreviewBelow}`
+  const countLabel =
+    comments.length === 1
+      ? t('review.commentCountOne')
+      : t('review.commentCount', { count: String(comments.length) })
+  const rootClass =
+    variant === 'dock'
+      ? css.reviewCommentPillRoot
+      : `${css.reviewCommentPillRoot} ${css.reviewCommentPillRootMessage}`
+  const positionerClass =
+    placement === 'above-left'
+      ? `${css.reviewCommentPreviewPositioner} ${css.reviewCommentPreviewAbove}`
+      : `${css.reviewCommentPreviewPositioner} ${css.reviewCommentPreviewBelow}`
 
   return (
     <div
       className={rootClass}
-      onMouseEnter={() => { setOpen(true) }}
+      onMouseEnter={() => {
+        setOpen(true)
+      }}
       onMouseLeave={(event) => {
         if (!event.currentTarget.contains(document.activeElement)) setOpen(false)
       }}
-      onFocus={() => { setOpen(true) }}
+      onFocus={() => {
+        setOpen(true)
+      }}
       onBlur={(event) => {
-        if (!(event.relatedTarget instanceof Node)
-          || !event.currentTarget.contains(event.relatedTarget)) setOpen(false)
+        if (
+          !(event.relatedTarget instanceof Node) ||
+          !event.currentTarget.contains(event.relatedTarget)
+        )
+          setOpen(false)
       }}
     >
       <div className={variant === 'dock' ? css.commentDockPill : undefined}>
@@ -83,10 +99,7 @@ export function ReviewCommentPill({
         {trailingAction}
       </div>
       {open && (
-        <div
-          className={positionerClass}
-          data-review-comment-hover-bridge=""
-        >
+        <div className={positionerClass} data-review-comment-hover-bridge="">
           <div
             id={previewId}
             className={css.reviewCommentPreview}
@@ -94,15 +107,16 @@ export function ReviewCommentPill({
             aria-label={t('review.commentPreview')}
           >
             {comments.map((comment) => {
-              const side = comment.kind === 'del'
-                ? t('review.commentSideLeft')
-                : t('review.commentSideRight')
+              const side =
+                comment.kind === 'del' ? t('review.commentSideLeft') : t('review.commentSideRight')
               const line = comment.kind === 'del' ? comment.oldLine : comment.newLine
               const path = displayProjectPath(comment.path, projectRoot)
               return (
                 <article key={comment.key} className={css.commentPreviewCard}>
                   <header className={css.commentPreviewHeader}>
-                    <span className={css.commentPreviewPath} title={path}>{path}</span>
+                    <span className={css.commentPreviewPath} title={path}>
+                      {path}
+                    </span>
                     <span className={css.commentPreviewLocation}>
                       {t('review.commentLocation', { side, line: String(line ?? '') })}
                     </span>

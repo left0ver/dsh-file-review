@@ -10,16 +10,17 @@ export type FileReviewSettingsCardInjected = {
   setWordWrap(value: boolean): Promise<void>
 }
 
-export type FileReviewSettingsCardProps =
-  & PropsRuntime<'settings.plugin.item'>
-  & PropsLocale<typeof NS>
-  & InjectFace<FileReviewSettingsCardInjected>
+export type FileReviewSettingsCardProps = PropsRuntime<'settings.plugin.item'> &
+  PropsLocale<typeof NS> &
+  InjectFace<FileReviewSettingsCardInjected>
 
 /** Minimal settings card owned by the file-review plugin. */
 export function FileReviewSettingsCard({
-  setWordWrap, t, useFileReviewSettings,
+  setWordWrap,
+  t,
+  useFileReviewSettings,
 }: FileReviewSettingsCardProps) {
-  const settings = useFileReviewSettings(snapshot => snapshot)
+  const settings = useFileReviewSettings((snapshot) => snapshot)
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   if (settings.status !== 'ready') return null
@@ -46,7 +47,9 @@ export function FileReviewSettingsCard({
         className={css.header}
         aria-expanded={open}
         aria-label={`${t(open ? 'settings.collapse' : 'settings.expand')}: ${title}`}
-        onClick={() => { setOpen(value => !value) }}
+        onClick={() => {
+          setOpen((value) => !value)
+        }}
       >
         <span className={css.heading}>
           <span className={css.title}>{title}</span>
@@ -59,7 +62,12 @@ export function FileReviewSettingsCard({
           viewBox="0 0 14 14"
           aria-hidden="true"
         >
-          <path d="m3.5 5.25 3.5 3.5 3.5-3.5" fill="none" stroke="currentColor" strokeLinecap="round" />
+          <path
+            d="m3.5 5.25 3.5 3.5 3.5-3.5"
+            fill="none"
+            stroke="currentColor"
+            strokeLinecap="round"
+          />
         </svg>
       </button>
       {open ? (
@@ -78,7 +86,9 @@ export function FileReviewSettingsCard({
               aria-busy={saving}
               data-checked={wordWrap}
               disabled={!writable}
-              onClick={() => { void toggleWordWrap() }}
+              onClick={() => {
+                void toggleWordWrap()
+              }}
             >
               <span className={css.thumb} />
             </button>

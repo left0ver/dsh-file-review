@@ -44,23 +44,26 @@ function recordedHash(ledger, file) {
 }
 
 function headingLevels(markdown) {
-  return [...markdown.matchAll(/^(#{1,6})[ \t]+/gm)].map(match => match[1].length)
+  return [...markdown.matchAll(/^(#{1,6})[ \t]+/gm)].map((match) => match[1].length)
 }
 
 function listShape(markdown) {
-  return [...markdown.matchAll(/^[ \t]*(?:(\d+)\.|([-+*]))[ \t]+/gm)]
-    .map(match => match[1] === undefined ? 'unordered' : 'ordered')
+  return [...markdown.matchAll(/^[ \t]*(?:(\d+)\.|([-+*]))[ \t]+/gm)].map((match) =>
+    match[1] === undefined ? 'unordered' : 'ordered',
+  )
 }
 
 function fencedCodeBlocks(markdown) {
-  return [...markdown.matchAll(/^(```+|~~~+)([^\n]*)\n([\s\S]*?)^\1[ \t]*$/gm)]
-    .map(match => ({ language: match[2].trim(), body: match[3].replace(/\n$/, '') }))
+  return [...markdown.matchAll(/^(```+|~~~+)([^\n]*)\n([\s\S]*?)^\1[ \t]*$/gm)].map((match) => ({
+    language: match[2].trim(),
+    body: match[3].replace(/\n$/, ''),
+  }))
 }
 
 function linkDestinations(markdown) {
   return [...markdown.matchAll(/\]\((<[^>]+>|[^)\s]+)(?:\s+[^)]*)?\)/g)]
-    .map(match => match[1].replace(/^<|>$/g, ''))
-    .filter(destination => !/^README(?:\.zh)?\.md(?:#.*)?$/.test(destination))
+    .map((match) => match[1].replace(/^<|>$/g, ''))
+    .filter((destination) => !/^README(?:\.zh)?\.md(?:#.*)?$/.test(destination))
 }
 
 function assertSameStructure(english, chinese) {
@@ -77,8 +80,8 @@ function assertSameStructure(english, chinese) {
 
   if (differences.length > 0) {
     throw new Error(
-      `README.md and README.zh.md differ in: ${differences.join(', ')}. `
-      + 'Keep their document structure and non-translatable content aligned.',
+      `README.md and README.zh.md differ in: ${differences.join(', ')}. ` +
+        'Keep their document structure and non-translatable content aligned.',
     )
   }
 }
@@ -96,11 +99,13 @@ function assertPairChangedTogether(base) {
   }
 
   const changed = new Set(output.split('\n').filter(Boolean))
-  const changedCount = README_FILES.filter(file => changed.has(file)).length
+  const changedCount = README_FILES.filter((file) => changed.has(file)).length
   if (changedCount === 1) {
-    const changedFile = README_FILES.find(file => changed.has(file))
-    const missingFile = README_FILES.find(file => !changed.has(file))
-    throw new Error(`${changedFile} changed without ${missingFile}; update the bilingual README pair together`)
+    const changedFile = README_FILES.find((file) => changed.has(file))
+    const missingFile = README_FILES.find((file) => !changed.has(file))
+    throw new Error(
+      `${changedFile} changed without ${missingFile}; update the bilingual README pair together`,
+    )
   }
 }
 
@@ -124,25 +129,28 @@ async function main() {
   if (options.write) {
     for (const [file, hash] of hashes) {
       recordedHash(ledger, file)
-      ledger = ledger.replace(new RegExp(`^${file.replaceAll('.', '\\.')}:[^\n]*$`, 'm'), `${file}: ${hash}`)
+      ledger = ledger.replace(
+        new RegExp(`^${file.replaceAll('.', '\\.')}:[^\n]*$`, 'm'),
+        `${file}: ${hash}`,
+      )
     }
     await writeFile(resolve(ROOT, LEDGER_FILE), ledger)
     console.log(`Updated ${LEDGER_FILE} after bilingual review.`)
     return
   }
 
-  const staleFiles = README_FILES.filter(file => recordedHash(ledger, file) !== hashes.get(file))
+  const staleFiles = README_FILES.filter((file) => recordedHash(ledger, file) !== hashes.get(file))
   if (staleFiles.length > 0) {
     throw new Error(
-      `${LEDGER_FILE} is stale for: ${staleFiles.join(', ')}. `
-      + 'Review both translations, then run npm run update:readme-i18n.',
+      `${LEDGER_FILE} is stale for: ${staleFiles.join(', ')}. ` +
+        'Review both translations, then run npm run update:readme-i18n.',
     )
   }
 
   console.log('README translation structure and reviewed hashes are consistent.')
 }
 
-main().catch(error => {
+main().catch((error) => {
   console.error(`README i18n check failed: ${error.message}`)
   process.exitCode = 1
 })

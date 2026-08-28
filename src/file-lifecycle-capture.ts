@@ -5,14 +5,20 @@ import { isAbsolute, relative, resolve } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type {
-  PostToolDecision, ToolCallView, ToolDispatchExecution, ToolExecution,
-  ToolExecutionResult, ToolExecutionToken,
+  PostToolDecision,
+  ToolCallView,
+  ToolDispatchExecution,
+  ToolExecution,
+  ToolExecutionResult,
+  ToolExecutionToken,
 } from '@deepseek-ai/dsh-tools'
 import { structuredPatch, type StructuredPatchHunk } from 'diff'
 import type { ProducedFileDiff } from './change-types.ts'
 import type { PresentedFileChange } from './ptc-marker.ts'
 import {
-  boundedPtcFileReviewMarker, markerBlock, normalizeMutationPresentation,
+  boundedPtcFileReviewMarker,
+  markerBlock,
+  normalizeMutationPresentation,
 } from './ptc-marker.ts'
 
 interface MissingCapture {
@@ -43,8 +49,12 @@ function inside(root: string, candidate: string): boolean {
 }
 
 function errorCode(error: unknown, code: string): boolean {
-  return typeof error === 'object' && error !== null && 'code' in error
-    && (error as { code?: unknown }).code === code
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    (error as { code?: unknown }).code === code
+  )
 }
 
 async function capturePath(root: string, path: string): Promise<CapturedImage | null> {
@@ -73,8 +83,9 @@ function pathOf(value: unknown): string | null {
 
 function mutationPaths(view: ToolCallView | undefined): readonly string[] {
   if (view === undefined) return []
-  const mutation = view.card === 'diff'
-    || (view.card === 'generic' && (view.kind === 'edit' || view.kind === 'delete'))
+  const mutation =
+    view.card === 'diff' ||
+    (view.card === 'generic' && (view.kind === 'edit' || view.kind === 'delete'))
   if (!mutation) return []
   const paths: string[] = []
   const seen = new Set<string>()
@@ -92,9 +103,15 @@ function rootCall(agent: Agent, rootCallId: string): { turn: number; step: numbe
   const events = agent.session.events
   for (let index = events.length - 1; index >= 0; index--) {
     const event = events[index]
-    if (event?.type !== 'tool/call' || event.data.callId !== rootCallId
-      || !Number.isInteger(event.data.turn) || event.data.turn < 0
-      || !Number.isInteger(event.data.step) || event.data.step < 0) continue
+    if (
+      event?.type !== 'tool/call' ||
+      event.data.callId !== rootCallId ||
+      !Number.isInteger(event.data.turn) ||
+      event.data.turn < 0 ||
+      !Number.isInteger(event.data.step) ||
+      event.data.step < 0
+    )
+      continue
     return { turn: event.data.turn, step: event.data.step }
   }
   return null
@@ -104,7 +121,9 @@ async function captureImages(
   root: string,
   paths: readonly string[],
 ): Promise<ReadonlyMap<string, CapturedImage | null>> {
-  const entries = await Promise.all(paths.map(async path => [path, await capturePath(root, path)] as const))
+  const entries = await Promise.all(
+    paths.map(async (path) => [path, await capturePath(root, path)] as const),
+  )
   return new Map(entries)
 }
 
@@ -171,13 +190,15 @@ function snapshotDiffs(
     const newRange = lineRange(newText, hunk.newStart, hunk.newLines)
     return oldRange === null || newRange === null
       ? []
-      : [{
-          path,
-          oldText: oldRange,
-          newText: newRange,
-          oldStart: hunk.oldStart,
-          newStart: hunk.newStart,
-        }]
+      : [
+          {
+            path,
+            oldText: oldRange,
+            newText: newRange,
+            oldStart: hunk.oldStart,
+            newStart: hunk.newStart,
+          },
+        ]
   })
 }
 
@@ -195,22 +216,37 @@ function snapshotFiles(
       files.push({
         path,
         source: 'result',
-        diffs: [{
-          path, oldText: null, newText: newImage.text, oldStart: 1, newStart: 1,
-          lifecycle: { kind: 'create', mode: newImage.mode },
-        }],
+        diffs: [
+          {
+            path,
+            oldText: null,
+            newText: newImage.text,
+            oldStart: 1,
+            newStart: 1,
+            lifecycle: { kind: 'create', mode: newImage.mode },
+          },
+        ],
       })
     } else if (oldImage?.kind === 'file' && newImage?.kind === 'missing') {
       files.push({
         path,
         source: 'result',
-        diffs: [{
-          path, oldText: oldImage.text, newText: '', oldStart: 1, newStart: 1,
-          lifecycle: { kind: 'delete', mode: oldImage.mode },
-        }],
+        diffs: [
+          {
+            path,
+            oldText: oldImage.text,
+            newText: '',
+            oldStart: 1,
+            newStart: 1,
+            lifecycle: { kind: 'delete', mode: oldImage.mode },
+          },
+        ],
       })
-    } else if (oldImage?.kind === 'file' && newImage?.kind === 'file'
-      && oldImage.text !== newImage.text) {
+    } else if (
+      oldImage?.kind === 'file' &&
+      newImage?.kind === 'file' &&
+      oldImage.text !== newImage.text
+    ) {
       const diffs = snapshotDiffs(path, oldImage.text, newImage.text)
       if (diffs.length > 0) files.push({ path, source: 'result', diffs })
     }
@@ -223,8 +259,8 @@ function mergePresentedFiles(
   presented: readonly PresentedFileChange[],
   captured: readonly PresentedFileChange[],
 ): readonly PresentedFileChange[] {
-  const replacements = new Map(captured.map(file => [file.path, file]))
-  const merged = presented.map(file => {
+  const replacements = new Map(captured.map((file) => [file.path, file]))
+  const merged = presented.map((file) => {
     const replacement = replacements.get(file.path)
     replacements.delete(file.path)
     return replacement ?? file
@@ -236,78 +272,87 @@ function mergePresentedFiles(
 export function registerFileLifecycleCapture(ctx: Context): void {
   const captured = new Map<ToolExecutionToken, CapturedResult>()
 
-  ctx.on('tools/execute', async (exec: ToolDispatchExecution, next): Promise<ToolExecutionResult> => {
-    const agent = exec.agent
-    const cwd = agent?.session.header.cwd
-    let paths: readonly string[] = []
-    let callView: ToolCallView | undefined
-    try {
-      const definition = ctx.tools.get(exec.name, agent)
-      callView = definition?.presentCall?.(exec.arguments)
-      paths = mutationPaths(callView)
-    } catch {
-      paths = []
-    }
-    if (agent === undefined || cwd === undefined || cwd.trim() === '' || paths.length === 0) {
-      return next()
-    }
-    let root: string
-    let before: ReadonlyMap<string, CapturedImage | null>
-    try {
-      root = await realpath(cwd)
-      before = await captureImages(root, paths)
-    } catch {
-      return next()
-    }
-    const result = await next()
-    if (result.isError) return result
-    try {
-      const after = await captureImages(root, paths)
-      const snapshots = snapshotFiles(paths, before, after)
-      let presented: readonly PresentedFileChange[]
+  ctx.on(
+    'tools/execute',
+    async (exec: ToolDispatchExecution, next): Promise<ToolExecutionResult> => {
+      const agent = exec.agent
+      const cwd = agent?.session.header.cwd
+      let paths: readonly string[] = []
+      let callView: ToolCallView | undefined
       try {
-        const resultView = ctx.tools.get(exec.name, agent)?.presentResult?.(exec.arguments, result)
-        presented = normalizeMutationPresentation(callView, resultView)
+        const definition = ctx.tools.get(exec.name, agent)
+        callView = definition?.presentCall?.(exec.arguments)
+        paths = mutationPaths(callView)
       } catch {
-        presented = normalizeMutationPresentation(callView, undefined)
+        paths = []
       }
-      const files = mergePresentedFiles(presented, snapshots)
-      const owner = rootCall(agent, exec.rootCallId)
-      if (snapshots.length > 0 && files.length > 0 && owner !== null) {
-        captured.set(exec.token, {
-          files,
-          turn: owner.turn,
-          step: owner.step,
-          rootCallId: exec.rootCallId,
-          subCallId: exec.callId,
-        })
+      if (agent === undefined || cwd === undefined || cwd.trim() === '' || paths.length === 0) {
+        return next()
       }
-    } catch {
-      // Capturing is observational; the successful tool result stays authoritative.
-    }
-    return result
-  })
+      let root: string
+      let before: ReadonlyMap<string, CapturedImage | null>
+      try {
+        root = await realpath(cwd)
+        before = await captureImages(root, paths)
+      } catch {
+        return next()
+      }
+      const result = await next()
+      if (result.isError) return result
+      try {
+        const after = await captureImages(root, paths)
+        const snapshots = snapshotFiles(paths, before, after)
+        let presented: readonly PresentedFileChange[]
+        try {
+          const resultView = ctx.tools
+            .get(exec.name, agent)
+            ?.presentResult?.(exec.arguments, result)
+          presented = normalizeMutationPresentation(callView, resultView)
+        } catch {
+          presented = normalizeMutationPresentation(callView, undefined)
+        }
+        const files = mergePresentedFiles(presented, snapshots)
+        const owner = rootCall(agent, exec.rootCallId)
+        if (snapshots.length > 0 && files.length > 0 && owner !== null) {
+          captured.set(exec.token, {
+            files,
+            turn: owner.turn,
+            step: owner.step,
+            rootCallId: exec.rootCallId,
+            subCallId: exec.callId,
+          })
+        }
+      } catch {
+        // Capturing is observational; the successful tool result stays authoritative.
+      }
+      return result
+    },
+  )
 
-  ctx.on('tools/post-execute', async (
-    exec: ToolExecution,
-    result,
-    next,
-  ): Promise<PostToolDecision> => {
-    const decision = await next()
-    const snapshot = captured.get(exec.token)
-    captured.delete(exec.token)
-    if (result.isError || snapshot === undefined || decision.kind !== 'accept'
-      || 'value' in decision) return decision
-    const marker = boundedPtcFileReviewMarker(snapshot)
-    if (marker === null) return decision
-    return {
-      ...decision,
-      content: [
-        ...(decision.content ?? result.content),
-        markerBlock(marker) as unknown as (typeof result.content)[number],
-      ],
-    }
-  })
+  ctx.on(
+    'tools/post-execute',
+    async (exec: ToolExecution, result, next): Promise<PostToolDecision> => {
+      const decision = await next()
+      const snapshot = captured.get(exec.token)
+      captured.delete(exec.token)
+      if (
+        result.isError ||
+        snapshot === undefined ||
+        decision.kind !== 'accept' ||
+        'value' in decision
+      )
+        return decision
+      const marker = boundedPtcFileReviewMarker(snapshot)
+      if (marker === null) return decision
+      return {
+        ...decision,
+        content: [
+          ...(decision.content ?? result.content),
+          markerBlock(marker) as unknown as (typeof result.content)[number],
+        ],
+      }
+    },
+  )
 
   ctx.on('tools/result', (exec: Readonly<ToolExecution>) => {
     captured.delete(exec.token)

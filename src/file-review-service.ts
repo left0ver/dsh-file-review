@@ -7,7 +7,11 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import type {
-  FileReviewAction, FileReviewChange, FileReviewFileResult, FileReviewRequest, FileReviewResult,
+  FileReviewAction,
+  FileReviewChange,
+  FileReviewFileResult,
+  FileReviewRequest,
+  FileReviewResult,
 } from './change-types.ts'
 import { isReversibleChange } from './file-review-change.ts'
 
@@ -36,8 +40,12 @@ function inside(root: string, candidate: string): boolean {
 }
 
 function errorCode(error: unknown, code: string): boolean {
-  return typeof error === 'object' && error !== null && 'code' in error
-    && (error as { code?: unknown }).code === code
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    (error as { code?: unknown }).code === code
+  )
 }
 
 async function resolveFile(cwd: string, requestedPath: string): Promise<FileImage> {
@@ -100,7 +108,7 @@ export function transformFile(
   file: FileReviewChange,
   action: FileReviewAction,
 ): string | null {
-  if (!isReversibleChange(file) || file.diffs.some(diff => diff.lifecycle !== undefined)) {
+  if (!isReversibleChange(file) || file.diffs.some((diff) => diff.lifecycle !== undefined)) {
     return null
   }
   const diffs = action === 'undo' ? [...file.diffs].reverse() : file.diffs
@@ -139,8 +147,8 @@ function transformImage(
         if (next.kind !== 'missing') return null
         next = virtualFile(next, diff.newText, diff.lifecycle.mode)
       } else {
-        if (next.kind !== 'file'
-          || next.text !== diff.newText || next.mode !== diff.lifecycle.mode) return null
+        if (next.kind !== 'file' || next.text !== diff.newText || next.mode !== diff.lifecycle.mode)
+          return null
         next = { kind: 'missing', filename: next.filename }
       }
       continue
@@ -148,8 +156,8 @@ function transformImage(
     if (diff.lifecycle?.kind === 'delete') {
       if (diff.oldText === null) return null
       if (action === 'redo') {
-        if (next.kind !== 'file'
-          || next.text !== diff.oldText || next.mode !== diff.lifecycle.mode) return null
+        if (next.kind !== 'file' || next.text !== diff.oldText || next.mode !== diff.lifecycle.mode)
+          return null
         next = { kind: 'missing', filename: next.filename }
       } else {
         if (next.kind !== 'missing') return null
@@ -229,8 +237,11 @@ async function inspectOne(
 async function assertUnchanged(image: PresentFile): Promise<void> {
   try {
     const currentStat = await lstat(image.filename)
-    if (currentStat.isSymbolicLink() || !currentStat.isFile()
-      || (currentStat.mode & 0o777) !== image.mode) {
+    if (
+      currentStat.isSymbolicLink() ||
+      !currentStat.isFile() ||
+      (currentStat.mode & 0o777) !== image.mode
+    ) {
       throw new FileConflictError('file changed while the operation was being prepared')
     }
     const current = await readFile(image.filename)
@@ -336,8 +347,7 @@ async function applyOne(
         reason: 'current content does not match the recorded change',
       }
     }
-    if (reverse !== null
-      && !(sameImage(target, resolved) && sameImage(reverse, resolved))) {
+    if (reverse !== null && !(sameImage(target, resolved) && sameImage(reverse, resolved))) {
       return {
         path: file.path,
         state: 'conflict',
@@ -375,7 +385,9 @@ export class FileReviewService extends TypertRemoteService {
   /** Inspect current disk state without changing files. */
   async status(agent: Agent, request: FileReviewRequest): Promise<FileReviewResult> {
     const cwd = sessionCwd(agent)
-    const files = await Promise.all(request.files.map(file => inspectOne(cwd, file, request.action)))
+    const files = await Promise.all(
+      request.files.map((file) => inspectOne(cwd, file, request.action)),
+    )
     return { files }
   }
 

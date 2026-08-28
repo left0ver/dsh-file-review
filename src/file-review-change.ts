@@ -11,9 +11,7 @@ export function isReversibleDiff(diff: ProducedFileDiff, path: string): boolean 
     return diff.oldText === null && validMode(diff.lifecycle.mode)
   }
   if (diff.lifecycle?.kind === 'delete') {
-    return typeof diff.oldText === 'string'
-      && diff.newText === ''
-      && validMode(diff.lifecycle.mode)
+    return typeof diff.oldText === 'string' && diff.newText === '' && validMode(diff.lifecycle.mode)
   }
   if (diff.lifecycle !== undefined || diff.oldText === null || diff.oldText === diff.newText) {
     return false
@@ -29,7 +27,9 @@ export function isReversibleChange(file: {
   readonly diffs: readonly ProducedFileDiff[]
   readonly complete?: false | undefined
 }): boolean {
-  return file.complete !== false
-    && file.diffs.length > 0
-    && file.diffs.every(diff => isReversibleDiff(diff, file.path))
+  return (
+    file.complete !== false &&
+    file.diffs.length > 0 &&
+    file.diffs.every((diff) => isReversibleDiff(diff, file.path))
+  )
 }

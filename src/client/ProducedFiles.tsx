@@ -2,27 +2,39 @@
 // come from mutation-tool results, never from the closing prose.
 
 import {
-  useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState,
+  useCallback,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
   useSyncExternalStore,
 } from 'react'
 import type {
-  CSSProperties, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent,
+  CSSProperties,
+  KeyboardEvent as ReactKeyboardEvent,
+  PointerEvent as ReactPointerEvent,
 } from 'react'
 import type { ObservableSnapshot } from '@deepseek-ai/dsh-client-runtime/client'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type { TurnTailOwnerProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
-import type {
-  FileReviewAction, FileReviewRequest, FileReviewResult,
-} from '../change-types.ts'
+import type { FileReviewAction, FileReviewRequest, FileReviewResult } from '../change-types.ts'
 import { isReversibleChange } from '../file-review-change.ts'
 import { basename, type ProducedFileReview } from './turn-deliverables.ts'
 import type { NS } from './locales.ts'
 import {
-  summarizeDiffs, UnifiedDiff, unifiedDiffText, type UnifiedDiffStats,
+  summarizeDiffs,
+  UnifiedDiff,
+  unifiedDiffText,
+  type UnifiedDiffStats,
 } from './UnifiedDiff.tsx'
 import type { DiffLineAnchor } from './UnifiedDiff.tsx'
 import {
-  deleteReviewComment, reviewCommentKey, reviewCommentsForTurn, setReviewComment,
+  deleteReviewComment,
+  reviewCommentKey,
+  reviewCommentsForTurn,
+  setReviewComment,
   subscribeReviewComments,
 } from './review-comments.ts'
 import css from './ProducedFiles.module.css'
@@ -134,7 +146,11 @@ function findHostSplitLayout(
   allowOccupiedDetails = false,
 ): HostSplitLayout | null {
   let directChild: HTMLElement = anchor
-  for (let candidate = anchor.parentElement; candidate !== null; candidate = candidate.parentElement) {
+  for (
+    let candidate = anchor.parentElement;
+    candidate !== null;
+    candidate = candidate.parentElement
+  ) {
     if (getComputedStyle(candidate).display === 'grid') {
       const children = Array.from(candidate.children).filter(
         (child): child is HTMLElement => child instanceof HTMLElement,
@@ -143,8 +159,11 @@ function findHostSplitLayout(
       if (centerIndex > 0 && centerIndex + 1 < children.length) {
         const sidebar = children[centerIndex - 1]
         const details = children[centerIndex + 1]
-        if (sidebar !== undefined && details !== undefined
-          && (allowOccupiedDetails || details.getBoundingClientRect().width <= 1)) {
+        if (
+          sidebar !== undefined &&
+          details !== undefined &&
+          (allowOccupiedDetails || details.getBoundingClientRect().width <= 1)
+        ) {
           return { frame: candidate, sidebar, center: directChild, details }
         }
       }
@@ -184,7 +203,7 @@ export type ProducedFilesProps = Pick<TurnTailOwnerProps, 'openFile'> & {
 } & PropsLocale<typeof NS>
 
 const unavailableChanges = async (request: FileReviewRequest): Promise<FileReviewResult> => ({
-  files: request.files.map(file => ({
+  files: request.files.map((file) => ({
     path: file.path,
     state: 'unsupported',
     changed: false,
@@ -245,7 +264,13 @@ function ErrorIcon() {
 }
 
 function ResultToast({
-  notice, closeLabel, dismissLabel, fileListLabel, fileOpenLabel, openFile, onDone,
+  notice,
+  closeLabel,
+  dismissLabel,
+  fileListLabel,
+  fileOpenLabel,
+  openFile,
+  onDone,
 }: {
   readonly notice: ToggleNotice
   readonly closeLabel: string
@@ -256,11 +281,11 @@ function ResultToast({
   readonly onDone: () => void
 }) {
   useEffect(() => {
-    const duration = notice.tone === 'success'
-      ? SUCCESS_NOTICE_DURATION
-      : ERROR_NOTICE_DURATION
+    const duration = notice.tone === 'success' ? SUCCESS_NOTICE_DURATION : ERROR_NOTICE_DURATION
     const timer = window.setTimeout(onDone, duration)
-    return () => { window.clearTimeout(timer) }
+    return () => {
+      window.clearTimeout(timer)
+    }
   }, [notice.tone, onDone])
   return (
     <div
@@ -290,16 +315,20 @@ function ResultToast({
         <div className={css.noticeFiles}>
           <span className={css.noticeFileListLabel}>{fileListLabel}</span>
           <ul className={css.noticeFileList}>
-            {notice.files.map(file => (
+            {notice.files.map((file) => (
               <li key={file.path}>
                 <button
                   type="button"
                   className={css.noticeFileButton}
                   aria-label={fileOpenLabel(file.path)}
-                  onClick={() => { openFile(file.path) }}
+                  onClick={() => {
+                    openFile(file.path)
+                  }}
                 >
                   <span className={css.noticeFilePath}>{basename(file.path)}</span>
-                  <span className={css.noticeFileArrow} aria-hidden="true">↗</span>
+                  <span className={css.noticeFileArrow} aria-hidden="true">
+                    ↗
+                  </span>
                 </button>
               </li>
             ))}
@@ -330,9 +359,17 @@ function Stats({ stats, label }: { readonly stats: UnifiedDiffStats; readonly la
 
 /** Render one turn's produced files as a summary card and review drawer. */
 export function ProducedFiles({
-  matched: reviews, openFile, projectRoot,
-  inspectChanges = unavailableChanges, applyChanges = unavailableChanges,
-  sessionId, turn, seq = 0, syncComments, wordWrap: wordWrapSource = DEFAULT_WORD_WRAP_SOURCE, t,
+  matched: reviews,
+  openFile,
+  projectRoot,
+  inspectChanges = unavailableChanges,
+  applyChanges = unavailableChanges,
+  sessionId,
+  turn,
+  seq = 0,
+  syncComments,
+  wordWrap: wordWrapSource = DEFAULT_WORD_WRAP_SOURCE,
+  t,
 }: ProducedFilesProps) {
   const wordWrap = useSyncExternalStore(
     wordWrapSource.subscribe,
@@ -367,149 +404,200 @@ export function ProducedFiles({
   useEffect(() => {
     if (sessionId === undefined) return undefined
     const unsubscribe = subscribeReviewComments(sessionId, () => {
-      setCommentVersion(version => version + 1)
+      setCommentVersion((version) => version + 1)
     })
     return unsubscribe
   }, [sessionId])
 
   // Locale changes re-render this component; reconcile on every committed render
   // so the cached composer-chip label follows the active language as well.
-  useEffect(() => { syncComments?.() })
+  useEffect(() => {
+    syncComments?.()
+  })
 
   const turnComments = useMemo(
-    () => sessionId === undefined
-      ? new Map<string, never>()
-      : reviewCommentsForTurn(sessionId, turnNumber, seq),
+    () =>
+      sessionId === undefined
+        ? new Map<string, never>()
+        : reviewCommentsForTurn(sessionId, turnNumber, seq),
     [commentVersion, seq, sessionId, turnNumber],
   )
 
-  const commentFor = useCallback((anchor: DiffLineAnchor): string | undefined =>
-    turnComments.get(reviewCommentKey(turnNumber, seq, anchor))?.body,
-  [seq, turnComments, turnNumber])
+  const commentFor = useCallback(
+    (anchor: DiffLineAnchor): string | undefined =>
+      turnComments.get(reviewCommentKey(turnNumber, seq, anchor))?.body,
+    [seq, turnComments, turnNumber],
+  )
 
-  const onCommentChange = useCallback((anchor: DiffLineAnchor, body: string) => {
-    if (sessionId === undefined) return
-    setReviewComment({ sessionId, turn: turnNumber, closingSeq: seq, anchor, body })
-    syncComments?.()
-  }, [seq, sessionId, syncComments, turnNumber])
+  const onCommentChange = useCallback(
+    (anchor: DiffLineAnchor, body: string) => {
+      if (sessionId === undefined) return
+      setReviewComment({ sessionId, turn: turnNumber, closingSeq: seq, anchor, body })
+      syncComments?.()
+    },
+    [seq, sessionId, syncComments, turnNumber],
+  )
 
-  const onCommentDelete = useCallback((anchor: DiffLineAnchor) => {
-    if (sessionId === undefined) return
-    deleteReviewComment(sessionId, turnNumber, seq, anchor)
-    syncComments?.()
-  }, [seq, sessionId, syncComments, turnNumber])
+  const onCommentDelete = useCallback(
+    (anchor: DiffLineAnchor) => {
+      if (sessionId === undefined) return
+      deleteReviewComment(sessionId, turnNumber, seq, anchor)
+      syncComments?.()
+    },
+    [seq, sessionId, syncComments, turnNumber],
+  )
 
-  const reviewsWithStats = useMemo(() => reviews.map(review => ({
-    review,
-    stats: summarizeDiffs(review.diffs),
-  })), [reviews])
+  const reviewsWithStats = useMemo(
+    () =>
+      reviews.map((review) => ({
+        review,
+        stats: summarizeDiffs(review.diffs),
+      })),
+    [reviews],
+  )
   const totalStats = useMemo(
-    () => reviewsWithStats.reduce<UnifiedDiffStats>(
-      (total, item) => addStats(total, item.stats),
-      { added: 0, removed: 0 },
-    ),
+    () =>
+      reviewsWithStats.reduce<UnifiedDiffStats>((total, item) => addStats(total, item.stats), {
+        added: 0,
+        removed: 0,
+      }),
     [reviewsWithStats],
   )
-  const toggleFiles = useMemo(() => reviews.map(review => ({
-    path: review.path,
-    diffs: review.diffs,
-    ...(review.complete === false ? { complete: false as const } : {}),
-  })), [reviews])
-  const reversiblePaths = useMemo(() => new Set(
-    reviews.filter(review => isReversibleChange(review)).map(review => review.path),
-  ), [reviews])
+  const toggleFiles = useMemo(
+    () =>
+      reviews.map((review) => ({
+        path: review.path,
+        diffs: review.diffs,
+        ...(review.complete === false ? { complete: false as const } : {}),
+      })),
+    [reviews],
+  )
+  const reversiblePaths = useMemo(
+    () =>
+      new Set(reviews.filter((review) => isReversibleChange(review)).map((review) => review.path)),
+    [reviews],
+  )
   const hasReversibleFiles = reversiblePaths.size > 0
-  const shown = isPreviewExpanded
-    ? reviewsWithStats
-    : reviewsWithStats.slice(0, SHOWN_LIMIT)
+  const shown = isPreviewExpanded ? reviewsWithStats : reviewsWithStats.slice(0, SHOWN_LIMIT)
   const hidden = reviewsWithStats.length - shown.length
-  const visibleReviews = useMemo(() => reviewScope?.kind === 'file'
-    ? reviews.filter(review => review.path === reviewScope.path)
-    : reviews, [reviewScope, reviews])
+  const visibleReviews = useMemo(
+    () =>
+      reviewScope?.kind === 'file'
+        ? reviews.filter((review) => review.path === reviewScope.path)
+        : reviews,
+    [reviewScope, reviews],
+  )
   const visibleDiffs = useMemo(
-    () => visibleReviews.flatMap(review => review.diffs),
+    () => visibleReviews.flatMap((review) => review.diffs),
     [visibleReviews],
   )
-  const visibleStats = useMemo(() => visibleReviews.reduce<UnifiedDiffStats>(
-    (total, review) => addStats(total, summarizeDiffs(review.diffs)),
-    { added: 0, removed: 0 },
-  ), [visibleReviews])
+  const visibleStats = useMemo(
+    () =>
+      visibleReviews.reduce<UnifiedDiffStats>(
+        (total, review) => addStats(total, summarizeDiffs(review.diffs)),
+        { added: 0, removed: 0 },
+      ),
+    [visibleReviews],
+  )
 
   const showToast = useCallback((notice: Omit<ToggleNotice, 'seq'>) => {
     toastSeqRef.current += 1
     setToast({ seq: toastSeqRef.current, ...notice })
   }, [])
 
-  const phaseForResult = useCallback((
-    result: FileReviewResult,
-    currentAction: FileReviewAction,
-  ): FileReviewAction => {
-    if (reversiblePaths.size === 0) return 'undo'
-    const byPath = new Map(result.files.map(file => [file.path, file]))
-    const target = currentAction === 'undo' ? 'undone' : 'applied'
-    return [...reversiblePaths].every(path => byPath.get(path)?.state === target)
-      ? (currentAction === 'undo' ? 'redo' : 'undo')
-      : currentAction
-  }, [reversiblePaths])
+  const phaseForResult = useCallback(
+    (result: FileReviewResult, currentAction: FileReviewAction): FileReviewAction => {
+      if (reversiblePaths.size === 0) return 'undo'
+      const byPath = new Map(result.files.map((file) => [file.path, file]))
+      const target = currentAction === 'undo' ? 'undone' : 'applied'
+      return [...reversiblePaths].every((path) => byPath.get(path)?.state === target)
+        ? currentAction === 'undo'
+          ? 'redo'
+          : 'undo'
+        : currentAction
+    },
+    [reversiblePaths],
+  )
 
   useEffect(() => {
     let active = true
     setStatusPending(true)
-    void inspectChanges({ action: 'undo', files: toggleFiles }).then((result) => {
-      if (!active) return
-      const allUndone = reversiblePaths.size > 0
-        && [...reversiblePaths].every(path =>
-          result.files.find(file => file.path === path)?.state === 'undone')
-      setToggleAction(allUndone ? 'redo' : 'undo')
-    }).catch(() => {
-      // The action remains usable after a transient inspection failure; execution
-      // performs the same Host-side checks again.
-    }).finally(() => {
-      if (active) setStatusPending(false)
-    })
-    return () => { active = false }
+    void inspectChanges({ action: 'undo', files: toggleFiles })
+      .then((result) => {
+        if (!active) return
+        const allUndone =
+          reversiblePaths.size > 0 &&
+          [...reversiblePaths].every(
+            (path) => result.files.find((file) => file.path === path)?.state === 'undone',
+          )
+        setToggleAction(allUndone ? 'redo' : 'undo')
+      })
+      .catch(() => {
+        // The action remains usable after a transient inspection failure; execution
+        // performs the same Host-side checks again.
+      })
+      .finally(() => {
+        if (active) setStatusPending(false)
+      })
+    return () => {
+      active = false
+    }
   }, [inspectChanges, reversiblePaths, toggleFiles])
 
   const runToggle = useCallback(() => {
     if (statusPending || togglePending || !hasReversibleFiles) return
     const action = toggleAction
     setTogglePending(true)
-    void applyChanges({ action, files: toggleFiles }).then((result) => {
-      setToggleAction(phaseForResult(result, action))
-      const targetState = action === 'undo' ? 'undone' : 'applied'
-      const byPath = new Map(result.files.map(file => [file.path, file]))
-      const failures: NoticeFile[] = toggleFiles.flatMap((file) => {
-        const outcome = byPath.get(file.path)
-        if (outcome?.state === targetState) return []
-        return [{ path: file.path }]
-      })
-      if (failures.length === 0) {
+    void applyChanges({ action, files: toggleFiles })
+      .then((result) => {
+        setToggleAction(phaseForResult(result, action))
+        const targetState = action === 'undo' ? 'undone' : 'applied'
+        const byPath = new Map(result.files.map((file) => [file.path, file]))
+        const failures: NoticeFile[] = toggleFiles.flatMap((file) => {
+          const outcome = byPath.get(file.path)
+          if (outcome?.state === targetState) return []
+          return [{ path: file.path }]
+        })
+        if (failures.length === 0) {
+          showToast({
+            tone: 'success',
+            title: t(action === 'undo' ? 'produced.undoSuccess' : 'produced.redoSuccess'),
+            files: [],
+          })
+          return
+        }
         showToast({
-          tone: 'success',
-          title: t(action === 'undo' ? 'produced.undoSuccess' : 'produced.redoSuccess'),
+          tone: 'error',
+          title: t(action === 'undo' ? 'produced.undoPartial' : 'produced.redoPartial'),
+          description: t(
+            action === 'undo'
+              ? 'produced.undoPartialDescription'
+              : 'produced.redoPartialDescription',
+          ),
+          files: failures,
+        })
+      })
+      .catch((error: unknown) => {
+        showToast({
+          tone: 'error',
+          title: t(action === 'undo' ? 'produced.undoError' : 'produced.redoError'),
+          description: error instanceof Error ? error.message : String(error),
           files: [],
         })
-        return
-      }
-      showToast({
-        tone: 'error',
-        title: t(action === 'undo' ? 'produced.undoPartial' : 'produced.redoPartial'),
-        description: t(action === 'undo'
-          ? 'produced.undoPartialDescription'
-          : 'produced.redoPartialDescription'),
-        files: failures,
       })
-    }).catch((error: unknown) => {
-      showToast({
-        tone: 'error',
-        title: t(action === 'undo' ? 'produced.undoError' : 'produced.redoError'),
-        description: error instanceof Error ? error.message : String(error),
-        files: [],
+      .finally(() => {
+        setTogglePending(false)
       })
-    }).finally(() => { setTogglePending(false) })
   }, [
-    applyChanges, hasReversibleFiles, phaseForResult, showToast, t,
-    statusPending, toggleAction, toggleFiles, togglePending,
+    applyChanges,
+    hasReversibleFiles,
+    phaseForResult,
+    showToast,
+    t,
+    statusPending,
+    toggleAction,
+    toggleFiles,
+    togglePending,
   ])
 
   const closeReview = useCallback(() => {
@@ -517,14 +605,22 @@ export function ProducedFiles({
     releaseReviewDrawer(reviewOwnerRef.current)
     setReviewScope(null)
   }, [])
-  const openReview = useCallback((scope: ReviewScope, trigger: HTMLButtonElement) => {
-    reviewTakeoverRef.current = activateReviewDrawer(reviewOwnerRef.current, closeReview)
-    triggerRef.current = trigger
-    setCopied(false)
-    setReviewScope(scope)
-  }, [closeReview])
+  const openReview = useCallback(
+    (scope: ReviewScope, trigger: HTMLButtonElement) => {
+      reviewTakeoverRef.current = activateReviewDrawer(reviewOwnerRef.current, closeReview)
+      triggerRef.current = trigger
+      setCopied(false)
+      setReviewScope(scope)
+    },
+    [closeReview],
+  )
 
-  useEffect(() => () => { releaseReviewDrawer(reviewOwnerRef.current) }, [])
+  useEffect(
+    () => () => {
+      releaseReviewDrawer(reviewOwnerRef.current)
+    },
+    [],
+  )
 
   useEffect(() => {
     if (reviewScope === null) return
@@ -539,22 +635,23 @@ export function ProducedFiles({
     }
   }, [closeReview, reviewScope])
 
-  useEffect(() => () => {
-    if (copyResetRef.current !== null) window.clearTimeout(copyResetRef.current)
-  }, [])
+  useEffect(
+    () => () => {
+      if (copyResetRef.current !== null) window.clearTimeout(copyResetRef.current)
+    },
+    [],
+  )
 
   const effectiveDrawerRatio = drawerRatio ?? DRAWER_DEFAULT_RATIO
-  const drawerWidthViewportPercent = drawerRatio === null
-    ? null
-    : Number((drawerRatio * 100).toFixed(2))
+  const drawerWidthViewportPercent =
+    drawerRatio === null ? null : Number((drawerRatio * 100).toFixed(2))
   const drawerTrack = drawerTrackForRatio(effectiveDrawerRatio)
   const reviewIsOpen = reviewScope !== null
 
   useLayoutEffect(() => {
     const allowOccupiedDetails = reviewTakeoverRef.current
     reviewTakeoverRef.current = false
-    if (!reviewIsOpen || currentViewportWidth <= MOBILE_BREAKPOINT
-      || cardRef.current === null) {
+    if (!reviewIsOpen || currentViewportWidth <= MOBILE_BREAKPOINT || cardRef.current === null) {
       setIsHostSplit(false)
       return
     }
@@ -577,7 +674,10 @@ export function ProducedFiles({
     layout.details.style.pointerEvents = 'none'
     layout.details.setAttribute('aria-hidden', 'true')
     hostSplitRef.current = {
-      layout, splitColumns, previousGridTemplateColumns, previousDrawerTrack,
+      layout,
+      splitColumns,
+      previousGridTemplateColumns,
+      previousDrawerTrack,
     }
     setIsHostSplit(true)
 
@@ -612,14 +712,18 @@ export function ProducedFiles({
   }, [drawerTrack])
 
   useEffect(() => {
-    const onResize = (): void => { setCurrentViewportWidth(viewportWidth()) }
+    const onResize = (): void => {
+      setCurrentViewportWidth(viewportWidth())
+    }
     window.addEventListener('resize', onResize)
-    return () => { window.removeEventListener('resize', onResize) }
+    return () => {
+      window.removeEventListener('resize', onResize)
+    }
   }, [])
 
   useEffect(() => {
     if (reviewScope?.kind !== 'file') return
-    if (!reviews.some(review => review.path === reviewScope.path)) closeReview()
+    if (!reviews.some((review) => review.path === reviewScope.path)) closeReview()
   }, [closeReview, reviewScope, reviews])
 
   const copyVisibleDiff = useCallback(() => {
@@ -627,36 +731,41 @@ export function ProducedFiles({
     const pending = navigator.clipboard?.writeText(unifiedDiffText(visibleDiffs))
     if (pending === undefined) return
     setCopied(true)
-    void pending.then(() => {
-      if (copyResetRef.current !== null) window.clearTimeout(copyResetRef.current)
-      copyResetRef.current = window.setTimeout(() => {
+    void pending
+      .then(() => {
+        if (copyResetRef.current !== null) window.clearTimeout(copyResetRef.current)
+        copyResetRef.current = window.setTimeout(() => {
+          setCopied(false)
+          copyResetRef.current = null
+        }, 1000)
+      })
+      .catch(() => {
         setCopied(false)
-        copyResetRef.current = null
-      }, 1000)
-    }).catch(() => { setCopied(false) })
+      })
   }, [copied, visibleDiffs])
 
-  const onResizePointerDown = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
-    if (event.button !== 0 || window.innerWidth <= MOBILE_BREAKPOINT) return
-    const startRatio = drawerRatio ?? DRAWER_DEFAULT_RATIO
-    const startWidth = viewportWidth() * startRatio
-    resizeDragRef.current = {
-      pointerId: event.pointerId,
-      startX: event.clientX,
-      startWidth,
-      currentRatio: startRatio,
-    }
-    event.currentTarget.setPointerCapture?.(event.pointerId)
-    setIsResizing(true)
-    event.preventDefault()
-  }, [drawerRatio])
+  const onResizePointerDown = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (event.button !== 0 || window.innerWidth <= MOBILE_BREAKPOINT) return
+      const startRatio = drawerRatio ?? DRAWER_DEFAULT_RATIO
+      const startWidth = viewportWidth() * startRatio
+      resizeDragRef.current = {
+        pointerId: event.pointerId,
+        startX: event.clientX,
+        startWidth,
+        currentRatio: startRatio,
+      }
+      event.currentTarget.setPointerCapture?.(event.pointerId)
+      setIsResizing(true)
+      event.preventDefault()
+    },
+    [drawerRatio],
+  )
 
   const onResizePointerMove = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
     const drag = resizeDragRef.current
     if (drag === null || drag.pointerId !== event.pointerId) return
-    const next = clampDrawerRatio(
-      (drag.startWidth + drag.startX - event.clientX) / viewportWidth(),
-    )
+    const next = clampDrawerRatio((drag.startWidth + drag.startX - event.clientX) / viewportWidth())
     drag.currentRatio = next
     hostSplitRef.current?.layout.frame.style.setProperty(
       HOST_DRAWER_TRACK_PROPERTY,
@@ -676,22 +785,25 @@ export function ProducedFiles({
     persistDrawerRatio(drag.currentRatio)
   }, [])
 
-  const onResizeKeyDown = useCallback((event: ReactKeyboardEvent<HTMLDivElement>) => {
-    const current = drawerRatio ?? DRAWER_DEFAULT_RATIO
-    let next: number | null = null
-    if (event.key === 'ArrowLeft') next = clampDrawerRatio(current + DRAWER_KEYBOARD_STEP)
-    if (event.key === 'ArrowRight') next = clampDrawerRatio(current - DRAWER_KEYBOARD_STEP)
-    if (event.key === 'Home') next = DRAWER_MIN_RATIO
-    if (event.key === 'End') next = DRAWER_MAX_RATIO
-    if (next === null) return
-    event.preventDefault()
-    hostSplitRef.current?.layout.frame.style.setProperty(
-      HOST_DRAWER_TRACK_PROPERTY,
-      drawerTrackForRatio(next),
-    )
-    setDrawerRatio(next)
-    persistDrawerRatio(next)
-  }, [drawerRatio])
+  const onResizeKeyDown = useCallback(
+    (event: ReactKeyboardEvent<HTMLDivElement>) => {
+      const current = drawerRatio ?? DRAWER_DEFAULT_RATIO
+      let next: number | null = null
+      if (event.key === 'ArrowLeft') next = clampDrawerRatio(current + DRAWER_KEYBOARD_STEP)
+      if (event.key === 'ArrowRight') next = clampDrawerRatio(current - DRAWER_KEYBOARD_STEP)
+      if (event.key === 'Home') next = DRAWER_MIN_RATIO
+      if (event.key === 'End') next = DRAWER_MAX_RATIO
+      if (next === null) return
+      event.preventDefault()
+      hostSplitRef.current?.layout.frame.style.setProperty(
+        HOST_DRAWER_TRACK_PROPERTY,
+        drawerTrackForRatio(next),
+      )
+      setDrawerRatio(next)
+      persistDrawerRatio(next)
+    },
+    [drawerRatio],
+  )
 
   const resetDrawerWidth = useCallback(() => {
     hostSplitRef.current?.layout.frame.style.setProperty(
@@ -703,15 +815,18 @@ export function ProducedFiles({
   }, [])
 
   const effectiveDrawerWidth = Math.round(currentViewportWidth * effectiveDrawerRatio)
-  const drawerStyle = drawerRatio === null
-    ? undefined
-    : { '--review-drawer-width': `${drawerWidthViewportPercent}vw` } as CSSProperties
+  const drawerStyle =
+    drawerRatio === null
+      ? undefined
+      : ({ '--review-drawer-width': `${drawerWidthViewportPercent}vw` } as CSSProperties)
 
   return (
     <>
       <section ref={cardRef} className={css.card} aria-label={t('produced.summary')}>
         <header className={css.cardHeader}>
-          <span className={css.fileIconWrap}><FileIcon /></span>
+          <span className={css.fileIconWrap}>
+            <FileIcon />
+          </span>
           <div className={css.cardTitleBlock}>
             <span className={css.cardTitle}>
               {reviews.length === 1
@@ -721,7 +836,8 @@ export function ProducedFiles({
             <Stats
               stats={totalStats}
               label={t('review.stats', {
-                added: String(totalStats.added), removed: String(totalStats.removed),
+                added: String(totalStats.added),
+                removed: String(totalStats.removed),
               })}
             />
           </div>
@@ -734,14 +850,20 @@ export function ProducedFiles({
             onClick={runToggle}
           >
             {togglePending
-              ? (toggleAction === 'undo' ? t('produced.undoing') : t('produced.redoing'))
-              : (toggleAction === 'undo' ? t('produced.undo') : t('produced.redo'))}
+              ? toggleAction === 'undo'
+                ? t('produced.undoing')
+                : t('produced.redoing')
+              : toggleAction === 'undo'
+                ? t('produced.undo')
+                : t('produced.redo')}
           </button>
           <button
             type="button"
             className={css.reviewButton}
             aria-label={t('produced.reviewAll')}
-            onClick={event => { openReview({ kind: 'all' }, event.currentTarget) }}
+            onClick={(event) => {
+              openReview({ kind: 'all' }, event.currentTarget)
+            }}
           >
             <ReviewIcon />
             {t('review.title')}
@@ -755,7 +877,7 @@ export function ProducedFiles({
               className={css.fileRow}
               title={review.path}
               aria-label={t('produced.review', { name: review.path })}
-              onClick={event => {
+              onClick={(event) => {
                 openReview({ kind: 'file', path: review.path }, event.currentTarget)
               }}
             >
@@ -763,7 +885,8 @@ export function ProducedFiles({
               <Stats
                 stats={stats}
                 label={t('review.stats', {
-                  added: String(stats.added), removed: String(stats.removed),
+                  added: String(stats.added),
+                  removed: String(stats.removed),
                 })}
               />
             </button>
@@ -773,11 +896,11 @@ export function ProducedFiles({
               type="button"
               className={css.moreFiles}
               aria-expanded="false"
-              onClick={() => { setIsPreviewExpanded(true) }}
+              onClick={() => {
+                setIsPreviewExpanded(true)
+              }}
             >
-              {hidden === 1
-                ? t('produced.moreOne')
-                : t('produced.more', { count: String(hidden) })}
+              {hidden === 1 ? t('produced.moreOne') : t('produced.more', { count: String(hidden) })}
             </button>
           )}
         </div>
@@ -811,7 +934,9 @@ export function ProducedFiles({
           />
           <header className={css.drawerHeader}>
             <div className={css.drawerHeading}>
-              <span id={drawerTitleId} className={css.drawerTitle}>{t('review.title')}</span>
+              <span id={drawerTitleId} className={css.drawerTitle}>
+                {t('review.title')}
+              </span>
               <span className={css.drawerSubtitle}>
                 {visibleReviews.length === 1
                   ? t('review.fileOne')
@@ -821,7 +946,8 @@ export function ProducedFiles({
             <Stats
               stats={visibleStats}
               label={t('review.stats', {
-                added: String(visibleStats.added), removed: String(visibleStats.removed),
+                added: String(visibleStats.added),
+                removed: String(visibleStats.removed),
               })}
             />
             <button
@@ -851,49 +977,56 @@ export function ProducedFiles({
                 <section key={review.path} className={css.reviewFile}>
                   <header className={css.reviewFileHeader}>
                     <span className={css.reviewStatus}>M</span>
-                    <span className={css.reviewPath} title={relativePath}>{relativePath}</span>
+                    <span className={css.reviewPath} title={relativePath}>
+                      {relativePath}
+                    </span>
                     <Stats
                       stats={stats}
                       label={t('review.stats', {
-                        added: String(stats.added), removed: String(stats.removed),
+                        added: String(stats.added),
+                        removed: String(stats.removed),
                       })}
                     />
                     <button
                       type="button"
                       className={css.openButton}
-                      onClick={() => { openFile(review.path) }}
+                      onClick={() => {
+                        openFile(review.path)
+                      }}
                     >
                       {t('review.openInEditor')}
                     </button>
                   </header>
-                  {review.diffs.length === 0
-                    ? <p className={css.reviewUnavailable}>{t('review.unavailable')}</p>
-                    : (
-                      <UnifiedDiff
-                        diffs={review.diffs}
-                        contextLines={3}
-                        showCopyButton={false}
-                        showFileHeaders={false}
-                        wordWrap={wordWrap}
-                        labels={{
-                          copy: t('review.copy'),
-                          copied: t('review.copied'),
-                          showUnchanged: count => t('review.showUnchanged', { count: String(count) }),
-                          hideUnchanged: count => t('review.hideUnchanged', { count: String(count) }),
-                          addComment: line => t('review.commentAdd', { line: String(line) }),
-                          editComment: line => t('review.commentEdit', { line: String(line) }),
-                          commentPlaceholder: t('review.commentPlaceholder'),
-                          commentNewlineHint: t('review.commentNewlineHint'),
-                          cancelComment: t('review.commentCancel'),
-                          saveComment: t('review.commentSave'),
-                          deleteComment: t('review.commentDelete'),
-                        }}
-                        commentFor={sessionId === undefined ? undefined : commentFor}
-                        onCommentChange={sessionId === undefined ? undefined : onCommentChange}
-                        onCommentDelete={sessionId === undefined ? undefined : onCommentDelete}
-                        className={css.reviewDiff}
-                      />
-                    )}
+                  {review.diffs.length === 0 ? (
+                    <p className={css.reviewUnavailable}>{t('review.unavailable')}</p>
+                  ) : (
+                    <UnifiedDiff
+                      diffs={review.diffs}
+                      contextLines={3}
+                      showCopyButton={false}
+                      showFileHeaders={false}
+                      wordWrap={wordWrap}
+                      labels={{
+                        copy: t('review.copy'),
+                        copied: t('review.copied'),
+                        showUnchanged: (count) =>
+                          t('review.showUnchanged', { count: String(count) }),
+                        hideUnchanged: (count) =>
+                          t('review.hideUnchanged', { count: String(count) }),
+                        addComment: (line) => t('review.commentAdd', { line: String(line) }),
+                        editComment: (line) => t('review.commentEdit', { line: String(line) }),
+                        commentPlaceholder: t('review.commentPlaceholder'),
+                        commentNewlineHint: t('review.commentNewlineHint'),
+                        cancelComment: t('review.commentCancel'),
+                        saveComment: t('review.commentSave'),
+                        deleteComment: t('review.commentDelete'),
+                      }}
+                      commentFor={sessionId === undefined ? undefined : commentFor}
+                      onCommentChange={sessionId === undefined ? undefined : onCommentChange}
+                      onCommentDelete={sessionId === undefined ? undefined : onCommentDelete}
+                      className={css.reviewDiff}
+                    />
+                  )}
                 </section>
               )
             })}
@@ -907,9 +1040,11 @@ export function ProducedFiles({
           closeLabel={t('produced.noticeClose')}
           dismissLabel={t('produced.noticeDismiss')}
           fileListLabel={t('produced.skippedFiles', { count: String(toast.files.length) })}
-          fileOpenLabel={path => t('produced.open', { name: basename(path) })}
+          fileOpenLabel={(path) => t('produced.open', { name: basename(path) })}
           openFile={openFile}
-          onDone={() => { setToast(current => current?.seq === toast.seq ? null : current) }}
+          onDone={() => {
+            setToast((current) => (current?.seq === toast.seq ? null : current))
+          }}
         />
       )}
     </>

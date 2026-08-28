@@ -25,14 +25,16 @@ function smokeAgent(cwd: string, callId: string): Agent {
   return {
     session: {
       header: { cwd },
-      events: [{
-        seq: 1,
-        time: 1,
-        type: 'tool/call',
-        data: { turn: 1, step: 1, callId, name: 'smoke_mutate', arguments: '{}' },
-      }],
+      events: [
+        {
+          seq: 1,
+          time: 1,
+          type: 'tool/call',
+          data: { turn: 1, step: 1, callId, name: 'smoke_mutate', arguments: '{}' },
+        },
+      ],
     },
-    runMaintenance: async task => task(new AbortController().signal),
+    runMaintenance: async (task) => task(new AbortController().signal),
   } as unknown as Agent
 }
 
@@ -47,29 +49,31 @@ describe('file review smoke', () => {
     await ctx.plugin(SystemPrompt, { persona: '' })
     await ctx.plugin(Tools, {})
     await ctx.plugin({ apply, inject }).await()
-    ctx.tools.register(defineTool({
-      name: 'smoke_mutate',
-      description: 'create one file and delete another',
-      parameters: {},
-      output: {
-        schema: { type: 'string' },
-        render: (_args, value) => [{ type: 'text', text: value }],
-      },
-      presentCall: () => ({
-        card: 'diff',
-        title: 'Smoke mutation',
-        locations: [{ path: 'created.txt' }, { path: 'deleted.txt' }],
-        diffs: [
-          { path: 'created.txt', oldText: null, newText: 'created\n' },
-          { path: 'deleted.txt', oldText: 'before deletion\n', newText: '' },
-        ],
+    ctx.tools.register(
+      defineTool({
+        name: 'smoke_mutate',
+        description: 'create one file and delete another',
+        parameters: {},
+        output: {
+          schema: { type: 'string' },
+          render: (_args, value) => [{ type: 'text', text: value }],
+        },
+        presentCall: () => ({
+          card: 'diff',
+          title: 'Smoke mutation',
+          locations: [{ path: 'created.txt' }, { path: 'deleted.txt' }],
+          diffs: [
+            { path: 'created.txt', oldText: null, newText: 'created\n' },
+            { path: 'deleted.txt', oldText: 'before deletion\n', newText: '' },
+          ],
+        }),
+        async execute() {
+          await writeFile(createdPath, 'created\n', { mode: 0o640 })
+          await rm(deletedPath)
+          return 'done'
+        },
       }),
-      async execute() {
-        await writeFile(createdPath, 'created\n', { mode: 0o640 })
-        await rm(deletedPath)
-        return 'done'
-      },
-    }))
+    )
 
     const callId = 'smoke-call'
     const agent = smokeAgent(root, callId)
@@ -86,7 +90,7 @@ describe('file review smoke', () => {
     })
     expect(marker).toEqual(expect.objectContaining({ schema: 2, truncated: false }))
     if (marker === null) throw new Error('lifecycle marker was not captured')
-    expect(marker.files.map(file => [file.path, file.diffs[0]?.lifecycle?.kind])).toEqual([
+    expect(marker.files.map((file) => [file.path, file.diffs[0]?.lifecycle?.kind])).toEqual([
       ['created.txt', 'create'],
       ['deleted.txt', 'delete'],
     ])
@@ -95,23 +99,29 @@ describe('file review smoke', () => {
     if (service === undefined) throw new Error('fileReview service was not registered')
     const request: FileReviewRequest = {
       action: 'undo',
-      files: marker.files.map(file => ({ path: file.path, diffs: file.diffs })),
+      files: marker.files.map((file) => ({ path: file.path, diffs: file.diffs })),
     }
 
-    expect((await service.status(agent, request)).files.map(file => file.state))
-      .toEqual(['applied', 'applied'])
-    expect(await service.apply(agent, request)).toEqual({ files: [
-      { path: 'created.txt', state: 'undone', changed: true },
-      { path: 'deleted.txt', state: 'undone', changed: true },
-    ] })
+    expect((await service.status(agent, request)).files.map((file) => file.state)).toEqual([
+      'applied',
+      'applied',
+    ])
+    expect(await service.apply(agent, request)).toEqual({
+      files: [
+        { path: 'created.txt', state: 'undone', changed: true },
+        { path: 'deleted.txt', state: 'undone', changed: true },
+      ],
+    })
     await expect(access(createdPath)).rejects.toThrow()
     expect(await readFile(deletedPath, 'utf8')).toBe('before deletion\n')
     expect((await lstat(deletedPath)).mode & 0o777).toBe(0o600)
 
-    expect(await service.apply(agent, { ...request, action: 'redo' })).toEqual({ files: [
-      { path: 'created.txt', state: 'applied', changed: true },
-      { path: 'deleted.txt', state: 'applied', changed: true },
-    ] })
+    expect(await service.apply(agent, { ...request, action: 'redo' })).toEqual({
+      files: [
+        { path: 'created.txt', state: 'applied', changed: true },
+        { path: 'deleted.txt', state: 'applied', changed: true },
+      ],
+    })
     expect(await readFile(createdPath, 'utf8')).toBe('created\n')
     expect((await lstat(createdPath)).mode & 0o777).toBe(0o640)
     await expect(access(deletedPath)).rejects.toThrow()

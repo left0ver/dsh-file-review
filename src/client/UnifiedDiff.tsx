@@ -68,7 +68,12 @@ interface CommentEditorProps {
 
 /** Grow with the draft until the shared saved/editing height cap, then scroll. */
 function CommentEditor({
-  ariaLabel, placeholder, value, onChange, onCommit, onCancel,
+  ariaLabel,
+  placeholder,
+  value,
+  onChange,
+  onCommit,
+  onCancel,
 }: CommentEditorProps) {
   const editorRef = useRef<HTMLTextAreaElement>(null)
 
@@ -89,7 +94,9 @@ function CommentEditor({
       aria-label={ariaLabel}
       placeholder={placeholder}
       value={value}
-      onChange={event => { onChange(event.currentTarget.value) }}
+      onChange={(event) => {
+        onChange(event.currentTarget.value)
+      }}
       onKeyDown={(event) => {
         if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
           event.preventDefault()
@@ -149,7 +156,11 @@ function hunkLines(diff: DiffHunk): UnifiedLine[] {
   return lines
 }
 
-function collapsedRows(lines: readonly UnifiedLine[], contextLines: number, hunkIndex: number): UnifiedRow[] {
+function collapsedRows(
+  lines: readonly UnifiedLine[],
+  contextLines: number,
+  hunkIndex: number,
+): UnifiedRow[] {
   const rows: UnifiedRow[] = []
   let cursor = 0
   let gapIndex = 0
@@ -167,9 +178,7 @@ function collapsedRows(lines: readonly UnifiedLine[], contextLines: number, hunk
     const leading = start === 0
     const trailing = cursor === lines.length
     const hiddenStart = leading ? 0 : Math.min(contextLines, run.length)
-    const hiddenEnd = trailing
-      ? run.length
-      : Math.max(hiddenStart, run.length - contextLines)
+    const hiddenEnd = trailing ? run.length : Math.max(hiddenStart, run.length - contextLines)
 
     rows.push(...run.slice(0, hiddenStart))
     const hidden = run.slice(hiddenStart, hiddenEnd)
@@ -188,16 +197,19 @@ function buildHunks(diffs: readonly DiffHunk[], contextLines: number): UnifiedHu
   let previousNewEnd = 1
   return diffs.map((diff, index) => {
     const lines = hunkLines(diff)
-    const oldCount = lines.filter(line => line.oldNumber !== null).length
-    const newCount = lines.filter(line => line.newNumber !== null).length
+    const oldCount = lines.filter((line) => line.oldNumber !== null).length
+    const newCount = lines.filter((line) => line.newNumber !== null).length
     const oldStart = diff.oldStart ?? 1
     const newStart = diff.newStart ?? 1
     const hasStarts = diff.oldStart !== undefined && diff.newStart !== undefined
     const unchangedBefore = hasStarts
-      ? Math.max(0, Math.min(
-        oldStart - (diff.path === previousPath ? previousOldEnd : 1),
-        newStart - (diff.path === previousPath ? previousNewEnd : 1),
-      ))
+      ? Math.max(
+          0,
+          Math.min(
+            oldStart - (diff.path === previousPath ? previousOldEnd : 1),
+            newStart - (diff.path === previousPath ? previousNewEnd : 1),
+          ),
+        )
       : 0
     previousPath = diff.path
     previousOldEnd = oldStart + oldCount
@@ -205,8 +217,8 @@ function buildHunks(diffs: readonly DiffHunk[], contextLines: number): UnifiedHu
     return {
       lines,
       rows: collapsedRows(lines, contextLines, index),
-      added: lines.filter(line => line.kind === 'add').length,
-      removed: lines.filter(line => line.kind === 'del').length,
+      added: lines.filter((line) => line.kind === 'add').length,
+      removed: lines.filter((line) => line.kind === 'del').length,
       unchangedBefore,
     }
   })
@@ -254,10 +266,13 @@ function lineNumber(line: UnifiedLine): number | null {
 function excerptFor(lines: readonly UnifiedLine[], target: UnifiedLine): string {
   const start = Math.max(0, target.rowIndex - 3)
   const end = Math.min(lines.length, target.rowIndex + 4)
-  return lines.slice(start, end).map((line) => {
-    const prefix = line.kind === 'del' ? '-' : line.kind === 'add' ? '+' : ' '
-    return `${prefix} ${line.text}`
-  }).join('\n')
+  return lines
+    .slice(start, end)
+    .map((line) => {
+      const prefix = line.kind === 'del' ? '-' : line.kind === 'add' ? '+' : ' '
+      return `${prefix} ${line.text}`
+    })
+    .join('\n')
 }
 
 function anchorFor(
@@ -303,10 +318,15 @@ export function UnifiedDiff({
 
   const onCopy = useCallback(() => {
     if (copied) return
-    void navigator.clipboard?.writeText(unifiedDiffText(diffs)).then(() => {
-      setCopied(true)
-      window.setTimeout(() => { setCopied(false) }, 1000)
-    }).catch(() => {})
+    void navigator.clipboard
+      ?.writeText(unifiedDiffText(diffs))
+      .then(() => {
+        setCopied(true)
+        window.setTimeout(() => {
+          setCopied(false)
+        }, 1000)
+      })
+      .catch(() => {})
   }, [copied, diffs])
 
   if (diffs.length === 0) return null
@@ -350,13 +370,17 @@ export function UnifiedDiff({
               <button
                 type="button"
                 className={css.commentTrigger}
-                aria-label={(comment === undefined ? labels.addComment : labels.editComment)?.(displayLine)
-                  ?? `${comment === undefined ? 'Add' : 'Edit'} comment on line ${displayLine}`}
+                aria-label={
+                  (comment === undefined ? labels.addComment : labels.editComment)?.(displayLine) ??
+                  `${comment === undefined ? 'Add' : 'Edit'} comment on line ${displayLine}`
+                }
                 onClick={() => {
                   setEditing(anchorKey)
                   setCommentDraft(comment ?? '')
                 }}
-              >+</button>
+              >
+                +
+              </button>
             )}
             <span>{lineNumber(line)}</span>
           </span>
@@ -365,58 +389,62 @@ export function UnifiedDiff({
         </div>
         {(comment !== undefined || isEditing) && (
           <div className={css.commentRow} data-review-comment={anchorKey}>
-            {isEditing
-              ? (
-                <>
-                  <CommentEditor
-                    ariaLabel={(labels.editComment?.(displayLine)) ?? `Edit comment on line ${displayLine}`}
-                    placeholder={labels.commentPlaceholder}
-                    value={commentDraft}
-                    onChange={setCommentDraft}
-                    onCommit={commit}
-                    onCancel={cancel}
-                  />
-                  <div className={css.commentActions}>
-                    <span className={css.commentHint}>
-                      {labels.commentNewlineHint ?? 'Shift+Enter for a new line'}
-                    </span>
-                    <button type="button" className={css.commentCancel} onClick={cancel}>
-                      {labels.cancelComment ?? 'Cancel'}
-                    </button>
-                    <button
-                      type="button"
-                      className={css.commentSave}
-                      disabled={commentDraft.trim() === ''}
-                      onClick={commit}
-                    >
-                      {labels.saveComment ?? 'Save'}
-                    </button>
-                  </div>
-                </>
-              )
-              : (
-                <>
+            {isEditing ? (
+              <>
+                <CommentEditor
+                  ariaLabel={
+                    labels.editComment?.(displayLine) ?? `Edit comment on line ${displayLine}`
+                  }
+                  placeholder={labels.commentPlaceholder}
+                  value={commentDraft}
+                  onChange={setCommentDraft}
+                  onCommit={commit}
+                  onCancel={cancel}
+                />
+                <div className={css.commentActions}>
+                  <span className={css.commentHint}>
+                    {labels.commentNewlineHint ?? 'Shift+Enter for a new line'}
+                  </span>
+                  <button type="button" className={css.commentCancel} onClick={cancel}>
+                    {labels.cancelComment ?? 'Cancel'}
+                  </button>
                   <button
                     type="button"
-                    className={css.commentBody}
+                    className={css.commentSave}
+                    disabled={commentDraft.trim() === ''}
+                    onClick={commit}
+                  >
+                    {labels.saveComment ?? 'Save'}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  className={css.commentBody}
+                  onClick={() => {
+                    setEditing(anchorKey)
+                    setCommentDraft(comment ?? '')
+                  }}
+                >
+                  {comment}
+                </button>
+                <div className={css.commentActions}>
+                  <button
+                    type="button"
+                    className={css.commentDelete}
                     onClick={() => {
-                      setEditing(anchorKey)
-                      setCommentDraft(comment ?? '')
+                      onCommentDelete?.(anchor)
+                      setEditing(null)
+                      setCommentDraft('')
                     }}
-                  >{comment}</button>
-                  <div className={css.commentActions}>
-                    <button
-                      type="button"
-                      className={css.commentDelete}
-                      onClick={() => {
-                        onCommentDelete?.(anchor)
-                        setEditing(null)
-                        setCommentDraft('')
-                      }}
-                    >{labels.deleteComment ?? 'Delete'}</button>
-                  </div>
-                </>
-              )}
+                  >
+                    {labels.deleteComment ?? 'Delete'}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         )}
       </Fragment>
@@ -453,18 +481,18 @@ export function UnifiedDiff({
         const hunk = hunks[hunkIndex]
         return (
           <section key={`${diff.path}:${hunkIndex}`} className={css.unifiedFile}>
-            {showFileHeaders && firstForPath
-              ? (
-                <header className={css.unifiedHeader}>
-                  <span className={css.unifiedStatus}>M</span>
-                  <span className={css.unifiedPath}>{diff.path}</span>
-                  <span className={css.unifiedAdded}>+{total.added}</span>
-                  <span className={css.unifiedRemoved}>-{total.removed}</span>
-                </header>
-              )
-              : !firstForPath && (hunk?.unchangedBefore ?? 0) === 0
-                ? <div className={css.unifiedHunkHeader}>@@ -{diff.oldStart ?? '?'} +{diff.newStart ?? '?'} @@</div>
-                : null}
+            {showFileHeaders && firstForPath ? (
+              <header className={css.unifiedHeader}>
+                <span className={css.unifiedStatus}>M</span>
+                <span className={css.unifiedPath}>{diff.path}</span>
+                <span className={css.unifiedAdded}>+{total.added}</span>
+                <span className={css.unifiedRemoved}>-{total.removed}</span>
+              </header>
+            ) : !firstForPath && (hunk?.unchangedBefore ?? 0) === 0 ? (
+              <div className={css.unifiedHunkHeader}>
+                @@ -{diff.oldStart ?? '?'} +{diff.newStart ?? '?'} @@
+              </div>
+            ) : null}
             <div className={`${css.unifiedBody} ${wordWrap ? css.unifiedBodyWrap : ''}`}>
               {(hunk?.unchangedBefore ?? 0) > 0 && (
                 <div className={css.unifiedOmitted}>
@@ -474,10 +502,17 @@ export function UnifiedDiff({
               )}
               {(hunk?.rows ?? []).flatMap((row) => {
                 if (row.kind !== 'gap') {
-                  return hunk === undefined ? [] : [renderLine(
-                    diff, hunk, hunkIndex, row,
-                    `${row.kind}:${row.oldNumber ?? ''}:${row.newNumber ?? ''}:${row.rowIndex}`,
-                  )]
+                  return hunk === undefined
+                    ? []
+                    : [
+                        renderLine(
+                          diff,
+                          hunk,
+                          hunkIndex,
+                          row,
+                          `${row.kind}:${row.oldNumber ?? ''}:${row.newNumber ?? ''}:${row.rowIndex}`,
+                        ),
+                      ]
                 }
 
                 const expanded = expandedGaps.has(row.id)
@@ -498,24 +533,32 @@ export function UnifiedDiff({
                     >
                       {labels.hideUnchanged(row.lines.length)}
                     </button>,
-                    ...(hunk === undefined ? [] : row.lines.map(line => renderLine(
-                      diff, hunk, hunkIndex, line, `${row.id}:${lineNumbers(line)}:${line.rowIndex}`,
-                    ))),
+                    ...(hunk === undefined
+                      ? []
+                      : row.lines.map((line) =>
+                          renderLine(
+                            diff,
+                            hunk,
+                            hunkIndex,
+                            line,
+                            `${row.id}:${lineNumbers(line)}:${line.rowIndex}`,
+                          ),
+                        )),
                   ]
                 }
-                return [(
+                return [
                   <button
                     key={row.id}
                     type="button"
                     className={css.unifiedGap}
                     aria-expanded="false"
                     onClick={() => {
-                      setExpandedGaps(current => new Set([...current, row.id]))
+                      setExpandedGaps((current) => new Set([...current, row.id]))
                     }}
                   >
                     {labels.showUnchanged(row.lines.length)}
-                  </button>
-                )]
+                  </button>,
+                ]
               })}
             </div>
           </section>

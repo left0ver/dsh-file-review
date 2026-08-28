@@ -1,5 +1,13 @@
 import {
-  access, chmod, lstat, mkdir, mkdtemp, readFile, rm, symlink, writeFile,
+  access,
+  chmod,
+  lstat,
+  mkdir,
+  mkdtemp,
+  readFile,
+  rm,
+  symlink,
+  writeFile,
 } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -13,7 +21,7 @@ import { TYPERT_REMOTE } from '../src/remote.ts'
 const roots: string[] = []
 
 afterEach(async () => {
-  await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true })))
+  await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })))
 })
 
 async function workspace(): Promise<string> {
@@ -25,7 +33,7 @@ async function workspace(): Promise<string> {
 function fakeAgent(cwd: string): Agent {
   return {
     session: { header: { cwd } },
-    runMaintenance: async task => task(new AbortController().signal),
+    runMaintenance: async (task) => task(new AbortController().signal),
   } as Agent
 }
 
@@ -33,17 +41,11 @@ function change(path: string, oldText: string | null, newText: string): FileRevi
   return { path, diffs: [{ path, oldText, newText }] }
 }
 
-async function status(
-  agent: Agent,
-  request: FileReviewRequest,
-) {
+async function status(agent: Agent, request: FileReviewRequest) {
   return FileReviewService.prototype.status.call({} as FileReviewService, agent, request)
 }
 
-async function applyChange(
-  agent: Agent,
-  request: FileReviewRequest,
-) {
+async function applyChange(agent: Agent, request: FileReviewRequest) {
   return FileReviewService.prototype.apply.call({} as FileReviewService, agent, request)
 }
 
@@ -55,17 +57,21 @@ describe('Host file-review change engine', () => {
     const agent = fakeAgent(root)
     const request: FileReviewRequest = {
       action: 'undo',
-      files: [{
-        path: 'created.txt',
-        diffs: [{
+      files: [
+        {
           path: 'created.txt',
-          oldText: null,
-          newText: 'created\n',
-          oldStart: 1,
-          newStart: 1,
-          lifecycle: { kind: 'create', mode: 0o640 },
-        }],
-      }],
+          diffs: [
+            {
+              path: 'created.txt',
+              oldText: null,
+              newText: 'created\n',
+              oldStart: 1,
+              newStart: 1,
+              lifecycle: { kind: 'create', mode: 0o640 },
+            },
+          ],
+        },
+      ],
     }
 
     expect(await status(agent, request)).toEqual({
@@ -95,37 +101,59 @@ describe('Host file-review change engine', () => {
     const agent = fakeAgent(root)
     const emptyCreate: FileReviewChange = {
       path: 'empty.txt',
-      diffs: [{
-        path: 'empty.txt', oldText: null, newText: '',
-        lifecycle: { kind: 'create', mode: 0o600 },
-      }],
+      diffs: [
+        {
+          path: 'empty.txt',
+          oldText: null,
+          newText: '',
+          lifecycle: { kind: 'create', mode: 0o600 },
+        },
+      ],
     }
     const driftedCreate: FileReviewChange = {
       path: 'drifted.txt',
-      diffs: [{
-        path: 'drifted.txt', oldText: null, newText: 'content',
-        lifecycle: { kind: 'create', mode: 0o640 },
-      }],
+      diffs: [
+        {
+          path: 'drifted.txt',
+          oldText: null,
+          newText: 'content',
+          lifecycle: { kind: 'create', mode: 0o640 },
+        },
+      ],
     }
     const emptyDelete: FileReviewChange = {
       path: 'empty-deleted.txt',
-      diffs: [{
-        path: 'empty-deleted.txt', oldText: '', newText: '',
-        lifecycle: { kind: 'delete', mode: 0o666 },
-      }],
+      diffs: [
+        {
+          path: 'empty-deleted.txt',
+          oldText: '',
+          newText: '',
+          lifecycle: { kind: 'delete', mode: 0o666 },
+        },
+      ],
     }
 
-    expect((await applyChange(agent, { action: 'undo', files: [emptyCreate] })).files[0])
-      .toEqual({ path: 'empty.txt', state: 'undone', changed: true })
+    expect((await applyChange(agent, { action: 'undo', files: [emptyCreate] })).files[0]).toEqual({
+      path: 'empty.txt',
+      state: 'undone',
+      changed: true,
+    })
     await expect(access(empty)).rejects.toThrow()
-    expect((await applyChange(agent, { action: 'redo', files: [emptyCreate] })).files[0])
-      .toEqual({ path: 'empty.txt', state: 'applied', changed: true })
+    expect((await applyChange(agent, { action: 'redo', files: [emptyCreate] })).files[0]).toEqual({
+      path: 'empty.txt',
+      state: 'applied',
+      changed: true,
+    })
     expect(await readFile(empty, 'utf8')).toBe('')
-    expect((await applyChange(agent, { action: 'undo', files: [driftedCreate] })).files[0])
-      .toEqual(expect.objectContaining({ state: 'conflict', changed: false }))
+    expect((await applyChange(agent, { action: 'undo', files: [driftedCreate] })).files[0]).toEqual(
+      expect.objectContaining({ state: 'conflict', changed: false }),
+    )
     expect(await readFile(drifted, 'utf8')).toBe('content')
-    expect((await applyChange(agent, { action: 'undo', files: [emptyDelete] })).files[0])
-      .toEqual({ path: 'empty-deleted.txt', state: 'undone', changed: true })
+    expect((await applyChange(agent, { action: 'undo', files: [emptyDelete] })).files[0]).toEqual({
+      path: 'empty-deleted.txt',
+      state: 'undone',
+      changed: true,
+    })
     expect(await readFile(join(root, 'empty-deleted.txt'), 'utf8')).toBe('')
     expect((await lstat(join(root, 'empty-deleted.txt'))).mode & 0o777).toBe(0o666)
   })
@@ -136,17 +164,21 @@ describe('Host file-review change engine', () => {
     const agent = fakeAgent(root)
     const request: FileReviewRequest = {
       action: 'undo',
-      files: [{
-        path: 'deleted.txt',
-        diffs: [{
+      files: [
+        {
           path: 'deleted.txt',
-          oldText: 'deleted\n',
-          newText: '',
-          oldStart: 1,
-          newStart: 1,
-          lifecycle: { kind: 'delete', mode: 0o600 },
-        }],
-      }],
+          diffs: [
+            {
+              path: 'deleted.txt',
+              oldText: 'deleted\n',
+              newText: '',
+              oldStart: 1,
+              newStart: 1,
+              lifecycle: { kind: 'delete', mode: 0o600 },
+            },
+          ],
+        },
+      ],
     }
 
     expect(await applyChange(agent, request)).toEqual({
@@ -173,7 +205,9 @@ describe('Host file-review change engine', () => {
           path: 'created-edited.txt',
           diffs: [
             {
-              path: 'created-edited.txt', oldText: null, newText: 'A',
+              path: 'created-edited.txt',
+              oldText: null,
+              newText: 'A',
               lifecycle: { kind: 'create', mode: 0o640 },
             },
             { path: 'created-edited.txt', oldText: 'A', newText: 'B' },
@@ -184,7 +218,9 @@ describe('Host file-review change engine', () => {
           diffs: [
             { path: 'edited-deleted.txt', oldText: 'old', newText: 'edited' },
             {
-              path: 'edited-deleted.txt', oldText: 'edited', newText: '',
+              path: 'edited-deleted.txt',
+              oldText: 'edited',
+              newText: '',
               lifecycle: { kind: 'delete', mode: 0o644 },
             },
           ],
@@ -193,11 +229,15 @@ describe('Host file-review change engine', () => {
           path: 'replaced.txt',
           diffs: [
             {
-              path: 'replaced.txt', oldText: 'old', newText: '',
+              path: 'replaced.txt',
+              oldText: 'old',
+              newText: '',
               lifecycle: { kind: 'delete', mode: 0o644 },
             },
             {
-              path: 'replaced.txt', oldText: null, newText: 'new',
+              path: 'replaced.txt',
+              oldText: null,
+              newText: 'new',
               lifecycle: { kind: 'create', mode: 0o666 },
             },
           ],
@@ -206,11 +246,15 @@ describe('Host file-review change engine', () => {
           path: 'created-deleted.txt',
           diffs: [
             {
-              path: 'created-deleted.txt', oldText: null, newText: 'temporary',
+              path: 'created-deleted.txt',
+              oldText: null,
+              newText: 'temporary',
               lifecycle: { kind: 'create', mode: 0o644 },
             },
             {
-              path: 'created-deleted.txt', oldText: 'temporary', newText: '',
+              path: 'created-deleted.txt',
+              oldText: 'temporary',
+              newText: '',
               lifecycle: { kind: 'delete', mode: 0o644 },
             },
           ],
@@ -219,7 +263,7 @@ describe('Host file-review change engine', () => {
     }
 
     const undone = await applyChange(fakeAgent(root), request)
-    expect(undone.files.map(file => [file.path, file.state, file.changed])).toEqual([
+    expect(undone.files.map((file) => [file.path, file.state, file.changed])).toEqual([
       ['created-edited.txt', 'undone', true],
       ['edited-deleted.txt', 'undone', true],
       ['replaced.txt', 'undone', true],
@@ -231,7 +275,7 @@ describe('Host file-review change engine', () => {
     await expect(access(join(root, 'created-deleted.txt'))).rejects.toThrow()
 
     const redone = await applyChange(fakeAgent(root), { ...request, action: 'redo' })
-    expect(redone.files.map(file => [file.path, file.state, file.changed])).toEqual([
+    expect(redone.files.map((file) => [file.path, file.state, file.changed])).toEqual([
       ['created-edited.txt', 'applied', true],
       ['edited-deleted.txt', 'applied', true],
       ['replaced.txt', 'applied', true],
@@ -250,21 +294,30 @@ describe('Host file-review change engine', () => {
     const agent = fakeAgent(root)
     const create = {
       path: 'created.txt',
-      diffs: [{
-        path: 'created.txt', oldText: null, newText: 'agent content',
-        lifecycle: { kind: 'create' as const, mode: 0o640 },
-      }],
+      diffs: [
+        {
+          path: 'created.txt',
+          oldText: null,
+          newText: 'agent content',
+          lifecycle: { kind: 'create' as const, mode: 0o640 },
+        },
+      ],
     }
     const deletion = {
       path: 'deleted.txt',
-      diffs: [{
-        path: 'deleted.txt', oldText: 'deleted content', newText: '',
-        lifecycle: { kind: 'delete' as const, mode: 0o600 },
-      }],
+      diffs: [
+        {
+          path: 'deleted.txt',
+          oldText: 'deleted content',
+          newText: '',
+          lifecycle: { kind: 'delete' as const, mode: 0o600 },
+        },
+      ],
     }
 
     const result = await applyChange(agent, {
-      action: 'undo', files: [create, deletion],
+      action: 'undo',
+      files: [create, deletion],
     })
     expect(result.files).toEqual([
       expect.objectContaining({ path: 'created.txt', state: 'conflict', changed: false }),
@@ -274,11 +327,15 @@ describe('Host file-review change engine', () => {
     expect(await readFile(join(root, 'deleted.txt'), 'utf8')).toBe('replacement')
 
     await rm(join(root, 'deleted.txt'))
-    expect((await applyChange(agent, { action: 'undo', files: [deletion] })).files[0])
-      .toEqual({ path: 'deleted.txt', state: 'undone', changed: true })
+    expect((await applyChange(agent, { action: 'undo', files: [deletion] })).files[0]).toEqual({
+      path: 'deleted.txt',
+      state: 'undone',
+      changed: true,
+    })
     await writeFile(join(root, 'deleted.txt'), 'edited after restore')
-    expect((await applyChange(agent, { action: 'redo', files: [deletion] })).files[0])
-      .toEqual(expect.objectContaining({ path: 'deleted.txt', state: 'conflict', changed: false }))
+    expect((await applyChange(agent, { action: 'redo', files: [deletion] })).files[0]).toEqual(
+      expect.objectContaining({ path: 'deleted.txt', state: 'conflict', changed: false }),
+    )
     expect(await readFile(join(root, 'deleted.txt'), 'utf8')).toBe('edited after restore')
   })
 
@@ -346,8 +403,13 @@ describe('Host file-review change engine', () => {
         { ...change('incomplete.txt', 'old', 'new'), complete: false },
       ],
     })
-    expect(result.files.map(file => file.state))
-      .toEqual(['applied', 'undone', 'conflict', 'unsupported', 'unsupported'])
+    expect(result.files.map((file) => file.state)).toEqual([
+      'applied',
+      'undone',
+      'conflict',
+      'unsupported',
+      'unsupported',
+    ])
   })
 
   it('rejects paths outside the workspace and symbolic links', async () => {
@@ -357,9 +419,14 @@ describe('Host file-review change engine', () => {
     await mkdir(join(root, 'folder'))
     const lifecycle = (path: string): FileReviewChange => ({
       path,
-      diffs: [{
-        path, oldText: 'old', newText: '', lifecycle: { kind: 'delete', mode: 0o644 },
-      }],
+      diffs: [
+        {
+          path,
+          oldText: 'old',
+          newText: '',
+          lifecycle: { kind: 'delete', mode: 0o644 },
+        },
+      ],
     })
     const result = await status(fakeAgent(root), {
       action: 'undo',
@@ -384,7 +451,8 @@ describe('Host file-review change engine', () => {
     await writeFile(filename, 'NEW')
     await chmod(filename, 0o640)
     await applyChange(fakeAgent(root), {
-      action: 'undo', files: [change('script.sh', 'OLD', 'NEW')],
+      action: 'undo',
+      files: [change('script.sh', 'OLD', 'NEW')],
     })
     expect(await readFile(filename, 'utf8')).toBe('OLD')
     expect((await lstat(filename)).mode & 0o777).toBe(0o640)
@@ -394,14 +462,21 @@ describe('Host file-review change engine', () => {
     const root = await workspace()
     await writeFile(join(root, 'binary.txt'), new Uint8Array([0xff, 0xfe]))
     const result = await status(fakeAgent(root), {
-      action: 'undo', files: [change('binary.txt', 'old', 'new')],
+      action: 'undo',
+      files: [change('binary.txt', 'old', 'new')],
     })
-    expect(result.files[0]).toEqual(expect.objectContaining({
-      state: 'error', reason: 'file is not valid UTF-8 text',
-    }))
-    await expect(status(fakeAgent(''), {
-      action: 'undo', files: [change('a.txt', 'old', 'new')],
-    })).rejects.toThrow('session has no workspace directory')
+    expect(result.files[0]).toEqual(
+      expect.objectContaining({
+        state: 'error',
+        reason: 'file is not valid UTF-8 text',
+      }),
+    )
+    await expect(
+      status(fakeAgent(''), {
+        action: 'undo',
+        files: [change('a.txt', 'old', 'new')],
+      }),
+    ).rejects.toThrow('session has no workspace directory')
   })
 
   it('does not enter file mutation while the Agent is busy', async () => {
@@ -409,17 +484,22 @@ describe('Host file-review change engine', () => {
     await writeFile(join(root, 'a.txt'), 'new')
     const agent = {
       session: { header: { cwd: root } },
-      runMaintenance: () => { throw new Error('agent is busy') },
+      runMaintenance: () => {
+        throw new Error('agent is busy')
+      },
     } as unknown as Agent
-    await expect(applyChange(agent, {
-      action: 'undo', files: [change('a.txt', 'old', 'new')],
-    })).rejects.toThrow('agent is busy')
+    await expect(
+      applyChange(agent, {
+        action: 'undo',
+        files: [change('a.txt', 'old', 'new')],
+      }),
+    ).rejects.toThrow('agent is busy')
     expect(await readFile(join(root, 'a.txt'), 'utf8')).toBe('new')
   })
 
   it('publishes matching strict Host and client Remote descriptors', () => {
-    expect(TYPERT.invocations.map(item => item.method)).toEqual(['status', 'apply'])
+    expect(TYPERT.invocations.map((item) => item.method)).toEqual(['status', 'apply'])
     expect(TYPERT_REMOTE.descriptors).toEqual(TYPERT.invocations)
-    expect(TYPERT.invocations.every(item => item.scope?.context === 'agent')).toBe(true)
+    expect(TYPERT.invocations.every((item) => item.scope?.context === 'agent')).toBe(true)
   })
 })

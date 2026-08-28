@@ -4,14 +4,17 @@
  * use this plugin's validated durable marker, never the closing prose.
  */
 import type {
-  ConversationNodeDefinition, ToolResultNode,
+  ConversationNodeDefinition,
+  ToolResultNode,
 } from '@deepseek-ai/dsh-client-runtime/client'
 import type { MarkdownFileMentions } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { TurnTailOwnerProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
 import type { ProducedFileDiff, ProducedFileReview } from '../change-types.ts'
 import {
-  markerFromContent, normalizeMutationPresentation, type PtcFileReviewMarker,
+  markerFromContent,
+  normalizeMutationPresentation,
+  type PtcFileReviewMarker,
 } from '../ptc-marker.ts'
 
 export type { ProducedFileDiff, ProducedFileReview } from '../change-types.ts'
@@ -37,20 +40,28 @@ declare module '@deepseek-ai/dsh-client-runtime/client' {
 
 interface DeliverablesState extends DeliverablesTurnData {
   readonly turn: number
-  readonly calls: ReadonlyMap<string, {
-    readonly step: number
-    readonly view: ToolResultNode['callView']
-  }>
+  readonly calls: ReadonlyMap<
+    string,
+    {
+      readonly step: number
+      readonly view: ToolResultNode['callView']
+    }
+  >
   readonly subCalls: ReadonlySet<string>
 }
 
 function dispatchMarker(event: SessionEvent): PtcFileReviewMarker | null {
   if (event.type !== 'tool/code-dispatch') return null
   const data = event.data as unknown as Record<string, unknown>
-  if (data.isError !== false
-    || typeof data.rootCallId !== 'string' || data.rootCallId === ''
-    || typeof data.subCallId !== 'string' || data.subCallId === ''
-    || !Array.isArray(data.content)) return null
+  if (
+    data.isError !== false ||
+    typeof data.rootCallId !== 'string' ||
+    data.rootCallId === '' ||
+    typeof data.subCallId !== 'string' ||
+    data.subCallId === '' ||
+    !Array.isArray(data.content)
+  )
+    return null
   return markerFromContent(data.content, {
     rootCallId: data.rootCallId,
     subCallId: data.subCallId,
@@ -135,7 +146,9 @@ export function producedForClosing(
  * @param owner - Turn-tail owner currency for the closing assistant.
  * @returns Produced-file reviews as the component's match, or null to decline before mount.
  */
-export function selectProducedFiles(owner: TurnTailOwnerProps): readonly ProducedFileReview[] | null {
+export function selectProducedFiles(
+  owner: TurnTailOwnerProps,
+): readonly ProducedFileReview[] | null {
   const reviews = reviewsForClosing(owner.turn.data.get('deliverables'), owner.seq)
   return reviews.length === 0 ? null : reviews
 }
@@ -146,8 +159,7 @@ export const deliverablesDefinition: ConversationNodeDefinition<DeliverablesStat
   match: (event) => {
     if (event.type === 'turn/start') return { id: String(event.data.turn), role: 'start' }
     if (event.type === 'tool/call') return { id: String(event.data.turn), role: 'update' }
-    if (event.type === 'tool/result'
-      && (event as { surfaceOp?: unknown }).surfaceOp === 'append') {
+    if (event.type === 'tool/result' && (event as { surfaceOp?: unknown }).surfaceOp === 'append') {
       return { id: String(event.data.turn), role: 'update' }
     }
     const marker = dispatchMarker(event)
@@ -164,13 +176,10 @@ export const deliverablesDefinition: ConversationNodeDefinition<DeliverablesStat
         return context.state
       }
       const calls = new Map(context.state.calls)
-      calls.set(
-        match.event.data.callId,
-        {
-          step: match.event.data.step,
-          view: match.view?.for === 'call' ? match.view.view : null,
-        },
-      )
+      calls.set(match.event.data.callId, {
+        step: match.event.data.step,
+        view: match.view?.for === 'call' ? match.view.view : null,
+      })
       return { ...context.state, calls }
     }
     if (match.event.type === 'tool/result') {
@@ -182,11 +191,11 @@ export const deliverablesDefinition: ConversationNodeDefinition<DeliverablesStat
       if (call === undefined) return context.state
       const resultView = match.view?.for === 'result' ? match.view.view : undefined
       const captured = nativeResultMarker(match.event)
-      const files = captured !== null
-        && captured.turn === context.state.turn && captured.step === call.step
-        ? captured.files
-        : normalizeMutationPresentation(call.view, resultView)
-      const additions = files.map(file => ({
+      const files =
+        captured !== null && captured.turn === context.state.turn && captured.step === call.step
+          ? captured.files
+          : normalizeMutationPresentation(call.view, resultView)
+      const additions = files.map((file) => ({
         seq: match.event.seq,
         path: file.path,
         diffs: file.diffs,
@@ -198,9 +207,14 @@ export const deliverablesDefinition: ConversationNodeDefinition<DeliverablesStat
     }
     const marker = dispatchMarker(match.event)
     const root = marker === null ? undefined : context.state.calls.get(marker.rootCallId)
-    if (marker === null || marker.turn !== context.state.turn
-      || root === undefined || root.step !== marker.step
-      || context.state.subCalls.has(marker.subCallId)) return context.state
+    if (
+      marker === null ||
+      marker.turn !== context.state.turn ||
+      root === undefined ||
+      root.step !== marker.step ||
+      context.state.subCalls.has(marker.subCallId)
+    )
+      return context.state
     const subCalls = new Set(context.state.subCalls)
     subCalls.add(marker.subCallId)
     return {
@@ -208,7 +222,7 @@ export const deliverablesDefinition: ConversationNodeDefinition<DeliverablesStat
       subCalls,
       produced: [
         ...context.state.produced,
-        ...marker.files.map(file => ({
+        ...marker.files.map((file) => ({
           seq: match.event.seq,
           path: file.path,
           diffs: file.diffs,
@@ -217,14 +231,15 @@ export const deliverablesDefinition: ConversationNodeDefinition<DeliverablesStat
       ],
     }
   },
-  buildLocationData: (context, scope) => scope !== 'turn' || context.state === undefined
-    ? null
-    : {
-      kind: 'turn',
-      turn: context.state.turn,
-      key: 'deliverables',
-      value: { produced: context.state.produced },
-    },
+  buildLocationData: (context, scope) =>
+    scope !== 'turn' || context.state === undefined
+      ? null
+      : {
+          kind: 'turn',
+          turn: context.state.turn,
+          key: 'deliverables',
+          value: { produced: context.state.produced },
+        },
 }
 
 /**
@@ -258,13 +273,19 @@ export function producedFileMentions(
     resolve(value) {
       const path = paths.includes(value) ? value : onlyPathWithBasename(paths, value)
       if (path === undefined) return undefined
-      return { open: () => { openFile(path) }, label: label(path), title: path }
+      return {
+        open: () => {
+          openFile(path)
+        },
+        label: label(path),
+        title: path,
+      }
     },
   }
 }
 
 /** The single produced path whose basename is exactly `value`, else undefined. */
 function onlyPathWithBasename(paths: readonly string[], value: string): string | undefined {
-  const matches = paths.filter(path => basename(path) === value)
+  const matches = paths.filter((path) => basename(path) === value)
   return matches.length === 1 ? matches[0] : undefined
 }

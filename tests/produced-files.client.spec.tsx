@@ -9,36 +9,50 @@ import { Context, Service } from '@deepseek-ai/cordis'
 import { readFileSync } from 'node:fs'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type {
-  ConversationEventInput, ConversationLocationDataStore, ConversationMatch,
-  ConversationTurnDataMap, ToolResultNode, TurnLocation,
+  ConversationEventInput,
+  ConversationLocationDataStore,
+  ConversationMatch,
+  ConversationTurnDataMap,
+  ToolResultNode,
+  TurnLocation,
 } from '@deepseek-ai/dsh-client-runtime/client'
-import type { ChatFileMentions, TurnTailOwnerProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type {
+  ChatFileMentions,
+  TurnTailOwnerProps,
+} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { ProducedFiles } from '../src/client/ProducedFiles.tsx'
 import {
-  FileReviewSettingsCard, type FileReviewSettingsCardProps,
+  FileReviewSettingsCard,
+  type FileReviewSettingsCardProps,
 } from '../src/client/FileReviewSettingsCard.tsx'
 import {
-  ReviewCommentsDock, type ReviewCommentsDockProps,
+  ReviewCommentsDock,
+  type ReviewCommentsDockProps,
 } from '../src/client/ReviewCommentsDock.tsx'
-import {
-  projectReviewMessageText, ReviewUserMessage,
-} from '../src/client/ReviewUserMessage.tsx'
+import { projectReviewMessageText, ReviewUserMessage } from '../src/client/ReviewUserMessage.tsx'
 import { summarizeDiffs, unifiedDiffText } from '../src/client/UnifiedDiff.tsx'
 import {
-  clearAllReviewComments, reviewComments, serializeReviewComments, setReviewComment,
+  clearAllReviewComments,
+  reviewComments,
+  serializeReviewComments,
+  setReviewComment,
 } from '../src/client/review-comments.ts'
 import {
-  basename, deliverablesDefinition, producedFileMentions, producedForClosing, reviewsForClosing,
-  selectProducedFiles, type DeliverablesTurnData, type ProducedFileDiff, type ProducedFileReview,
+  basename,
+  deliverablesDefinition,
+  producedFileMentions,
+  producedForClosing,
+  reviewsForClosing,
+  selectProducedFiles,
+  type DeliverablesTurnData,
+  type ProducedFileDiff,
+  type ProducedFileReview,
 } from '../src/client/turn-deliverables.ts'
 import { boundedPtcFileReviewMarker, markerBlock } from '../src/ptc-marker.ts'
 import { apply, inject } from '../src/client/index.ts'
 import { en, NS, zh } from '../src/client/locales.ts'
 
-const unifiedDiffCss = readFileSync(
-  'src/client/UnifiedDiff.module.css',
-  'utf8',
-)
+const unifiedDiffCss = readFileSync('src/client/UnifiedDiff.module.css', 'utf8')
 
 afterEach(() => {
   cleanup()
@@ -72,20 +86,25 @@ const turnLocation = (turn: number, deliverables?: DeliverablesTurnData): TurnLo
 }
 
 const produced = (
-  ...values: ReadonlyArray<readonly [seq: number, path: string, diffs?: readonly ProducedFileDiff[]]>
+  ...values: ReadonlyArray<
+    readonly [seq: number, path: string, diffs?: readonly ProducedFileDiff[]]
+  >
 ): DeliverablesTurnData => ({
   produced: values.map(([seq, path, diffs = []]) => ({ seq, path, diffs })),
 })
 
-const fileReview = (
-  path: string,
-  diffs: readonly ProducedFileDiff[] = [],
-): ProducedFileReview => ({ path, diffs })
+const fileReview = (path: string, diffs: readonly ProducedFileDiff[] = []): ProducedFileReview => ({
+  path,
+  diffs,
+})
 
-const reviews = (paths: readonly string[]): readonly ProducedFileReview[] => paths.map((path, index) =>
-  fileReview(path, index === 0
-    ? [{ path, oldText: 'before', newText: 'after', oldStart: 7, newStart: 7 }]
-    : []))
+const reviews = (paths: readonly string[]): readonly ProducedFileReview[] =>
+  paths.map((path, index) =>
+    fileReview(
+      path,
+      index === 0 ? [{ path, oldText: 'before', newText: 'after', oldStart: 7, newStart: 7 }] : [],
+    ),
+  )
 
 function tailOwner(
   data: DeliverablesTurnData | undefined,
@@ -104,14 +123,20 @@ function at(
 ): ConversationEventInput {
   return {
     event: {
-      seq, time: seq * 1_000, type, data,
+      seq,
+      time: seq * 1_000,
+      type,
+      data,
       ...(type === 'tool/result' ? { surfaceOp: 'append' } : {}),
     } as ConversationEventInput['event'],
     view,
   }
 }
 
-function matched(input: ConversationEventInput, role: ConversationMatch['role']): ConversationMatch {
+function matched(
+  input: ConversationEventInput,
+  role: ConversationMatch['role'],
+): ConversationMatch {
   return { ...input, role, location: { kind: 'unresolved' } }
 }
 
@@ -137,21 +162,27 @@ function result(
   turn = 1,
   view?: NonNullable<ToolResultNode['resultView']>,
 ): ConversationEventInput {
-  return at(seq, 'tool/result', {
-    turn,
-    step: 1,
-    message: {
-      source: { type: 'tool-result', callId },
-      content: [{ type: 'tool-result', content: [], isError }],
+  return at(
+    seq,
+    'tool/result',
+    {
+      turn,
+      step: 1,
+      message: {
+        source: { type: 'tool-result', callId },
+        content: [{ type: 'tool-result', content: [], isError }],
+      },
     },
-  }, view === undefined ? undefined : { for: 'result', view })
+    view === undefined ? undefined : { for: 'result', view },
+  )
 }
 
 function diff(...paths: string[]): ToolResultNode['callView'] {
   return {
-    card: 'diff', title: `Write ${paths[0] ?? ''}`,
-    diffs: paths.map(path => ({ path, oldText: null, newText: 'x' })),
-    locations: paths.map(path => ({ path })),
+    card: 'diff',
+    title: `Write ${paths[0] ?? ''}`,
+    diffs: paths.map((path) => ({ path, oldText: null, newText: 'x' })),
+    locations: paths.map((path) => ({ path })),
   }
 }
 
@@ -180,7 +211,7 @@ function ptc(
     step: options.step ?? 1,
     rootCallId,
     subCallId,
-    files: files.map(file => ({
+    files: files.map((file) => ({
       path: file.path,
       diffs: file.diffs ?? [],
       source: file.source ?? 'result',
@@ -199,9 +230,15 @@ function ptc(
 }
 
 function appliedDiff(
-  ...diffs: ReadonlyArray<readonly [
-    path: string, oldText: string | null, newText: string, oldStart?: number, newStart?: number,
-  ]>
+  ...diffs: ReadonlyArray<
+    readonly [
+      path: string,
+      oldText: string | null,
+      newText: string,
+      oldStart?: number,
+      newStart?: number,
+    ]
+  >
 ): NonNullable<ToolResultNode['resultView']> {
   return {
     card: 'diff',
@@ -216,13 +253,20 @@ function appliedDiff(
 }
 
 /** Drive the package definition directly through the public definition callbacks. */
-function fold(entries: readonly ConversationEventInput[]): Readonly<DeliverablesTurnData> | undefined {
+function fold(
+  entries: readonly ConversationEventInput[],
+): Readonly<DeliverablesTurnData> | undefined {
   const [first, ...updates] = entries
   if (first === undefined) return undefined
   const start = matched(first, 'start')
   const base = {
-    key: 'deliverables:1', kind: 'deliverables', id: '1', matches: [start],
-    start, state: undefined, current: new Map(),
+    key: 'deliverables:1',
+    kind: 'deliverables',
+    id: '1',
+    matches: [start],
+    start,
+    state: undefined,
+    current: new Map(),
   } as Parameters<typeof deliverablesDefinition.start>[0]
   const reader: Parameters<typeof deliverablesDefinition.start>[2] = { previous: () => undefined }
   let state = deliverablesDefinition.start(base, start, reader)
@@ -233,15 +277,16 @@ function fold(entries: readonly ConversationEventInput[]): Readonly<Deliverables
     state = deliverablesDefinition.update({ ...base, state }, match, reader)
   }
   const location = deliverablesDefinition.buildLocationData({ ...base, state }, 'turn')
-  return location?.kind === 'turn' ? location.value as DeliverablesTurnData : undefined
+  return location?.kind === 'turn' ? (location.value as DeliverablesTurnData) : undefined
 }
 
 function makeTranslate(...dicts: readonly Record<string, string>[]) {
   return (key: string, params?: Record<string, unknown>): string => {
-    const template = dicts.find(dict => dict[key] !== undefined)?.[key] ?? key
+    const template = dicts.find((dict) => dict[key] !== undefined)?.[key] ?? key
     if (params === undefined) return template
     return template.replace(/\{(\w+)\}/g, (match, name: string) =>
-      name in params ? String(params[name]) : match)
+      name in params ? String(params[name]) : match,
+    )
   }
 }
 
@@ -255,10 +300,12 @@ describe('produced-file Turn data', () => {
     )
     expect(producedForClosing(data, 6)).toEqual(['out/index.html', 'out/app.css'])
     expect(reviewsForClosing(data, 6)).toEqual([
-      fileReview('out/index.html'), fileReview('out/app.css'),
+      fileReview('out/index.html'),
+      fileReview('out/app.css'),
     ])
     expect(selectProducedFiles(tailOwner(data, 6))).toEqual([
-      fileReview('out/index.html'), fileReview('out/app.css'),
+      fileReview('out/index.html'),
+      fileReview('out/app.css'),
     ])
     expect(producedForClosing(undefined)).toEqual([])
     expect(selectProducedFiles(tailOwner(undefined, 9, () => {}, 2))).toBeNull()
@@ -268,10 +315,16 @@ describe('produced-file Turn data', () => {
     const value = fold([
       at(1, 'turn/start', { turn: 1 }),
       call(2, 'write', diff('out/index.html', 'out/app.css')),
-      result(3, 'write', false, 1, appliedDiff(
-        ['out/index.html', 'old html', 'new html'],
-        ['out/app.css', 'old css', 'new css'],
-      )),
+      result(
+        3,
+        'write',
+        false,
+        1,
+        appliedDiff(
+          ['out/index.html', 'old html', 'new html'],
+          ['out/app.css', 'old css', 'new css'],
+        ),
+      ),
       call(4, 'edit', edit('notes.md')),
       result(5, 'edit'),
       call(6, 'read', { card: 'generic', title: 'Read', locations: [{ path: 'input.txt' }] }),
@@ -282,11 +335,11 @@ describe('produced-file Turn data', () => {
       result(11, 'locationless'),
     ])
 
-    expect(producedForClosing(value)).toEqual([
-      'out/index.html', 'out/app.css', 'notes.md',
-    ])
+    expect(producedForClosing(value)).toEqual(['out/index.html', 'out/app.css', 'notes.md'])
     expect(reviewsForClosing(value)).toEqual([
-      fileReview('out/index.html', [{ path: 'out/index.html', oldText: 'old html', newText: 'new html' }]),
+      fileReview('out/index.html', [
+        { path: 'out/index.html', oldText: 'old html', newText: 'new html' },
+      ]),
       fileReview('out/app.css', [{ path: 'out/app.css', oldText: 'old css', newText: 'new css' }]),
       { ...fileReview('notes.md'), complete: false },
     ])
@@ -301,7 +354,8 @@ describe('produced-file Turn data', () => {
       result(5, 'second', false, 1, appliedDiff(['same.txt', 'middle', 'after', 12, 12])),
       call(6, 'malformed', diff('broken.txt')),
       result(7, 'malformed', false, 1, {
-        card: 'diff', diffs: [{ path: 'broken.txt', oldText: 'a', newText: 'b', oldStart: 0 }],
+        card: 'diff',
+        diffs: [{ path: 'broken.txt', oldText: 'a', newText: 'b', oldStart: 0 }],
       } as never),
       call(8, 'unchanged', diff('unchanged.txt')),
       result(9, 'unchanged', false, 1, appliedDiff()),
@@ -331,18 +385,28 @@ describe('produced-file Turn data', () => {
     const value = fold([
       at(1, 'turn/start', { turn: 1 }),
       call(2, 'run-code', { card: 'generic', title: 'Run code', kind: 'execute' }),
-      ptc(3, 'run-code:code:0', [{
-        path: 'out.txt',
-        diffs: [{ path: 'out.txt', oldText: 'before', newText: 'after', oldStart: 4, newStart: 4 }],
-      }]),
-      ptc(4, 'run-code:code:1', [{
-        path: 'out.txt', source: 'intent',
-        diffs: [{ path: 'out.txt', oldText: 'after', newText: 'planned' }],
-      }, { path: 'notes.md', source: 'intent' }]),
-      ptc(5, 'run-code:code:2', [{
-        path: 'notes.md',
-        diffs: [{ path: 'notes.md', oldText: 'before', newText: 'after' }],
-      }]),
+      ptc(3, 'run-code:code:0', [
+        {
+          path: 'out.txt',
+          diffs: [
+            { path: 'out.txt', oldText: 'before', newText: 'after', oldStart: 4, newStart: 4 },
+          ],
+        },
+      ]),
+      ptc(4, 'run-code:code:1', [
+        {
+          path: 'out.txt',
+          source: 'intent',
+          diffs: [{ path: 'out.txt', oldText: 'after', newText: 'planned' }],
+        },
+        { path: 'notes.md', source: 'intent' },
+      ]),
+      ptc(5, 'run-code:code:2', [
+        {
+          path: 'notes.md',
+          diffs: [{ path: 'notes.md', oldText: 'before', newText: 'after' }],
+        },
+      ]),
     ])
 
     expect(reviewsForClosing(value)).toEqual([
@@ -364,21 +428,30 @@ describe('produced-file Turn data', () => {
       step: 1,
       rootCallId: callId,
       subCallId: callId,
-      files: [{
-        path: 'created.txt', source: 'result',
-        diffs: [{
-          path: 'created.txt', oldText: null, newText: 'created', oldStart: 1, newStart: 1,
-          lifecycle: { kind: 'create', mode: 0o640 },
-        }],
-      }],
+      files: [
+        {
+          path: 'created.txt',
+          source: 'result',
+          diffs: [
+            {
+              path: 'created.txt',
+              oldText: null,
+              newText: 'created',
+              oldStart: 1,
+              newStart: 1,
+              lifecycle: { kind: 'create', mode: 0o640 },
+            },
+          ],
+        },
+      ],
     })
     if (captured === null) throw new Error('fixture marker exceeded its budget')
-    const settled = result(3, callId, false, 1, appliedDiff([
-      'created.txt', null, 'created', 1, 1,
-    ]))
-    const toolResult = (settled.event.data as {
-      message: { content: Array<{ content: unknown[] }> }
-    }).message.content[0]
+    const settled = result(3, callId, false, 1, appliedDiff(['created.txt', null, 'created', 1, 1]))
+    const toolResult = (
+      settled.event.data as {
+        message: { content: Array<{ content: unknown[] }> }
+      }
+    ).message.content[0]
     if (toolResult === undefined) throw new Error('missing fixture tool result')
     toolResult.content = [markerBlock(captured)]
 
@@ -388,31 +461,35 @@ describe('produced-file Turn data', () => {
       settled,
     ])
 
-    expect(reviewsForClosing(value)).toEqual([
-      fileReview('created.txt', captured.files[0]?.diffs),
-    ])
+    expect(reviewsForClosing(value)).toEqual([fileReview('created.txt', captured.files[0]?.diffs)])
   })
 
   it('deduplicates PTC settlements and rejects failures or mismatched marker correlations', () => {
     const accepted = ptc(3, 'run-code:code:0', [{ path: 'one.txt' }])
     const duplicate = ptc(4, 'run-code:code:0', [{ path: 'duplicate.txt' }])
     const failed = ptc(5, 'run-code:code:1', [{ path: 'failed.txt' }], { isError: true })
-    const mismatched = JSON.parse(JSON.stringify(
-      ptc(6, 'run-code:code:2', [{ path: 'forged.txt' }]),
-    )) as ConversationEventInput
+    const mismatched = JSON.parse(
+      JSON.stringify(ptc(6, 'run-code:code:2', [{ path: 'forged.txt' }])),
+    ) as ConversationEventInput
     ;(mismatched.event.data as { rootCallId: string }).rootCallId = 'different-root'
     const wrongStep = ptc(7, 'run-code:code:3', [{ path: 'wrong-step.txt' }], { step: 2 })
     const missingRoot = ptc(8, 'missing:code:0', [{ path: 'missing-root.txt' }], {
       rootCallId: 'missing',
     })
-    const invalidIds = JSON.parse(JSON.stringify(
-      ptc(9, 'run-code:code:4', [{ path: 'invalid-id.txt' }]),
-    )) as ConversationEventInput
+    const invalidIds = JSON.parse(
+      JSON.stringify(ptc(9, 'run-code:code:4', [{ path: 'invalid-id.txt' }])),
+    ) as ConversationEventInput
     ;(invalidIds.event.data as { rootCallId: unknown }).rootCallId = null
     const value = fold([
       at(1, 'turn/start', { turn: 1 }),
       call(2, 'run-code', { card: 'generic', title: 'Run code', kind: 'execute' }),
-      accepted, duplicate, failed, mismatched, wrongStep, missingRoot, invalidIds,
+      accepted,
+      duplicate,
+      failed,
+      mismatched,
+      wrongStep,
+      missingRoot,
+      invalidIds,
     ])
     expect(producedForClosing(value)).toEqual(['one.txt'])
   })
@@ -421,10 +498,13 @@ describe('produced-file Turn data', () => {
     const entries = [
       at(1, 'turn/start', { turn: 1 }),
       call(2, 'run-code', { card: 'generic', title: 'Run code', kind: 'execute' }),
-      ptc(3, 'run-code:code:0', [{
-        path: 'persisted.txt', source: 'intent',
-        diffs: [{ path: 'persisted.txt', oldText: 'old', newText: 'new' }],
-      }]),
+      ptc(3, 'run-code:code:0', [
+        {
+          path: 'persisted.txt',
+          source: 'intent',
+          diffs: [{ path: 'persisted.txt', oldText: 'old', newText: 'new' }],
+        },
+      ]),
     ]
     const restored = JSON.parse(JSON.stringify(entries)) as ConversationEventInput[]
     expect(reviewsForClosing(fold(restored))).toEqual([
@@ -450,7 +530,10 @@ describe('produced-file Turn data', () => {
         } as ConversationEventInput['event'],
       },
       call(9, 'malformed-locations', {
-        card: 'diff', title: 'Write', diffs: [], locations: [null, { path: 4 }],
+        card: 'diff',
+        title: 'Write',
+        diffs: [],
+        locations: [null, { path: 4 }],
       } as never),
       result(10, 'malformed-locations'),
       call(11, 'delete', { card: 'generic', title: 'Delete', kind: 'delete' }),
@@ -472,39 +555,59 @@ describe('produced-file Turn data', () => {
       state: undefined,
       current: new Map(),
     }
-    const reader: Parameters<typeof deliverablesDefinition.start>[2] = { previous: () => undefined }
+    const reader: Parameters<typeof deliverablesDefinition.start>[2] = {
+      previous: () => undefined,
+    }
     const state = deliverablesDefinition.start(emptyContext, startMatch, reader)
-    const unrelated = matched(at(2, 'turn/end', { turn: 1, reason: { kind: 'completed' } }), 'update')
+    const unrelated = matched(
+      at(2, 'turn/end', { turn: 1, reason: { kind: 'completed' } }),
+      'update',
+    )
     const context: Parameters<typeof deliverablesDefinition.update>[0] = { ...emptyContext, state }
 
-    expect(() => deliverablesDefinition.start(emptyContext, unrelated, reader))
-      .toThrow('deliverables start requires turn/start')
+    expect(() => deliverablesDefinition.start(emptyContext, unrelated, reader)).toThrow(
+      'deliverables start requires turn/start',
+    )
     expect(deliverablesDefinition.update(context, unrelated)).toBe(state)
   })
-
 })
 
 describe('ProducedFiles review card', () => {
   const t = makeTranslate(en)
   const changedReviews: readonly ProducedFileReview[] = [
-    fileReview('deep/a.html', [{
-      path: 'deep/a.html', oldText: 'before\nkeep', newText: 'after\nkeep', oldStart: 7, newStart: 7,
-    }]),
-    fileReview('styles/b.css', [{
-      path: 'styles/b.css', oldText: null, newText: 'one\ntwo', oldStart: 1, newStart: 1,
-    }]),
+    fileReview('deep/a.html', [
+      {
+        path: 'deep/a.html',
+        oldText: 'before\nkeep',
+        newText: 'after\nkeep',
+        oldStart: 7,
+        newStart: 7,
+      },
+    ]),
+    fileReview('styles/b.css', [
+      {
+        path: 'styles/b.css',
+        oldText: null,
+        newText: 'one\ntwo',
+        oldStart: 1,
+        newStart: 1,
+      },
+    ]),
   ]
 
   it('derives exact totals for replacements, additions, multiple hunks, and empty reviews', () => {
     expect(summarizeDiffs(changedReviews[0]?.diffs ?? [])).toEqual({ added: 1, removed: 1 })
     expect(summarizeDiffs(changedReviews[1]?.diffs ?? [])).toEqual({ added: 2, removed: 0 })
     expect(summarizeDiffs([])).toEqual({ added: 0, removed: 0 })
-    expect(summarizeDiffs([
-      { path: 'a.md', oldText: 'x', newText: 'y', oldStart: 1, newStart: 1 },
-      { path: 'a.md', oldText: 'same', newText: 'same\nnew', oldStart: 8, newStart: 8 },
-    ])).toEqual({ added: 2, removed: 1 })
-    expect(unifiedDiffText(changedReviews.flatMap(review => review.diffs)))
-      .toContain('styles/b.css\n+ one\n+ two')
+    expect(
+      summarizeDiffs([
+        { path: 'a.md', oldText: 'x', newText: 'y', oldStart: 1, newStart: 1 },
+        { path: 'a.md', oldText: 'same', newText: 'same\nnew', oldStart: 8, newStart: 8 },
+      ]),
+    ).toEqual({ added: 2, removed: 1 })
+    expect(unifiedDiffText(changedReviews.flatMap((review) => review.diffs))).toContain(
+      'styles/b.css\n+ one\n+ two',
+    )
   })
 
   it('renders aggregate and per-file totals and expands the six-file preview', () => {
@@ -553,16 +656,13 @@ describe('ProducedFiles review card', () => {
   })
 
   it('switches to reapply only after every reversible file is undone', async () => {
-    const inspectChanges = vi.fn(async () => ({ files: [
-      { path: 'deep/a.html', state: 'applied' as const, changed: false },
-    ] }))
-    const applyChanges = vi.fn()
-      .mockResolvedValueOnce({ files: [
-        { path: 'deep/a.html', state: 'undone', changed: true },
-      ] })
-      .mockResolvedValueOnce({ files: [
-        { path: 'deep/a.html', state: 'applied', changed: true },
-      ] })
+    const inspectChanges = vi.fn(async () => ({
+      files: [{ path: 'deep/a.html', state: 'applied' as const, changed: false }],
+    }))
+    const applyChanges = vi
+      .fn()
+      .mockResolvedValueOnce({ files: [{ path: 'deep/a.html', state: 'undone', changed: true }] })
+      .mockResolvedValueOnce({ files: [{ path: 'deep/a.html', state: 'applied', changed: true }] })
     const view = render(
       <ProducedFiles
         matched={[changedReviews[0]!]}
@@ -578,34 +678,58 @@ describe('ProducedFiles review card', () => {
     })
     const timeout = vi.spyOn(window, 'setTimeout')
     fireEvent.click(view.getByRole('button', { name: 'Undo' }))
-    await vi.waitFor(() => { expect(view.getByRole('button', { name: 'Reapply' })).toBeTruthy() })
+    await vi.waitFor(() => {
+      expect(view.getByRole('button', { name: 'Reapply' })).toBeTruthy()
+    })
     expect(view.getByRole('alert').textContent).toContain('Changes undone')
     expect(timeout.mock.calls.some(([, delay]) => delay === 2000)).toBe(true)
     expect(applyChanges.mock.calls[0]?.[0].action).toBe('undo')
 
     fireEvent.click(view.getByRole('button', { name: 'Reapply' }))
-    await vi.waitFor(() => { expect(view.getByRole('button', { name: 'Undo' })).toBeTruthy() })
+    await vi.waitFor(() => {
+      expect(view.getByRole('button', { name: 'Undo' })).toBeTruthy()
+    })
     expect(view.getByRole('alert').textContent).toContain('Changes reapplied')
     expect(applyChanges.mock.calls[1]?.[0].action).toBe('redo')
   })
 
   it('enables Undo for explicit create/delete lifecycles but not legacy null snapshots', async () => {
     const lifecycleReviews = [
-      fileReview('created.txt', [{
-        path: 'created.txt', oldText: null, newText: 'created\n', oldStart: 1, newStart: 1,
-        lifecycle: { kind: 'create', mode: 0o644 },
-      }]),
-      fileReview('deleted.txt', [{
-        path: 'deleted.txt', oldText: 'deleted\n', newText: '', oldStart: 1, newStart: 1,
-        lifecycle: { kind: 'delete', mode: 0o600 },
-      }]),
+      fileReview('created.txt', [
+        {
+          path: 'created.txt',
+          oldText: null,
+          newText: 'created\n',
+          oldStart: 1,
+          newStart: 1,
+          lifecycle: { kind: 'create', mode: 0o644 },
+        },
+      ]),
+      fileReview('deleted.txt', [
+        {
+          path: 'deleted.txt',
+          oldText: 'deleted\n',
+          newText: '',
+          oldStart: 1,
+          newStart: 1,
+          lifecycle: { kind: 'delete', mode: 0o600 },
+        },
+      ]),
     ]
-    const inspectChanges = vi.fn(async () => ({ files: lifecycleReviews.map(review => ({
-      path: review.path, state: 'applied' as const, changed: false,
-    })) }))
-    const applyChanges = vi.fn(async () => ({ files: lifecycleReviews.map(review => ({
-      path: review.path, state: 'undone' as const, changed: true,
-    })) }))
+    const inspectChanges = vi.fn(async () => ({
+      files: lifecycleReviews.map((review) => ({
+        path: review.path,
+        state: 'applied' as const,
+        changed: false,
+      })),
+    }))
+    const applyChanges = vi.fn(async () => ({
+      files: lifecycleReviews.map((review) => ({
+        path: review.path,
+        state: 'undone' as const,
+        changed: true,
+      })),
+    }))
     const view = render(
       <ProducedFiles
         matched={[lifecycleReviews[0]!]}
@@ -635,9 +759,15 @@ describe('ProducedFiles review card', () => {
 
     view.rerender(
       <ProducedFiles
-        matched={[fileReview('legacy.txt', [{
-          path: 'legacy.txt', oldText: null, newText: 'unknown provenance',
-        }])]}
+        matched={[
+          fileReview('legacy.txt', [
+            {
+              path: 'legacy.txt',
+              oldText: null,
+              newText: 'unknown provenance',
+            },
+          ]),
+        ]}
         openFile={() => {}}
         t={t}
       />,
@@ -648,10 +778,13 @@ describe('ProducedFiles review card', () => {
 
     view.rerender(
       <ProducedFiles
-        matched={[{
-          path: 'truncated.txt', complete: false,
-          diffs: [{ path: 'truncated.txt', oldText: 'before', newText: 'after' }],
-        }]}
+        matched={[
+          {
+            path: 'truncated.txt',
+            complete: false,
+            diffs: [{ path: 'truncated.txt', oldText: 'before', newText: 'after' }],
+          },
+        ]}
         openFile={() => {}}
         t={t}
       />,
@@ -666,14 +799,18 @@ describe('ProducedFiles review card', () => {
       fileReview('deep/a.txt', [{ path: 'deep/a.txt', oldText: 'a', newText: 'A' }]),
       fileReview('nested/b.txt', [{ path: 'nested/b.txt', oldText: 'b', newText: 'B' }]),
     ]
-    const inspectChanges = vi.fn(async () => ({ files: [
-      { path: 'deep/a.txt', state: 'applied' as const, changed: false },
-      { path: 'nested/b.txt', state: 'applied' as const, changed: false },
-    ] }))
-    const applyChanges = vi.fn(async () => ({ files: [
-      { path: 'deep/a.txt', state: 'undone' as const, changed: true },
-      { path: 'nested/b.txt', state: 'conflict' as const, changed: false },
-    ] }))
+    const inspectChanges = vi.fn(async () => ({
+      files: [
+        { path: 'deep/a.txt', state: 'applied' as const, changed: false },
+        { path: 'nested/b.txt', state: 'applied' as const, changed: false },
+      ],
+    }))
+    const applyChanges = vi.fn(async () => ({
+      files: [
+        { path: 'deep/a.txt', state: 'undone' as const, changed: true },
+        { path: 'nested/b.txt', state: 'conflict' as const, changed: false },
+      ],
+    }))
     const openFile = vi.fn<(path: string) => void>()
     const view = render(
       <ProducedFiles
@@ -689,7 +826,9 @@ describe('ProducedFiles review card', () => {
     })
     const timeout = vi.spyOn(window, 'setTimeout')
     fireEvent.click(view.getByRole('button', { name: 'Undo' }))
-    await vi.waitFor(() => { expect(view.getByRole('alert')).toBeTruthy() })
+    await vi.waitFor(() => {
+      expect(view.getByRole('alert')).toBeTruthy()
+    })
     expect(applyChanges).toHaveBeenCalledOnce()
     expect(view.getByRole('button', { name: 'Undo' })).toBeTruthy()
     const notice = view.getByRole('alert')
@@ -703,14 +842,16 @@ describe('ProducedFiles review card', () => {
     expect(openFile).toHaveBeenCalledExactlyOnceWith('nested/b.txt')
     const autoClose = timeout.mock.calls.find(([, delay]) => delay === 5000)?.[0]
     expect(autoClose).toBeTypeOf('function')
-    act(() => { if (typeof autoClose === 'function') autoClose() })
+    act(() => {
+      if (typeof autoClose === 'function') autoClose()
+    })
     expect(view.queryByRole('alert')).toBeNull()
     fireEvent.click(view.getByRole('button', { name: 'Undo' }))
-    await vi.waitFor(() => { expect(applyChanges).toHaveBeenCalledTimes(2) })
+    await vi.waitFor(() => {
+      expect(applyChanges).toHaveBeenCalledTimes(2)
+    })
 
-    view.rerender(
-      <ProducedFiles matched={[fileReview('notes.md')]} openFile={() => {}} t={t} />,
-    )
+    view.rerender(<ProducedFiles matched={[fileReview('notes.md')]} openFile={() => {}} t={t} />)
     await vi.waitFor(() => {
       const button = view.getByRole('button', { name: 'Undo' }) as HTMLButtonElement
       expect(button.disabled).toBe(true)
@@ -732,11 +873,17 @@ describe('ProducedFiles review card', () => {
     const firstDiff = drawer.querySelectorAll('[data-diff-layout="unified"]')[0]
     expect(firstDiff?.getAttribute('data-word-wrap')).toBe('false')
     const firstDiffLines = firstDiff?.querySelectorAll('[data-line-kind]') ?? []
-    expect([...firstDiffLines].map(line => line.childElementCount)).toEqual([3, 3, 3])
-    expect([...firstDiffLines].map(line => line.firstElementChild?.textContent)).toEqual(['7', '7', '8'])
+    expect([...firstDiffLines].map((line) => line.childElementCount)).toEqual([3, 3, 3])
+    expect([...firstDiffLines].map((line) => line.firstElementChild?.textContent)).toEqual([
+      '7',
+      '7',
+      '8',
+    ])
 
     fireEvent.click(within(drawer).getByRole('button', { name: 'Copy diff' }))
-    await vi.waitFor(() => { expect(writeText).toHaveBeenCalledOnce() })
+    await vi.waitFor(() => {
+      expect(writeText).toHaveBeenCalledOnce()
+    })
     expect(writeText.mock.calls[0]?.[0]).toContain('deep/a.html')
     expect(writeText.mock.calls[0]?.[0]).toContain('styles/b.css')
     expect(within(drawer).getByRole('button', { name: 'Copied' })).toBeTruthy()
@@ -762,10 +909,16 @@ describe('ProducedFiles review card', () => {
     fireEvent.click(view.getByRole('button', { name: 'Review legacy.txt' }))
     const drawer = view.getByRole('dialog', { name: 'Review' })
     const lines = drawer.querySelectorAll('[data-line-kind]')
-    expect([...lines].map(line => line.firstElementChild?.lastElementChild?.textContent))
-      .toEqual(['', '', '', '', '', '9'])
-    expect([...lines].slice(0, 5).every(line => !line.hasAttribute('data-old-line')
-      && !line.hasAttribute('data-new-line'))).toBe(true)
+    expect([...lines].map((line) => line.firstElementChild?.lastElementChild?.textContent)).toEqual(
+      ['', '', '', '', '', '9'],
+    )
+    expect(
+      [...lines]
+        .slice(0, 5)
+        .every(
+          (line) => !line.hasAttribute('data-old-line') && !line.hasAttribute('data-new-line'),
+        ),
+    ).toBe(true)
     expect(lines[5]?.getAttribute('data-new-line')).toBe('9')
     expect(within(drawer).getByText('@@ -? +? @@')).toBeTruthy()
     expect(within(drawer).getByText('@@ -? +9 @@')).toBeTruthy()
@@ -786,8 +939,11 @@ describe('ProducedFiles review card', () => {
         newStart: 1,
       },
       {
-        path: 'threshold.txt', oldText: 'old-c\n', newText: 'new-c\n',
-        oldStart: 14, newStart: 14,
+        path: 'threshold.txt',
+        oldText: 'old-c\n',
+        newText: 'new-c\n',
+        oldStart: 14,
+        newStart: 14,
       },
     ])
     const view = render(<ProducedFiles matched={[review]} openFile={() => {}} t={t} />)
@@ -803,9 +959,13 @@ describe('ProducedFiles review card', () => {
 
   it('visually wraps long lines without changing their logical text', () => {
     const longText = `const message = '${'long content '.repeat(24)}'`
-    const review = fileReview('src/long-line.ts', [{
-      path: 'src/long-line.ts', oldText: 'const message = short', newText: longText,
-    }])
+    const review = fileReview('src/long-line.ts', [
+      {
+        path: 'src/long-line.ts',
+        oldText: 'const message = short',
+        newText: longText,
+      },
+    ])
     const wordWrap = { getSnapshot: () => true, subscribe: () => () => {} }
     const view = render(
       <ProducedFiles matched={[review]} openFile={() => {}} wordWrap={wordWrap} t={t} />,
@@ -819,24 +979,24 @@ describe('ProducedFiles review card', () => {
     expect(added?.lastElementChild?.textContent).toBe(longText)
     expect(unifiedDiffText(review.diffs)).toContain(`+ ${longText}`)
 
-    const wrapLineRule = /\.unifiedBodyWrap \.unifiedLine\s*\{([^}]*)\}/
-      .exec(unifiedDiffCss)?.[1]
+    const wrapLineRule = /\.unifiedBodyWrap \.unifiedLine\s*\{([^}]*)\}/.exec(unifiedDiffCss)?.[1]
     expect(wrapLineRule).toContain('grid-template-columns: 48px 24px minmax(0, 1fr)')
     expect(wrapLineRule).toContain('min-width: 0')
     expect(wrapLineRule).toContain('white-space: pre-wrap')
-    const wrapTextRule = /\.unifiedBodyWrap \.unifiedText\s*\{([^}]*)\}/
-      .exec(unifiedDiffCss)?.[1]
+    const wrapTextRule = /\.unifiedBodyWrap \.unifiedText\s*\{([^}]*)\}/.exec(unifiedDiffCss)?.[1]
     expect(wrapTextRule).toContain('overflow-wrap: anywhere')
   })
 
   it('comments added, deleted, and expanded context lines while retaining comments on reopen', () => {
-    const commented = fileReview('src/example.ts', [{
-      path: 'src/example.ts',
-      oldText: 'one\ntwo\nthree\nfour\nfive\nsix\nseven\neight\nnine',
-      newText: 'one\ntwo\nthree\nfour\nFIVE\nsix\nseven\neight\nnine',
-      oldStart: 1,
-      newStart: 1,
-    }])
+    const commented = fileReview('src/example.ts', [
+      {
+        path: 'src/example.ts',
+        oldText: 'one\ntwo\nthree\nfour\nfive\nsix\nseven\neight\nnine',
+        newText: 'one\ntwo\nthree\nfour\nFIVE\nsix\nseven\neight\nnine',
+        oldStart: 1,
+        newStart: 1,
+      },
+    ])
     const ownerTurn = turnLocation(4)
     const view = render(
       <ProducedFiles
@@ -851,11 +1011,14 @@ describe('ProducedFiles review card', () => {
     fireEvent.click(view.getByRole('button', { name: 'Review src/example.ts' }))
     const drawer = view.getByRole('dialog', { name: 'Review' })
 
-    const changedLineButtons = within(drawer).getAllByRole('button', { name: 'Add comment on line 5' })
+    const changedLineButtons = within(drawer).getAllByRole('button', {
+      name: 'Add comment on line 5',
+    })
     fireEvent.click(changedLineButtons[0]!)
     let editor = within(drawer).getByRole('textbox', { name: 'Edit comment on line 5' })
-    expect((within(drawer).getByRole('button', { name: 'Save' }) as HTMLButtonElement).disabled)
-      .toBe(true)
+    expect(
+      (within(drawer).getByRole('button', { name: 'Save' }) as HTMLButtonElement).disabled,
+    ).toBe(true)
     fireEvent.change(editor, { target: { value: 'Discard me.' } })
     fireEvent.click(within(drawer).getByRole('button', { name: 'Cancel' }))
     expect(reviewComments('session-comments')).toHaveLength(0)
@@ -880,15 +1043,18 @@ describe('ProducedFiles review card', () => {
     const commentRowRule = /\.commentRow\s*\{([^}]*)\}/.exec(unifiedDiffCss)?.[1]
     expect(commentRowRule).toContain('width: calc(100% - 68px)')
     expect(commentRowRule).toContain('max-width: 560px')
-    const commentEditorRule = [...unifiedDiffCss.matchAll(/(?:^|\n)\.commentEditor\s*\{([^}]*)\}/g)]
-      .at(-1)?.[1]
+    const commentEditorRule = [
+      ...unifiedDiffCss.matchAll(/(?:^|\n)\.commentEditor\s*\{([^}]*)\}/g),
+    ].at(-1)?.[1]
     expect(commentEditorRule).toContain('max-height: 176px')
     expect(commentEditorRule).toContain('overflow-y: hidden')
     expect(reviewComments('session-comments')).toHaveLength(1)
     expect(serializeReviewComments('session-comments')).toContain('kind="del" old_line="5"')
     expect(serializeReviewComments('session-comments')).toContain('&lt;safe&gt;')
 
-    fireEvent.click(within(drawer).getByRole('button', { name: 'Keep the previous behavior <safe>.' }))
+    fireEvent.click(
+      within(drawer).getByRole('button', { name: 'Keep the previous behavior <safe>.' }),
+    )
     const existingEditor = within(drawer).getByRole('textbox', { name: 'Edit comment on line 5' })
     fireEvent.change(existingEditor, { target: { value: 'Do not keep this edit.' } })
     fireEvent.click(within(drawer).getByRole('button', { name: 'Cancel' }))
@@ -920,13 +1086,15 @@ describe('ProducedFiles review card', () => {
     vi.spyOn(HTMLTextAreaElement.prototype, 'scrollHeight', 'get').mockImplementation(function () {
       return Math.max(52, this.value.split('\n').length * 22)
     })
-    const review = fileReview('src/height.ts', [{
-      path: 'src/height.ts',
-      oldText: 'before',
-      newText: 'after',
-      oldStart: 1,
-      newStart: 1,
-    }])
+    const review = fileReview('src/height.ts', [
+      {
+        path: 'src/height.ts',
+        oldText: 'before',
+        newText: 'after',
+        oldStart: 1,
+        newStart: 1,
+      },
+    ])
     const view = render(
       <ProducedFiles
         matched={[review]}
@@ -993,9 +1161,15 @@ describe('ProducedFiles review card', () => {
 
   it('shows review paths relative to the Session project while opening the absolute path', () => {
     const absolutePath = '/Users/test/projects/example/docs/guide.md'
-    const absoluteReview = fileReview(absolutePath, [{
-      path: absolutePath, oldText: 'before', newText: 'after', oldStart: 1, newStart: 1,
-    }])
+    const absoluteReview = fileReview(absolutePath, [
+      {
+        path: absolutePath,
+        oldText: 'before',
+        newText: 'after',
+        oldStart: 1,
+        newStart: 1,
+      },
+    ])
     const openFile = vi.fn<(path: string) => void>()
     const view = render(
       <ProducedFiles
@@ -1111,8 +1285,9 @@ describe('ProducedFiles review card', () => {
     const details = view.getByTestId('host-details')
 
     fireEvent.click(view.getByRole('button', { name: 'Review all produced files' }))
-    expect(frame.style.gridTemplateColumns)
-      .toBe('280px minmax(0, 1fr) var(--dsh-file-review-drawer-width)')
+    expect(frame.style.gridTemplateColumns).toBe(
+      '280px minmax(0, 1fr) var(--dsh-file-review-drawer-width)',
+    )
     expect(frame.style.getPropertyValue('--dsh-file-review-drawer-width')).toBe('36vw')
     expect(details.style.visibility).toBe('hidden')
     expect(details.style.pointerEvents).toBe('none')
@@ -1167,30 +1342,32 @@ describe('ProducedFiles review card', () => {
     )
 
     fireEvent.click(view.getByRole('button', { name: 'Review first.md' }))
-    expect(frame.style.gridTemplateColumns)
-      .toBe('280px minmax(0, 1fr) var(--dsh-file-review-drawer-width)')
+    expect(frame.style.gridTemplateColumns).toBe(
+      '280px minmax(0, 1fr) var(--dsh-file-review-drawer-width)',
+    )
 
     // The host animates the released details track, so it can still report a visible width
     // while the next turn takes ownership of the shared review drawer.
     detailsWidth = 320
     fireEvent.click(view.getByRole('button', { name: 'Review second.md' }))
     expect(view.getAllByRole('dialog', { name: 'Review' })).toHaveLength(1)
-    expect(within(view.getByRole('dialog', { name: 'Review' })).getByText('second.md'))
-      .toBeTruthy()
-    expect(frame.style.gridTemplateColumns)
-      .toBe('280px minmax(0, 1fr) var(--dsh-file-review-drawer-width)')
+    expect(within(view.getByRole('dialog', { name: 'Review' })).getByText('second.md')).toBeTruthy()
+    expect(frame.style.gridTemplateColumns).toBe(
+      '280px minmax(0, 1fr) var(--dsh-file-review-drawer-width)',
+    )
     expect(details.style.visibility).toBe('hidden')
     expect(details.getAttribute('aria-hidden')).toBe('true')
 
     view.rerender(host(false))
-    expect(within(view.getByRole('dialog', { name: 'Review' })).getByText('second.md'))
-      .toBeTruthy()
-    expect(frame.style.gridTemplateColumns)
-      .toBe('280px minmax(0, 1fr) var(--dsh-file-review-drawer-width)')
+    expect(within(view.getByRole('dialog', { name: 'Review' })).getByText('second.md')).toBeTruthy()
+    expect(frame.style.gridTemplateColumns).toBe(
+      '280px minmax(0, 1fr) var(--dsh-file-review-drawer-width)',
+    )
     expect(details.style.visibility).toBe('hidden')
 
-    fireEvent.click(within(view.getByRole('dialog', { name: 'Review' }))
-      .getByRole('button', { name: 'Close' }))
+    fireEvent.click(
+      within(view.getByRole('dialog', { name: 'Review' })).getByRole('button', { name: 'Close' }),
+    )
     expect(frame.style.gridTemplateColumns).toBe('280px minmax(0, 1fr) 0px')
     expect(details.style.visibility).toBe('')
     expect(details.getAttribute('aria-hidden')).toBeNull()
@@ -1203,11 +1380,14 @@ describe('ProducedFiles review card', () => {
     )
     fireEvent.click(view.getByRole('button', { name: 'Review notes.md' }))
     const drawer = view.getByRole('dialog', { name: 'Review' })
-    expect(within(drawer).getByText(
-      'No reconstructable diff is available for this change. You can still open the current file.',
-    )).toBeTruthy()
-    expect((within(drawer).getByRole('button', { name: 'Copy diff' }) as HTMLButtonElement).disabled)
-      .toBe(true)
+    expect(
+      within(drawer).getByText(
+        'No reconstructable diff is available for this change. You can still open the current file.',
+      ),
+    ).toBeTruthy()
+    expect(
+      (within(drawer).getByRole('button', { name: 'Copy diff' }) as HTMLButtonElement).disabled,
+    ).toBe(true)
     fireEvent.click(within(drawer).getByRole('button', { name: 'Open in editor' }))
     expect(openFile).toHaveBeenCalledExactlyOnceWith('notes.md')
   })
@@ -1219,14 +1399,25 @@ describe('review comment composer chip', () => {
   it('previews comments on hover with project-relative paths and can remove the aggregate', () => {
     const absolutePath = '/Users/test/projects/example/src/client/index.ts'
     setReviewComment({
-      sessionId: 'dock-session', turn: 3, closingSeq: 12, body: 'Please keep this behavior.',
+      sessionId: 'dock-session',
+      turn: 3,
+      closingSeq: 12,
+      body: 'Please keep this behavior.',
       anchor: {
-        path: absolutePath, hunkIndex: 0, rowIndex: 2, kind: 'add',
-        oldLine: null, newLine: 19, text: 'const value = true', excerpt: '+ const value = true',
+        path: absolutePath,
+        hunkIndex: 0,
+        rowIndex: 2,
+        kind: 'add',
+        oldLine: null,
+        newLine: 19,
+        text: 'const value = true',
+        excerpt: '+ const value = true',
       },
     })
     const props = {
-      sessionId: 'dock-session', projectRoot: '/Users/test/projects/example', t,
+      sessionId: 'dock-session',
+      projectRoot: '/Users/test/projects/example',
+      t,
     } as unknown as ReviewCommentsDockProps
     const view = render(<ReviewCommentsDock {...props} />)
 
@@ -1250,23 +1441,34 @@ describe('review comment composer chip', () => {
 describe('sent review comment projection', () => {
   it('recognizes the leading review envelope and preserves following user text', () => {
     setReviewComment({
-      sessionId: 'sent-session', turn: 3, closingSeq: 12, body: 'Keep this behavior.',
+      sessionId: 'sent-session',
+      turn: 3,
+      closingSeq: 12,
+      body: 'Keep this behavior.',
       anchor: {
-        path: 'src/client/index.ts', hunkIndex: 0, rowIndex: 2, kind: 'add',
-        oldLine: null, newLine: 19, text: 'const value = true', excerpt: '+ const value = true',
+        path: 'src/client/index.ts',
+        hunkIndex: 0,
+        rowIndex: 2,
+        kind: 'add',
+        oldLine: null,
+        newLine: 19,
+        text: 'const value = true',
+        excerpt: '+ const value = true',
       },
     })
     const serialized = serializeReviewComments('sent-session')
 
     expect(projectReviewMessageText(`${serialized}\n\nPlease apply it.`)).toEqual({
       commentCount: 1,
-      comments: [{
-        path: 'src/client/index.ts',
-        kind: 'add',
-        oldLine: '',
-        newLine: '19',
-        body: 'Keep this behavior.',
-      }],
+      comments: [
+        {
+          path: 'src/client/index.ts',
+          kind: 'add',
+          oldLine: '',
+          newLine: '19',
+          body: 'Keep this behavior.',
+        },
+      ],
       visibleText: 'Please apply it.',
     })
     expect(projectReviewMessageText(`Prefix\n${serialized}`)).toBeNull()
@@ -1275,18 +1477,29 @@ describe('sent review comment projection', () => {
   it('renders the model-only envelope as a compact comment count pill', () => {
     const absolutePath = '/Users/test/projects/example/src/client/index.ts'
     setReviewComment({
-      sessionId: 'rendered-session', turn: 3, closingSeq: 12, body: 'Keep this behavior.',
+      sessionId: 'rendered-session',
+      turn: 3,
+      closingSeq: 12,
+      body: 'Keep this behavior.',
       anchor: {
-        path: absolutePath, hunkIndex: 0, rowIndex: 2, kind: 'add',
-        oldLine: null, newLine: 19, text: 'const value = true', excerpt: '+ const value = true',
+        path: absolutePath,
+        hunkIndex: 0,
+        rowIndex: 2,
+        kind: 'add',
+        oldLine: null,
+        newLine: 19,
+        text: 'const value = true',
+        excerpt: '+ const value = true',
       },
     })
     const serialized = serializeReviewComments('rendered-session')
     const props = {
-      node: { data: {
-        content: [{ type: 'text', text: `${serialized}\n\nPlease apply it.` }],
-        time: Date.now(),
-      } },
+      node: {
+        data: {
+          content: [{ type: 'text', text: `${serialized}\n\nPlease apply it.` }],
+          time: Date.now(),
+        },
+      },
       loadImage: vi.fn(),
       cwd: '/Users/test/projects/example',
       t: (key: string) => key,
@@ -1326,7 +1539,9 @@ describe('producedFileMentions resolver', () => {
     const opened: string[] = []
     const resolver = producedFileMentions(
       ['out/index.html', 'a/style.css', 'b/style.css'],
-      (path) => { opened.push(path) },
+      (path) => {
+        opened.push(path)
+      },
       label,
     )
     // Unique basename resolves to its full path; the full path rides title.
@@ -1360,9 +1575,8 @@ describe('FileReview settings card', () => {
     const setWordWrap = vi.fn(async () => {})
     const props = {
       t: makeTranslate(en),
-      useFileReviewSettings: <Selected,>(
-        select: (value: typeof snapshot) => Selected,
-      ) => select(snapshot),
+      useFileReviewSettings: <Selected,>(select: (value: typeof snapshot) => Selected) =>
+        select(snapshot),
       setWordWrap,
     } as unknown as FileReviewSettingsCardProps
     const view = render(<FileReviewSettingsCard {...props} />)
@@ -1372,17 +1586,26 @@ describe('FileReview settings card', () => {
     const toggle = view.getByRole('switch', { name: 'Automatically wrap long lines' })
     expect(toggle.getAttribute('aria-checked')).toBe('false')
     fireEvent.click(toggle)
-    await vi.waitFor(() => { expect(setWordWrap).toHaveBeenCalledExactlyOnceWith(true) })
+    await vi.waitFor(() => {
+      expect(setWordWrap).toHaveBeenCalledExactlyOnceWith(true)
+    })
   })
 })
 
 describe('plugin registration', () => {
   it('registers the Remote, turn definition, tail entry, dictionaries, and mention service', async () => {
     let definition: unknown
-    let slot: {
-      options: { id?: string; inject?: (sessionId: string) => unknown; locale?: string; name?: string }
-      component: unknown
-    } | undefined
+    let slot:
+      | {
+          options: {
+            id?: string
+            inject?: (sessionId: string) => unknown
+            locale?: string
+            name?: string
+          }
+          component: unknown
+        }
+      | undefined
     const registrations: Array<{
       options: {
         id?: string
@@ -1400,10 +1623,14 @@ describe('plugin registration', () => {
     const disposeRemote = vi.fn(async () => {})
     const mountRemote = vi.fn(async () => disposeRemote)
     class RemoteFixture extends Service {
-      constructor(scoped: Context) { super(scoped, 'remote') }
+      constructor(scoped: Context) {
+        super(scoped, 'remote')
+      }
     }
     class FileReviewRemoteFixture extends Service {
-      constructor(scoped: Context) { super(scoped, 'remote.fileReview') }
+      constructor(scoped: Context) {
+        super(scoped, 'remote.fileReview')
+      }
       async status(): Promise<{ ok: true; value: { files: readonly [] } }> {
         return { ok: true, value: { files: [] } }
       }
@@ -1412,9 +1639,15 @@ describe('plugin registration', () => {
       }
     }
     const cordis = new Context()
-    const remoteFixture = cordis.plugin({ apply: scoped => { new RemoteFixture(scoped) } })
+    const remoteFixture = cordis.plugin({
+      apply: (scoped) => {
+        new RemoteFixture(scoped)
+      },
+    })
     const fileReviewFixture = cordis.plugin({
-      apply: scoped => { new FileReviewRemoteFixture(scoped) },
+      apply: (scoped) => {
+        new FileReviewRemoteFixture(scoped)
+      },
     })
     await Promise.all([remoteFixture, fileReviewFixture])
     // Match SessionRuntime: its Agent-scope fiber knows the root Remote service,
@@ -1422,7 +1655,10 @@ describe('plugin registration', () => {
     const sessionScope = cordis.plugin({ inject: ['remote'], apply: () => {} })
     await sessionScope
     const inputSnapshot = {
-      draft: '', draftRev: 0, phase: 'plain' as const, occurrences: [],
+      draft: '',
+      draftRev: 0,
+      phase: 'plain' as const,
+      occurrences: [],
     }
     const disposeSource = vi.fn()
     const registerSource = vi.fn(() => disposeSource)
@@ -1444,12 +1680,16 @@ describe('plugin registration', () => {
       }),
       subscribe: (listener: () => void) => {
         settingsListeners.add(listener)
-        return () => { settingsListeners.delete(listener) }
+        return () => {
+          settingsListeners.delete(listener)
+        }
       },
       set: vi.fn(async (_field: string, value: unknown) => {
         publishWordWrap(value === true)
       }),
-      unset: vi.fn(async () => { publishWordWrap(false) }),
+      unset: vi.fn(async () => {
+        publishWordWrap(false)
+      }),
     }
     const bindSettings = vi.fn(() => settingsScope)
     const ctx = {
@@ -1457,20 +1697,37 @@ describe('plugin registration', () => {
       settingsScope: { bind: bindSettings },
       sessions: {
         scope: vi.fn(() => sessionScope.ctx),
-        list: { getSnapshot: () => ({ byId: {
-          'session-1': { cwd: '/workspace/project' },
-        } }) },
+        list: {
+          getSnapshot: () => ({
+            byId: {
+              'session-1': { cwd: '/workspace/project' },
+            },
+          }),
+        },
       },
-      conversationEvents: { register: (value: unknown) => { definition = value; return () => {} } },
-      conversation: { input: { for: () => ({
-        state: { getSnapshot: () => inputSnapshot, subscribe: () => () => {} },
-        setDraft: vi.fn(),
-      }) } },
+      conversationEvents: {
+        register: (value: unknown) => {
+          definition = value
+          return () => {}
+        },
+      },
+      conversation: {
+        input: {
+          for: () => ({
+            state: { getSnapshot: () => inputSnapshot, subscribe: () => () => {} },
+            setDraft: vi.fn(),
+          }),
+        },
+      },
       inputTriggers: { registerSource },
-      effect: (setup: () => void) => { setup() },
+      effect: (setup: () => void) => {
+        setup()
+      },
       locale: { register: registerLocale, bind: () => makeTranslate(en) },
       slots: {
-        inject: (_name: string, setup: () => void) => { setup() },
+        inject: (_name: string, setup: () => void) => {
+          setup()
+        },
         register: (
           options: {
             id?: string
@@ -1495,8 +1752,15 @@ describe('plugin registration', () => {
 
     const dispose = await apply(ctx as never)
     expect(inject).toEqual([
-      'slots', 'locale', 'conversationEvents', 'remote', 'connection', 'settingsScope',
-      'sessions', 'conversation', 'inputTriggers',
+      'slots',
+      'locale',
+      'conversationEvents',
+      'remote',
+      'connection',
+      'settingsScope',
+      'sessions',
+      'conversation',
+      'inputTriggers',
     ])
     expect(bindSettings).toHaveBeenCalledWith({ namespace: 'file-review' })
     publishWordWrap(true)
@@ -1505,7 +1769,7 @@ describe('plugin registration', () => {
     expect(definition).toBe(deliverablesDefinition)
     expect(registerLocale).toHaveBeenCalledWith('file-review', { zh, en })
     const settingsRegistration = registrations.find(
-      registration => registration.options.name === 'settings.plugin.item',
+      (registration) => registration.options.name === 'settings.plugin.item',
     )
     expect(settingsRegistration).toEqual({
       options: expect.objectContaining({
@@ -1520,31 +1784,41 @@ describe('plugin registration', () => {
     })
     expect(registrations).toContainEqual({
       options: expect.objectContaining({
-        name: 'conversation.input.dock', id: 'file-review-comments', locale: NS,
+        name: 'conversation.input.dock',
+        id: 'file-review-comments',
+        locale: NS,
         inject: expect.any(Function),
       }),
       component: ReviewCommentsDock,
     })
     const dockRegistration = registrations.find(
-      registration => registration.options.name === 'conversation.input.dock',
+      (registration) => registration.options.name === 'conversation.input.dock',
     )
     expect(dockRegistration?.options.inject?.('session-1')).toEqual({
       projectRoot: '/workspace/project',
     })
-    expect(registrations).toEqual(expect.arrayContaining([
-      {
-        options: expect.objectContaining({
-          name: 'conversation.chat.node', key: 'user', priority: -10, locale: 'conversation',
-        }),
-        component: ReviewUserMessage,
-      },
-      {
-        options: expect.objectContaining({
-          name: 'conversation.chat.node', key: 'steering', priority: -10, locale: 'conversation',
-        }),
-        component: ReviewUserMessage,
-      },
-    ]))
+    expect(registrations).toEqual(
+      expect.arrayContaining([
+        {
+          options: expect.objectContaining({
+            name: 'conversation.chat.node',
+            key: 'user',
+            priority: -10,
+            locale: 'conversation',
+          }),
+          component: ReviewUserMessage,
+        },
+        {
+          options: expect.objectContaining({
+            name: 'conversation.chat.node',
+            key: 'steering',
+            priority: -10,
+            locale: 'conversation',
+          }),
+          component: ReviewUserMessage,
+        },
+      ]),
+    )
     expect(slot?.component).toBe(ProducedFiles)
     expect(slot?.options.locale).toBe(NS)
     expect(slot?.options.inject).toBeTypeOf('function')
@@ -1557,19 +1831,18 @@ describe('plugin registration', () => {
         action: 'undo'
         files: readonly []
       }): Promise<{ files: readonly [] }>
-      applyChanges(request: {
-        action: 'undo'
-        files: readonly []
-      }): Promise<{ files: readonly [] }>
+      applyChanges(request: { action: 'undo'; files: readonly [] }): Promise<{ files: readonly [] }>
     }
     expect(reviewActions.projectRoot).toBe('/workspace/project')
     expect(reviewActions.sessionId).toBe('session-1')
     expect(reviewActions.wordWrap.getSnapshot()).toBe(true)
     expect(reviewActions.syncComments).toBeTypeOf('function')
-    await expect(reviewActions.inspectChanges({ action: 'undo', files: [] }))
-      .resolves.toEqual({ files: [] })
-    await expect(reviewActions.applyChanges({ action: 'undo', files: [] }))
-      .resolves.toEqual({ files: [] })
+    await expect(reviewActions.inspectChanges({ action: 'undo', files: [] })).resolves.toEqual({
+      files: [],
+    })
+    await expect(reviewActions.applyChanges({ action: 'undo', files: [] })).resolves.toEqual({
+      files: [],
+    })
     const settingsActions = settingsRegistration?.options.inject?.('') as {
       hooks: { fileReviewSettings: typeof settingsScope }
       setWordWrap(value: boolean): Promise<void>
@@ -1580,11 +1853,9 @@ describe('plugin registration', () => {
     expect(reviewActions.wordWrap.getSnapshot()).toBe(false)
 
     const opened: string[] = []
-    const owner = tailOwner(
-      produced([2, 'site/report.html']),
-      3,
-      (path) => { opened.push(path) },
-    )
+    const owner = tailOwner(produced([2, 'site/report.html']), 3, (path) => {
+      opened.push(path)
+    })
     const mentions = service?.forClosing(owner)
     mentions?.resolve('report.html')?.open()
     expect(opened).toEqual(['site/report.html'])

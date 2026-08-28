@@ -11,28 +11,34 @@ const diffSchema = z.object({
   newText: z.string(),
   oldStart: z.number().int().min(1).optional(),
   newStart: z.number().int().min(1).optional(),
-  lifecycle: z.object({
-    kind: z.enum(['create', 'delete']),
-    mode: z.number().int().min(0).max(0o777),
-  }).optional(),
+  lifecycle: z
+    .object({
+      kind: z.enum(['create', 'delete']),
+      mode: z.number().int().min(0).max(0o777),
+    })
+    .optional(),
 })
 
 const requestSchema = z.object({
   action: z.enum(['undo', 'redo']),
-  files: z.array(z.object({
-    path: z.string(),
-    diffs: z.array(diffSchema),
-    complete: z.literal(false).optional(),
-  })),
+  files: z.array(
+    z.object({
+      path: z.string(),
+      diffs: z.array(diffSchema),
+      complete: z.literal(false).optional(),
+    }),
+  ),
 })
 
 const resultSchema = z.object({
-  files: z.array(z.object({
-    path: z.string(),
-    state: z.enum(['applied', 'undone', 'conflict', 'unsupported', 'error']),
-    changed: z.boolean(),
-    reason: z.string().optional(),
-  })),
+  files: z.array(
+    z.object({
+      path: z.string(),
+      state: z.enum(['applied', 'undone', 'conflict', 'unsupported', 'error']),
+      changed: z.boolean(),
+      reason: z.string().optional(),
+    }),
+  ),
 })
 
 const agentCodec = {
@@ -61,11 +67,21 @@ function descriptor(method: 'status' | 'apply'): InvocationDescriptor {
     method,
     invocation: { kind: 'direct' },
     scope: { context: 'agent', wire: 'agentId' },
-    parameters: [{
-      name: 'agent', wire: 'agentId', source: 'lookup', lookup: 'agent', codec: agentCodec,
-    }, {
-      name: 'request', wire: 'request', source: 'json', codec: requestCodec,
-    }],
+    parameters: [
+      {
+        name: 'agent',
+        wire: 'agentId',
+        source: 'lookup',
+        lookup: 'agent',
+        codec: agentCodec,
+      },
+      {
+        name: 'request',
+        wire: 'request',
+        source: 'json',
+        codec: requestCodec,
+      },
+    ],
     result: resultCodec,
   }
 }

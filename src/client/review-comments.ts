@@ -74,8 +74,8 @@ export function deleteReviewComment(
   anchor: Pick<DiffLineAnchor, 'path' | 'hunkIndex' | 'rowIndex'>,
 ): void {
   const state = sessions.get(sessionId)
-  if (state !== undefined
-    && state.comments.delete(reviewCommentKey(turn, closingSeq, anchor))) notify(state)
+  if (state !== undefined && state.comments.delete(reviewCommentKey(turn, closingSeq, anchor)))
+    notify(state)
 }
 
 /** Read all comments for a session in insertion order. */
@@ -90,18 +90,20 @@ export function reviewCommentsForTurn(
   closingSeq: number,
 ): ReadonlyMap<string, ReviewComment> {
   const matches = reviewComments(sessionId).filter(
-    comment => comment.turn === turn && comment.closingSeq === closingSeq,
+    (comment) => comment.turn === turn && comment.closingSeq === closingSeq,
   )
-  return new Map(matches.map(comment => [
-    reviewCommentKey(turn, closingSeq, comment.anchor), comment,
-  ]))
+  return new Map(
+    matches.map((comment) => [reviewCommentKey(turn, closingSeq, comment.anchor), comment]),
+  )
 }
 
 /** Subscribe to one session's in-memory comment collection. */
 export function subscribeReviewComments(sessionId: string, listener: () => void): () => void {
   const state = stateFor(sessionId)
   state.listeners.add(listener)
-  return () => { state.listeners.delete(listener) }
+  return () => {
+    state.listeners.delete(listener)
+  }
 }
 
 /** Clear comments after a confirmed successful submission. */

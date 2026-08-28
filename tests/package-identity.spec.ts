@@ -4,9 +4,9 @@ import { TYPERT_REMOTE } from '../src/remote.ts'
 import { TYPERT } from '../src/typert.host.ts'
 import { FILE_REVIEW_INVOCATIONS } from '../src/typert-descriptors.ts'
 
-const manifest = JSON.parse(
-  readFileSync(new URL('../package.json', import.meta.url), 'utf8'),
-) as { name: string }
+const manifest = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as {
+  name: string
+}
 
 describe('package identity', () => {
   it('uses the manifest package name in the Cordis loader entry', () => {

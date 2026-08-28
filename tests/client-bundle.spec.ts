@@ -15,7 +15,11 @@ describe('published browser artifact', () => {
     const browserWindow = window as unknown as {
       __ModuleLoader__?: { load(value: ClientHandoff): void }
     }
-    browserWindow.__ModuleLoader__ = { load: (value) => { handoff = value } }
+    browserWindow.__ModuleLoader__ = {
+      load: (value) => {
+        handoff = value
+      },
+    }
     const artifact = pathToFileURL(new URL('../lib/client.js', import.meta.url).pathname)
     await import(/* @vite-ignore */ `${artifact.href}?test=${String(Date.now())}`)
 
@@ -30,8 +34,15 @@ describe('published browser artifact', () => {
     }) as { apply?: unknown; inject?: unknown } | undefined
     expect(client?.apply).toBeTypeOf('function')
     expect(client?.inject).toEqual([
-      'slots', 'locale', 'conversationEvents', 'remote', 'connection', 'settingsScope',
-      'sessions', 'conversation', 'inputTriggers',
+      'slots',
+      'locale',
+      'conversationEvents',
+      'remote',
+      'connection',
+      'settingsScope',
+      'sessions',
+      'conversation',
+      'inputTriggers',
     ])
     expect(document.querySelectorAll('style[data-plugin="dsh-file-review"]')).toHaveLength(3)
   })

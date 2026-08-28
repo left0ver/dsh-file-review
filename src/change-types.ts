@@ -8,10 +8,12 @@ export interface ProducedFileDiff {
   readonly oldStart?: number | undefined
   readonly newStart?: number | undefined
   /** Explicit whole-file lifecycle captured around a successful mutation. */
-  readonly lifecycle?: {
-    readonly kind: 'create' | 'delete'
-    readonly mode: number
-  } | undefined
+  readonly lifecycle?:
+    | {
+        readonly kind: 'create' | 'delete'
+        readonly mode: number
+      }
+    | undefined
 }
 
 /** One produced file and the applied hunks available for review. */

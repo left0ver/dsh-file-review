@@ -33,7 +33,7 @@ interface MarkerBlock {
 
 function record(value: unknown): Record<string, unknown> | null {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
-    ? value as Record<string, unknown>
+    ? (value as Record<string, unknown>)
     : null
 }
 
@@ -60,11 +60,15 @@ function diffPresentation(value: unknown): DiffPresentation {
     const diff = record(candidate)
     if (diff === null) return { kind: 'invalid' }
     const { path, oldText, newText, oldStart, newStart } = diff
-    if (typeof path !== 'string' || path === ''
-      || (oldText !== null && typeof oldText !== 'string')
-      || typeof newText !== 'string'
-      || (oldStart !== undefined && !positiveInteger(oldStart))
-      || (newStart !== undefined && !positiveInteger(newStart))) return { kind: 'invalid' }
+    if (
+      typeof path !== 'string' ||
+      path === '' ||
+      (oldText !== null && typeof oldText !== 'string') ||
+      typeof newText !== 'string' ||
+      (oldStart !== undefined && !positiveInteger(oldStart)) ||
+      (newStart !== undefined && !positiveInteger(newStart))
+    )
+      return { kind: 'invalid' }
     diffs.push({
       path,
       oldText,
@@ -91,10 +95,13 @@ function isMutationCall(view: unknown): boolean {
 
 function locationPaths(view: unknown): readonly string[] {
   const item = record(view)
-  if (item === null
-    || (item.card !== 'diff'
-      && !(item.card === 'generic' && (item.kind === 'edit' || item.kind === 'delete')))
-    || !Array.isArray(item.locations)) return []
+  if (
+    item === null ||
+    (item.card !== 'diff' &&
+      !(item.card === 'generic' && (item.kind === 'edit' || item.kind === 'delete'))) ||
+    !Array.isArray(item.locations)
+  )
+    return []
   return item.locations.map(pathOf).filter((path): path is string => path !== null)
 }
 
@@ -104,9 +111,7 @@ function appendPath(paths: string[], seen: Set<string>, path: string): void {
   paths.push(path)
 }
 
-function resultChanges(
-  diffs: readonly ProducedFileDiff[],
-): readonly PresentedFileChange[] {
+function resultChanges(diffs: readonly ProducedFileDiff[]): readonly PresentedFileChange[] {
   const files: Array<{ path: string; diffs: ProducedFileDiff[]; source: 'result' }> = []
   const byPath = new Map<string, ProducedFileDiff[]>()
   for (const diff of diffs) {
@@ -142,19 +147,24 @@ export function normalizeMutationPresentation(
   const seen = new Set<string>()
   for (const path of locationPaths(callView)) appendPath(paths, seen, path)
   for (const diff of intentDiffs) appendPath(paths, seen, diff.path)
-  return paths.map(path => ({
+  return paths.map((path) => ({
     path,
-    diffs: intentDiffs.filter(diff => diff.path === path),
+    diffs: intentDiffs.filter((diff) => diff.path === path),
     source: 'intent' as const,
   }))
 }
 
 function parseLifecycle(value: unknown): ProducedFileDiff['lifecycle'] | null {
   const lifecycle = record(value)
-  if (lifecycle === null
-    || (lifecycle.kind !== 'create' && lifecycle.kind !== 'delete')
-    || typeof lifecycle.mode !== 'number' || !Number.isInteger(lifecycle.mode)
-    || lifecycle.mode < 0 || lifecycle.mode > 0o777) return null
+  if (
+    lifecycle === null ||
+    (lifecycle.kind !== 'create' && lifecycle.kind !== 'delete') ||
+    typeof lifecycle.mode !== 'number' ||
+    !Number.isInteger(lifecycle.mode) ||
+    lifecycle.mode < 0 ||
+    lifecycle.mode > 0o777
+  )
+    return null
   return { kind: lifecycle.kind, mode: lifecycle.mode }
 }
 
@@ -166,16 +176,21 @@ function parseDiff(
   const item = record(value)
   if (item === null || item.path !== expectedPath) return null
   const { path, oldText, newText, oldStart, newStart, lifecycle: rawLifecycle } = item
-  if (typeof path !== 'string'
-    || (oldText !== null && typeof oldText !== 'string')
-    || typeof newText !== 'string'
-    || (oldStart !== undefined && !positiveInteger(oldStart))
-    || (newStart !== undefined && !positiveInteger(newStart))) return null
+  if (
+    typeof path !== 'string' ||
+    (oldText !== null && typeof oldText !== 'string') ||
+    typeof newText !== 'string' ||
+    (oldStart !== undefined && !positiveInteger(oldStart)) ||
+    (newStart !== undefined && !positiveInteger(newStart))
+  )
+    return null
   const lifecycle = rawLifecycle === undefined ? undefined : parseLifecycle(rawLifecycle)
-  if ((rawLifecycle !== undefined && lifecycle === null)
-    || (schema === 1 && rawLifecycle !== undefined)
-    || (lifecycle?.kind === 'create' && oldText !== null)
-    || (lifecycle?.kind === 'delete' && (typeof oldText !== 'string' || newText !== ''))) {
+  if (
+    (rawLifecycle !== undefined && lifecycle === null) ||
+    (schema === 1 && rawLifecycle !== undefined) ||
+    (lifecycle?.kind === 'create' && oldText !== null) ||
+    (lifecycle?.kind === 'delete' && (typeof oldText !== 'string' || newText !== ''))
+  ) {
     return null
   }
   return {
@@ -193,9 +208,14 @@ function parseFile(
   schema: PtcFileReviewMarker['schema'],
 ): PresentedFileChange | null {
   const item = record(value)
-  if (item === null || typeof item.path !== 'string' || item.path === ''
-    || (item.source !== 'result' && item.source !== 'intent')
-    || !Array.isArray(item.diffs)) return null
+  if (
+    item === null ||
+    typeof item.path !== 'string' ||
+    item.path === '' ||
+    (item.source !== 'result' && item.source !== 'intent') ||
+    !Array.isArray(item.diffs)
+  )
+    return null
   const diffs: ProducedFileDiff[] = []
   for (const value of item.diffs) {
     const diff = parseDiff(value, item.path, schema)
@@ -211,19 +231,34 @@ export function parsePtcFileReviewMarker(
   expected?: { readonly rootCallId: string; readonly subCallId: string },
 ): PtcFileReviewMarker | null {
   const marker = record(value)
-  if (marker === null || (marker.schema !== 1 && marker.schema !== PTC_FILE_REVIEW_SCHEMA)
-    || typeof marker.turn !== 'number' || !Number.isInteger(marker.turn) || marker.turn < 0
-    || typeof marker.step !== 'number' || !Number.isInteger(marker.step) || marker.step < 0
-    || typeof marker.rootCallId !== 'string' || marker.rootCallId === ''
-    || typeof marker.subCallId !== 'string' || marker.subCallId === ''
-    || typeof marker.truncated !== 'boolean' || !Array.isArray(marker.files)
-    || (expected !== undefined && (marker.rootCallId !== expected.rootCallId
-      || marker.subCallId !== expected.subCallId))) return null
+  if (
+    marker === null ||
+    (marker.schema !== 1 && marker.schema !== PTC_FILE_REVIEW_SCHEMA) ||
+    typeof marker.turn !== 'number' ||
+    !Number.isInteger(marker.turn) ||
+    marker.turn < 0 ||
+    typeof marker.step !== 'number' ||
+    !Number.isInteger(marker.step) ||
+    marker.step < 0 ||
+    typeof marker.rootCallId !== 'string' ||
+    marker.rootCallId === '' ||
+    typeof marker.subCallId !== 'string' ||
+    marker.subCallId === '' ||
+    typeof marker.truncated !== 'boolean' ||
+    !Array.isArray(marker.files) ||
+    (expected !== undefined &&
+      (marker.rootCallId !== expected.rootCallId || marker.subCallId !== expected.subCallId))
+  )
+    return null
   const files: PresentedFileChange[] = []
   const seen = new Set<string>()
   for (const value of marker.files) {
     const file = parseFile(value, marker.schema)
-    if (file === null || seen.has(file.path) || (marker.truncated === true && file.diffs.length > 0)) {
+    if (
+      file === null ||
+      seen.has(file.path) ||
+      (marker.truncated === true && file.diffs.length > 0)
+    ) {
       return null
     }
     seen.add(file.path)
@@ -272,7 +307,7 @@ export function boundedPtcFileReviewMarker(
   if (bytes(complete) <= maxBytes) return complete
   const truncated: PtcFileReviewMarker = {
     ...complete,
-    files: complete.files.map(file => ({ ...file, diffs: [] })),
+    files: complete.files.map((file) => ({ ...file, diffs: [] })),
     truncated: true,
   }
   return bytes(truncated) <= maxBytes ? truncated : null

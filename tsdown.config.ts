@@ -6,10 +6,7 @@ import { transform } from 'lightningcss'
 const PACKAGE_NAME = 'dsh-file-review'
 const CSS_VIRTUAL_PREFIX = '\0dsh-file-review-css:'
 const CSS_VIRTUAL_SUFFIX = '.mjs'
-const CLIENT_EXTERNALS = [
-  'react',
-  'react/jsx-runtime',
-] as const
+const CLIENT_EXTERNALS = ['react', 'react/jsx-runtime'] as const
 
 /** Compile CSS Modules into package-owned style elements understood by the Web plugin loader. */
 function cssModulesPlugin() {
@@ -50,41 +47,44 @@ function cssModulesPlugin() {
   }
 }
 
-const config: UserConfig[] = [{
-  name: PACKAGE_NAME,
-  entry: ['src/index.ts', 'src/typert.host.ts', 'src/remote.ts'],
-  outDir: 'lib',
-  format: 'esm',
-  platform: 'node',
-  target: 'es2024',
-  fixedExtension: false,
-  dts: false,
-  clean: false,
-  outputOptions: {
-    chunkFileNames: '[name].js',
+const config: UserConfig[] = [
+  {
+    name: PACKAGE_NAME,
+    entry: ['src/index.ts', 'src/typert.host.ts', 'src/remote.ts'],
+    outDir: 'lib',
+    format: 'esm',
+    platform: 'node',
+    target: 'es2024',
+    fixedExtension: false,
+    dts: false,
+    clean: false,
+    outputOptions: {
+      chunkFileNames: '[name].js',
+    },
   },
-}, {
-  name: `${PACKAGE_NAME}/client`,
-  entry: { client: 'src/client/index.ts' },
-  outDir: 'lib',
-  format: 'cjs',
-  platform: 'browser',
-  target: 'es2022',
-  dts: false,
-  sourcemap: true,
-  clean: false,
-  deps: {
-    neverBundle: [...CLIENT_EXTERNALS],
-    alwaysBundle: ['diff', 'zod'],
-    onlyBundle: ['diff', 'zod'],
+  {
+    name: `${PACKAGE_NAME}/client`,
+    entry: { client: 'src/client/index.ts' },
+    outDir: 'lib',
+    format: 'cjs',
+    platform: 'browser',
+    target: 'es2022',
+    dts: false,
+    sourcemap: true,
+    clean: false,
+    deps: {
+      neverBundle: [...CLIENT_EXTERNALS],
+      alwaysBundle: ['diff', 'zod'],
+      onlyBundle: ['diff', 'zod'],
+    },
+    plugins: [cssModulesPlugin()],
+    outputOptions: {
+      entryFileNames: 'client.js',
+      banner: `window.__ModuleLoader__.load({ id: ${JSON.stringify(PACKAGE_NAME)}, factory: (require) => {`,
+      footer: 'return module.exports; } });',
+      intro: 'var module = { exports: {} }; var exports = module.exports;',
+    },
   },
-  plugins: [cssModulesPlugin()],
-  outputOptions: {
-    entryFileNames: 'client.js',
-    banner: `window.__ModuleLoader__.load({ id: ${JSON.stringify(PACKAGE_NAME)}, factory: (require) => {`,
-    footer: 'return module.exports; } });',
-    intro: 'var module = { exports: {} }; var exports = module.exports;',
-  },
-}]
+]
 
 export default config

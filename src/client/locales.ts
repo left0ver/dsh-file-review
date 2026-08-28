@@ -11,7 +11,8 @@ export const en = {
   'settings.collapse': 'Collapse',
   'settings.readOnly': 'The settings file is read-only.',
   'settings.wordWrap.title': 'Automatically wrap long lines',
-  'settings.wordWrap.description': 'Controls whether long single-line text wraps automatically during review. Defaults to false.',
+  'settings.wordWrap.description':
+    'Controls whether long single-line text wraps automatically during review. Defaults to false.',
   'produced.summary': 'Edited files',
   'produced.editedOne': 'Edited 1 file',
   'produced.edited': 'Edited {count} files',
@@ -48,7 +49,8 @@ export const en = {
   'review.showUnchanged': '{count} unchanged lines',
   'review.hideUnchanged': 'Hide {count} unchanged lines',
   'review.stats': '{added} lines added, {removed} lines removed',
-  'review.unavailable': 'No reconstructable diff is available for this change. You can still open the current file.',
+  'review.unavailable':
+    'No reconstructable diff is available for this change. You can still open the current file.',
   'review.commentAdd': 'Add comment on line {line}',
   'review.commentEdit': 'Edit comment on line {line}',
   'review.commentPlaceholder': 'Leave a review comment…',
@@ -77,7 +79,8 @@ export const zh: Record<DeliverablesKey, string> = {
   'settings.collapse': '收起',
   'settings.readOnly': '配置文件为只读。',
   'settings.wordWrap.title': '是否自动换行显示',
-  'settings.wordWrap.description': '控制review的时候对于单行文本很长的情况下是否自动换行显示，默认为False',
+  'settings.wordWrap.description':
+    '控制review的时候对于单行文本很长的情况下是否自动换行显示，默认为False',
   'produced.summary': '已编辑文件',
   'produced.editedOne': '已编辑 1 个文件',
   'produced.edited': '已编辑 {count} 个文件',

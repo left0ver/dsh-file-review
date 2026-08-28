@@ -5,7 +5,10 @@ import type { InputTriggerSource } from '@deepseek-ai/dsh-client-ui-input-trigge
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import type { NS } from './locales.ts'
 import {
-  clearReviewComments, reviewComments, serializeReviewComments, subscribeReviewComments,
+  clearReviewComments,
+  reviewComments,
+  serializeReviewComments,
+  subscribeReviewComments,
 } from './review-comments.ts'
 
 export const REVIEW_COMMENT_SOURCE = 'file-review-comments'
@@ -35,7 +38,7 @@ export interface ReviewInput {
 
 function occurrenceFor(state: ReviewInputState, sessionId: string): ReviewOccurrence | undefined {
   return state.occurrences.find(
-    occurrence => occurrence.source === REVIEW_COMMENT_SOURCE && occurrence.ref === sessionId,
+    (occurrence) => occurrence.source === REVIEW_COMMENT_SOURCE && occurrence.ref === sessionId,
   )
 }
 
@@ -45,8 +48,12 @@ export function reviewCommentSource(): InputTriggerSource {
     trigger: '@',
     name: REVIEW_COMMENT_SOURCE,
     order: 100,
-    async candidates() { return [] },
-    onPick() { return undefined },
+    async candidates() {
+      return []
+    },
+    onPick() {
+      return undefined
+    },
     codec: {
       clipboardText: () => '@review-comments',
       async serialize(ref, signal) {
@@ -83,12 +90,9 @@ export function bindReviewReference(
     reconciling = true
     try {
       if (current !== undefined) {
-        const removeEnd = state.draft[current.offset + 1] === ' '
-          ? current.offset + 2
-          : current.offset + 1
-        input.setDraft(
-          state.draft.slice(0, current.offset) + state.draft.slice(removeEnd),
-        )
+        const removeEnd =
+          state.draft[current.offset + 1] === ' ' ? current.offset + 2 : current.offset + 1
+        input.setDraft(state.draft.slice(0, current.offset) + state.draft.slice(removeEnd))
         state = input.state.getSnapshot()
       }
       if (count === 0 || expectedLabel === undefined || state.phase !== 'plain') return
