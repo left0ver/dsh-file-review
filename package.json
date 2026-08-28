@@ -1,6 +1,6 @@
 {
   "name": "dsh-file-review",
-  "version": "0.5.2",
+  "version": "0.5.3",
   "description": "Review files produced by DeepSeek Harness turns in a line-numbered unified diff drawer",
   "keywords": [
     "code-review",
