@@ -62,6 +62,7 @@
     "codecheck": "npm run fmt && npm run lint",
     "typecheck": "tsc --noEmit",
     "test:smoke": "vitest run tests/smoke.spec.ts",
+    "test:e2e": "playwright test",
     "test": "npm run build && vitest run && npm run test:pack",
     "test:pack": "node scripts/verify-pack.mjs",
     "prepack": "npm run codecheck && npm run typecheck && npm test",

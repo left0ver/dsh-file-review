@@ -1,0 +1,3 @@
+# Keep workspace selection inside the browser so Playwright can operate it.
+- id: directory-picker
+  name: '@deepseek-ai/dsh-host-directory-picker-browse'

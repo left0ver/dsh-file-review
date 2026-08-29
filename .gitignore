@@ -12,3 +12,4 @@ playwright-report/
 .env.e2e
 __pycache__
 .release-notes
+.agents
