@@ -23,7 +23,11 @@ English · [简体中文](README.zh.md)
 
 ## Preview
 
-![leftover](./assests/preview.png)
+Standalone usage:
+![preview](./assests/preview.png)
+
+Used with dsh-better-sidebar:
+![preview_with_better_sidebar](./assests/preview_with_better_sidebar.png)
 
 ## Features
 

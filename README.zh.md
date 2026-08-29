@@ -23,7 +23,11 @@
 
 ## 效果预览
 
-![leftover](./assests/preview.png)
+单独使用本插件:
+![preview](./assests/preview.png)
+
+与 dsh-better-sidebar 结合使用:
+![preview_with_better_sidebar](./assests/preview_with_better_sidebar.png)
 
 ## 功能
 
