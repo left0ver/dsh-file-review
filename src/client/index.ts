@@ -21,6 +21,8 @@ import {
   type Config,
 } from '../settings-contract.ts'
 import { ProducedFiles } from './ProducedFiles.tsx'
+import { installBetterSidebarIntegration } from './better-sidebar-adapter.tsx'
+import type { FileReviewTabRuntime } from './FileReviewTab.tsx'
 import { FileReviewSettingsCard } from './FileReviewSettingsCard.tsx'
 import { ReviewCommentsDock } from './ReviewCommentsDock.tsx'
 import { ReviewUserMessage } from './ReviewUserMessage.tsx'
@@ -72,7 +74,9 @@ export async function apply(ctx: ClientContext): Promise<() => Promise<void>> {
     getSnapshot: () => settings.getSnapshot().value?.wordWrap ?? DEFAULT_WORD_WRAP,
     subscribe: (listener: () => void) => settings.subscribe(listener),
   }
+  const t = ctx.locale.bind(NS)
   const reviewBindings = new Map<string, ReturnType<typeof bindReviewReference>>()
+  const reviewRemotes = new Map<string, FileReviewTabRuntime>()
   // The package ships Host and browser halves in one TypeScript program. The Host
   // SessionStore and browser ISessions intentionally share the Cordis key, so keep
   // this platform-specific narrowing at the browser entry boundary.
@@ -93,6 +97,42 @@ export async function apply(ctx: ClientContext): Promise<() => Promise<void>> {
     reviewBindings.set(sessionId, binding)
     return binding
   }
+  const reviewRemoteFor = (sessionId: SessionId): FileReviewTabRuntime => {
+    let remote = reviewRemotes.get(sessionId)
+    if (remote !== undefined) return remote
+    const invoke = async (
+      method: 'status' | 'apply',
+      request: FileReviewRequest,
+    ): Promise<FileReviewResult> => {
+      const scope = sessions.scope(sessionId)
+      if (scope === undefined) throw new Error('Session is unavailable')
+      // Session scopes are minted by the client runtime and cannot statically
+      // inject namespaces contributed later by feature plugins. `get()` is the
+      // Cordis escape hatch for an explicitly mounted dynamic service; tracing
+      // still binds the Remote call to this Session scope.
+      const fileReview = scope.get('remote.fileReview') as FileReviewRemote | undefined
+      if (fileReview === undefined) throw new Error('File review Remote is unavailable')
+      const result = await fileReview[method](request)
+      if (!result.ok) throw new Error(result.error.message)
+      return result.value
+    }
+    remote = {
+      inspectChanges: (request) => invoke('status', request),
+      applyChanges: (request) => invoke('apply', request),
+      // Creating a review binding subscribes to composer-reference state. Keep
+      // that work out of the optional Tab component's render path and only do
+      // it when comments actually need reconciliation.
+      syncComments: () => {
+        reviewBindingFor(sessionId)?.sync()
+      },
+    }
+    reviewRemotes.set(sessionId, remote)
+    return remote
+  }
+  const reviewRuntimeFor = (sessionId: string): FileReviewTabRuntime =>
+    reviewRemoteFor(sessionId as SessionId)
+
+  installBetterSidebarIntegration(ctx, { sessions, wordWrap, t, runtimeFor: reviewRuntimeFor })
   ctx.conversationEvents.register(deliverablesDefinition)
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'file-review: dictionaries')
   const settingsCell = {
@@ -148,33 +188,19 @@ export async function apply(ctx: ClientContext): Promise<() => Promise<void>> {
       {
         name: 'conversation.chat.turnTail',
         select: selectProducedFiles,
+        priority: -2,
+        registrant: 'dsh-file-review',
         locale: NS,
         inject: (sessionId) => {
           const projectRoot = sessions.list.getSnapshot().byId[sessionId]?.cwd
           const reviewBinding = reviewBindingFor(sessionId)
-          const invoke = async (
-            method: 'status' | 'apply',
-            request: FileReviewRequest,
-          ): Promise<FileReviewResult> => {
-            const scope = sessions.scope(sessionId)
-            if (scope === undefined) throw new Error('Session is unavailable')
-            // Session scopes are minted by the client runtime and cannot statically
-            // inject namespaces contributed later by feature plugins. `get()` is the
-            // Cordis escape hatch for an explicitly mounted dynamic service; tracing
-            // still binds the Remote call to this Session scope.
-            const fileReview = scope.get('remote.fileReview') as FileReviewRemote | undefined
-            if (fileReview === undefined) throw new Error('File review Remote is unavailable')
-            const result = await fileReview[method](request)
-            if (!result.ok) throw new Error(result.error.message)
-            return result.value
-          }
+          const remote = reviewRemoteFor(sessionId)
           return {
             projectRoot,
             sessionId,
             wordWrap,
+            ...remote,
             syncComments: reviewBinding?.sync,
-            inspectChanges: (request: FileReviewRequest) => invoke('status', request),
-            applyChanges: (request: FileReviewRequest) => invoke('apply', request),
           }
         },
       },
@@ -183,7 +209,6 @@ export async function apply(ctx: ClientContext): Promise<() => Promise<void>> {
   )
   // The prose side of the same vocabulary: the chat view reaches this face
   // via ctx.get, so its absence — this plugin composed out — is the off state.
-  const t = ctx.locale.bind(NS)
   const mentions: ChatFileMentions = {
     forClosing(owner) {
       // Same claim test the turn-tail chain entry runs: no produced files,
@@ -201,6 +226,7 @@ export async function apply(ctx: ClientContext): Promise<() => Promise<void>> {
   return async () => {
     for (const binding of reviewBindings.values()) binding.dispose()
     reviewBindings.clear()
+    reviewRemotes.clear()
     disposeReviewSource()
     clearAllReviewComments()
     await disposeRemote()

@@ -27,28 +27,41 @@ English · [简体中文](README.zh.md)
 
 ## Features
 
-1. This plugin supports standard, PTC, and Creator modes, but **does not currently support Minimal mode**.
-2. Review every file the agent just changed in the `Diff` panel.
-3. Undo edited and newly created files. **Undoing deleted files is not currently supported.**
+1. Supports [DSH Better Sidebar](https://github.com/omdsh-dev/DSH-better-sidebar). You can use this plugin on its own or together with DSH Better Sidebar.
+2. This plugin supports standard, PTC, and Creator modes, but **does not currently support Minimal mode**.
+3. Review every file the agent just changed in the `Diff` panel.
+4. Undo edited and newly created files. **Undoing deleted files is not currently supported.**
    > DSH does not currently provide a file-deletion tool, so this plugin cannot yet undo deleted files. Support will be added once DSH provides such a tool.
-4. Add comments to changed lines and ask the agent to continue making updates based on the feedback, or ask questions about the changes.
-5. Support automatically wrapping long text while reviewing. Enable it under Settings → Plugins → Plugin configuration → File review; it is disabled by default.
-6. Multilingual support, including Chinese and English.
+5. Add comments to changed lines and ask the agent to continue making updates based on the feedback, or ask questions about the changes.
+6. Automatically wrap long text while reviewing. Enable it under Settings → Plugins → Plugin configuration → File review; it is disabled by default.
+7. Multilingual support, including Chinese and English.
 
 ## Quick start
 
-### 0. Add dsh-file-review in pnpm's minimum release age withlist
+### 0. Add dsh-file-review and dsh-better-sidebar to pnpm's minimum release age allowlist
 
 Open `~/.dsh/profiles/web/pnpm-workspace.yaml` and add:
 
 ```yaml
 minimumReleaseAgeExclude:
   - dsh-file-review
+  - dsh-better-sidebar
 ```
 
-Recent versions of `pnpm` enforce a minimum release age, so newly published packages are not installed until that waiting period has passed. To install the latest version, add `dsh-file-review` to the exclusion list.
+Recent versions of `pnpm` enforce a minimum release age, so newly published packages are not installed until that waiting period has passed. To install the latest versions, add both `dsh-file-review` and `dsh-better-sidebar` to the exclusion list.
 
-### 1. Install the plugin
+### Install dsh-better-sidebar (optional)
+
+> Skip this step if you do not need dsh-better-sidebar or already have it installed. This plugin works without dsh-better-sidebar.
+> For details, see the [DSH Better Sidebar installation instructions](https://github.com/omdsh-dev/DSH-better-sidebar#installation).
+
+```sh
+dsh plugin --profile web add dsh-better-sidebar@latest   # 首次会因 pnpm 11 拦截 node-pty 构建脚本而失败（依赖已写入）
+cd ~/.dsh/profiles/web && pnpm approve-builds --all      # 放行构建脚本（自动重跑安装）
+dsh plugin --profile web add dsh-better-sidebar@latest   # 重跑即成功
+```
+
+### 1. Install this plugin
 
 ```sh
 dsh plugin --profile web add dsh-file-review

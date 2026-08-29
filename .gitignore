@@ -13,3 +13,4 @@ playwright-report/
 __pycache__
 .release-notes
 .agents
+spec
