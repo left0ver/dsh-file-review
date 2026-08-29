@@ -132,7 +132,13 @@ export async function apply(ctx: ClientContext): Promise<() => Promise<void>> {
   const reviewRuntimeFor = (sessionId: string): FileReviewTabRuntime =>
     reviewRemoteFor(sessionId as SessionId)
 
-  installBetterSidebarIntegration(ctx, { sessions, wordWrap, t, runtimeFor: reviewRuntimeFor })
+  installBetterSidebarIntegration(ctx, {
+    sessions,
+    wordWrap,
+    locale: ctx.locale,
+    t,
+    runtimeFor: reviewRuntimeFor,
+  })
   ctx.conversationEvents.register(deliverablesDefinition)
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'file-review: dictionaries')
   const settingsCell = {

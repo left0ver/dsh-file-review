@@ -95,6 +95,7 @@ function supportsReviewTab(value: unknown): value is BetterSidebarService {
 export interface BetterSidebarIntegrationOptions {
   readonly sessions: ISessions
   readonly wordWrap: ObservableSnapshot<boolean>
+  readonly locale: { readonly subscribe: (listener: () => void) => () => void }
   readonly t: TranslateNS<typeof NS>
   readonly runtimeFor: (sessionId: string) => FileReviewTabRuntime
 }
@@ -102,7 +103,7 @@ export interface BetterSidebarIntegrationOptions {
 /** Install a child fiber that appears and disappears with the optional service. */
 export function installBetterSidebarIntegration(
   ctx: ClientContext,
-  { sessions, wordWrap, t, runtimeFor }: BetterSidebarIntegrationOptions,
+  { sessions, wordWrap, locale, t, runtimeFor }: BetterSidebarIntegrationOptions,
 ): void {
   let warned = false
   const warnOnce = (message: string, error?: unknown): void => {
@@ -127,6 +128,7 @@ export function installBetterSidebarIntegration(
     sidebarCtx.effect(() => {
       let disposeTab: (() => void) | undefined
       let detachAdapter: (() => void) | undefined
+      let unsubscribeLocale: (() => void) | undefined
       try {
         const descriptor: TabDescriptor = {
           id: REVIEW_TAB_ID,
@@ -154,6 +156,11 @@ export function installBetterSidebarIntegration(
           },
         }
         disposeTab = service.registerTab(descriptor)
+        // better-sidebar resolves descriptor.title only when a tab is created; keep the
+        // persisted title in sync while this single Review tab remains open.
+        unsubscribeLocale = locale.subscribe(() => {
+          service.updateTab(REVIEW_TAB_ID, { title: t('review.title') })
+        })
 
         const adapter: ReviewHostAdapter = {
           open(request) {
@@ -204,6 +211,7 @@ export function installBetterSidebarIntegration(
       }
 
       return () => {
+        unsubscribeLocale?.()
         detachAdapter?.()
         disposeTab?.()
       }
