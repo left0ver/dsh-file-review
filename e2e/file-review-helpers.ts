@@ -206,13 +206,16 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
+export function reviewFileName(expectedFile: TargetFile): RegExp {
+  return new RegExp(`^(?:Review|审查) (?:.*[\\/])?${escapeRegExp(expectedFile.basename)}$`)
+}
+
 export async function openFileReview(
   card: Locator,
   page: Page,
   expectedFile: TargetFile,
 ): Promise<Locator> {
-  const fileReviewName = new RegExp(`^(?:Review|审查) ${escapeRegExp(expectedFile.absolutePath)}$`)
-  await card.getByRole('button', { name: fileReviewName }).click()
+  await card.getByRole('button', { name: reviewFileName(expectedFile) }).click()
   const dialog = page.getByRole('dialog', { name: names.reviewDialog })
   await expect(dialog).toBeVisible()
   return dialog
