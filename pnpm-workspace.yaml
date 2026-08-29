@@ -1,5 +1,6 @@
 allowBuilds:
   esbuild: true
+  node-pty: true
   sharp: true
 minimumReleaseAgeExclude:
   - '@deepseek-ai/cordis-plugin-include@1.0.6'
