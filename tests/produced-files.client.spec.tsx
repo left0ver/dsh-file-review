@@ -866,7 +866,14 @@ describe('ProducedFiles review card', () => {
 
     fireEvent.click(view.getByRole('button', { name: 'Review all produced files' }))
     const drawer = view.getByRole('dialog', { name: 'Review' })
+    const drawerHeader = drawer.querySelector('[data-review-content] > header') as HTMLElement
     expect(within(drawer).getByText('2 files')).toBeTruthy()
+    expect(within(drawerHeader).queryByRole('button', { name: 'Undo' })).toBeNull()
+    expect(
+      within(drawerHeader)
+        .getAllByRole('button')
+        .map((button) => button.getAttribute('aria-label') ?? button.textContent?.trim()),
+    ).toEqual(['Copy diff', 'Close'])
     expect(within(drawer).getByText('deep/a.html')).toBeTruthy()
     expect(within(drawer).getByText('styles/b.css')).toBeTruthy()
     expect(drawer.querySelectorAll('[data-diff-layout="unified"]')).toHaveLength(2)

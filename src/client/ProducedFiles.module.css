@@ -247,7 +247,6 @@
   flex: 0 0 auto;
   min-height: 64px;
   align-items: center;
-  flex-wrap: wrap;
   gap: 12px;
   padding: 10px 14px 10px 18px;
   border-bottom: 1px solid var(--dsw-alias-border-l2);
@@ -557,25 +556,6 @@
 }
 
 @container (max-width: 520px) {
-  .drawerHeader {
-    align-items: flex-start;
-  }
-
-  .drawerHeading {
-    flex-basis: calc(100% - 90px);
-  }
-
-  .reviewToolbar {
-    width: 100%;
-    justify-content: stretch;
-  }
-
-  .reviewToolbar .toggleButton,
-  .reviewToolbar .toolbarButton {
-    flex: 1 1 auto;
-    justify-content: center;
-  }
-
   .reviewFileHeader {
     flex-wrap: wrap;
     padding-block: 8px;

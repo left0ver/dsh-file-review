@@ -13,7 +13,6 @@ import {
   setReviewComment,
   subscribeReviewComments,
 } from './review-comments.ts'
-import { ReviewResultToast, useReviewActions } from './review-actions.tsx'
 import type { NS } from './locales.ts'
 import {
   summarizeDiffs,
@@ -91,8 +90,6 @@ export function ReviewContent({
   turn,
   closingSeq,
   openFile,
-  inspectChanges,
-  applyChanges,
   syncComments,
   wordWrap: wordWrapSource = DEFAULT_WORD_WRAP_SOURCE,
   visible = true,
@@ -173,14 +170,6 @@ export function ReviewContent({
       ),
     [reviews],
   )
-  const actions = useReviewActions({
-    reviews,
-    inspectChanges,
-    applyChanges,
-    enabled: visible,
-    t,
-  })
-
   const copyDiff = useCallback(() => {
     if (diffs.length === 0 || copied) return
     const pending = navigator.clipboard?.writeText(unifiedDiffText(diffs))
@@ -220,26 +209,6 @@ export function ReviewContent({
           })}
         />
         <div className={css.reviewToolbar}>
-          <button
-            type="button"
-            className={css.toggleButton}
-            disabled={
-              !visible ||
-              actions.statusPending ||
-              actions.togglePending ||
-              !actions.hasReversibleFiles
-            }
-            title={!actions.hasReversibleFiles ? t('produced.toggleUnavailable') : undefined}
-            onClick={actions.run}
-          >
-            {actions.togglePending
-              ? actions.action === 'undo'
-                ? t('produced.undoing')
-                : t('produced.redoing')
-              : actions.action === 'undo'
-                ? t('produced.undo')
-                : t('produced.redo')}
-          </button>
           <button
             type="button"
             className={css.toolbarButton}
@@ -322,15 +291,6 @@ export function ReviewContent({
           )
         })}
       </div>
-      {actions.notice !== null && (
-        <ReviewResultToast
-          key={actions.notice.seq}
-          notice={actions.notice}
-          t={t}
-          openFile={openFile}
-          onDone={actions.dismissNotice}
-        />
-      )}
     </div>
   )
 }
