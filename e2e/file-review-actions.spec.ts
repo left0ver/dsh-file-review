@@ -50,7 +50,7 @@ test('复制 Diff 会写入完整文件差异并反馈成功状态', async ({ pa
   await review.getByRole('button', { name: /^(?:Copy diff|复制差异)$/ }).click()
   await expect(review.getByRole('button', { name: /^(?:Copied|已复制)$/ })).toBeVisible()
   const clipboard = await page.evaluate(() => navigator.clipboard.readText())
-  expect(clipboard).toContain(target.absolutePath)
+  expect(clipboard.replaceAll('\\', '/')).toContain(target.relativePath)
   expect(clipboard).toContain('- before')
   expect(clipboard).toContain('+ after')
 })
