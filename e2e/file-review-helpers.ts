@@ -216,7 +216,9 @@ function escapeRegExp(value: string): string {
 }
 
 export function reviewFileName(expectedFile: TargetFile): RegExp {
-  return new RegExp(`^(?:Review|审查) (?:.*[\\/])?${escapeRegExp(expectedFile.basename)}$`)
+  return new RegExp(
+    String.raw`^(?:Review|审查) (?:.*[\\/])?${escapeRegExp(expectedFile.basename)}$`,
+  )
 }
 
 export async function openFileReview(
