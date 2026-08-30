@@ -24,7 +24,7 @@ export const names = {
   commentHistory: /^(?:1 comment|1 个评论)$/,
   commentPreview: /^(?:Review comment preview|审查评论预览)$/,
   composer:
-    /Describe what you want to build|描述你想(?:要)?构建的内容|Message the agent|给智能体发消息/,
+    /Describe what you want to build|描述你想(?:要)?构建的内容|Message the agent|给智能体发消息|Ask Copilot|询问 Copilot|Message Copilot|给 Copilot 发消息|Message DeepSeek|给 DeepSeek 发消息/,
   producedCard: /^(?:Edited files|已编辑文件)$/,
   reapply: /^(?:Reapply|重新应用)$/,
   reviewAll: /^(?:Review all produced files|审查所有产出文件)$/,
@@ -104,10 +104,26 @@ export async function expectSelectedPreset(page: Page, preset: AgentPreset): Pro
   await expect(presetButton(page)).toContainText(presetLabels[preset])
 }
 
+export async function dismissTransientOverlays(page: Page): Promise<void> {
+  await page.keyboard.press('Escape')
+  await page.keyboard.press('Escape')
+}
+
+export async function resolveComposer(page: Page): Promise<Locator> {
+  const named = page.getByRole('textbox', { name: names.composer }).first()
+  if ((await named.count()) > 0) return named
+
+  const textarea = page.locator('textarea').first()
+  if ((await textarea.count()) > 0) return textarea
+
+  return page.getByRole('textbox').first()
+}
+
 export async function openNewSession(page: Page, preset: AgentPreset): Promise<Locator> {
   await page.goto('/')
+  await dismissTransientOverlays(page)
 
-  const composer = page.getByRole('textbox', { name: names.composer })
+  const composer = await resolveComposer(page)
   await expect(composer).toBeVisible()
 
   const picker = presetButton(page)

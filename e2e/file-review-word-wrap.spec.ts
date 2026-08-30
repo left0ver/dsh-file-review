@@ -4,6 +4,7 @@ import { expect, type Locator, type Page } from '@playwright/test'
 import { test } from './fixture.ts'
 import {
   closeReview,
+  dismissTransientOverlays,
   e2eTimeout,
   expectCardSummary,
   expectDiffLine,
@@ -29,7 +30,8 @@ async function openWordWrapSettings(
   page: Page,
 ): Promise<{ readonly dialog: Locator; readonly toggle: Locator }> {
   await page.goto('/')
-  await page.getByRole('button', { name: /^(?:Settings|设置)$/ }).click()
+  await dismissTransientOverlays(page)
+  await page.getByRole('button', { name: /^(?:Settings|设置)$/ }).click({ force: true })
   const dialog = page.getByRole('dialog', { name: /Settings|设置/ })
   await dialog.getByRole('button', { name: /^(?:Plugins|插件)$/ }).click()
   await dialog.getByRole('button', { name: /^(?:Expand|展开): (?:File review|文件审查)$/ }).click()

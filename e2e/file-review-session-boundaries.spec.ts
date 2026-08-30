@@ -10,6 +10,7 @@ import {
   openNewSession,
   openReview,
   prepareExistingTarget,
+  resolveComposer,
   sendTask,
   targetFile,
   waitForProducedCard,
@@ -86,7 +87,7 @@ test('当前会话的评论不会泄漏到新会话', async ({ page, agentForPag
     .getByRole('button', { name: /^(?:New session|新会话)$/ })
     .first()
     .click()
-  await expect(page.getByRole('textbox', { name: names.composer })).toBeVisible()
+  await expect(await resolveComposer(page)).toBeVisible()
   await expect(page.getByRole('button', { name: names.commentDock })).toHaveCount(0)
   await expect(page.getByRole('region', { name: names.producedCard })).toHaveCount(0)
 })
