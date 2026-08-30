@@ -108,6 +108,15 @@ export async function openNewSession(page: Page, preset: AgentPreset): Promise<L
   await page.goto('/')
 
   const composer = page.getByRole('textbox', { name: names.composer })
+  const welcomeDialog = page.getByRole('dialog', {
+    name: /^(?:Internal Testing Notice|内测声明)$/,
+  })
+  const continueWelcome = welcomeDialog.getByRole('button', {
+    name: /^(?:Continue|继续)$/,
+  })
+
+  await expect(composer.or(continueWelcome)).toBeVisible()
+  if (await continueWelcome.isVisible()) await continueWelcome.click()
   await expect(composer).toBeVisible()
 
   const picker = presetButton(page)

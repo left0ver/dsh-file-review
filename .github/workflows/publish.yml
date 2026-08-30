@@ -87,6 +87,18 @@ jobs:
       - name: Run E2E tests
         run: pnpm test:e2e
 
+      - name: Upload E2E diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-${{ matrix.os }}
+          path: |
+            test-results/
+            playwright-report/
+            midscene_run/
+          if-no-files-found: ignore
+          retention-days: 7
+
   publish:
     needs: e2e
     if: github.event_name == 'push' && github.ref_type == 'tag' && startsWith(github.ref_name, 'v')
