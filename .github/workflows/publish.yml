@@ -1,6 +1,7 @@
 name: Publish to npm
 
 on:
+  workflow_dispatch:
   push:
     tags:
       - 'v*'
@@ -10,7 +11,14 @@ permissions:
 
 jobs:
   e2e:
-    runs-on: ubuntu-latest
+    name: E2E (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - macos-latest
+          - windows-latest
+    runs-on: ${{ matrix.os }}
     env:
       DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
       MIDSCENE_MODEL_API_KEY: ${{ secrets.MIDSCENE_MODEL_API_KEY }}
@@ -81,6 +89,7 @@ jobs:
 
   publish:
     needs: e2e
+    if: github.event_name == 'push' && github.ref_type == 'tag' && startsWith(github.ref_name, 'v')
     runs-on: ubuntu-latest
     permissions:
       contents: read
