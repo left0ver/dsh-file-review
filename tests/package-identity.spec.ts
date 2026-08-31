@@ -6,6 +6,7 @@ import { FILE_REVIEW_INVOCATIONS } from '../src/typert-descriptors.ts'
 
 const manifest = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as {
   name: string
+  files: string[]
 }
 
 describe('package identity', () => {
@@ -24,5 +25,12 @@ describe('package identity', () => {
       `${manifest.name}#fileReview/apply`,
     ])
     expect(JSON.stringify(FILE_REVIEW_INVOCATIONS)).not.toContain('@deepseek-ai/dsh-file-review')
+  })
+
+  it('publishes both README preview images from the correctly named assets directory', () => {
+    expect(manifest.files).toEqual(
+      expect.arrayContaining(['assets/preview.png', 'assets/preview_with_better_sidebar.png']),
+    )
+    expect(manifest.files.some((file) => file.startsWith('assests/'))).toBe(false)
   })
 })
