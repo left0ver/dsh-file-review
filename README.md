@@ -24,10 +24,10 @@ English · [简体中文](README.zh.md)
 ## Preview
 
 Standalone usage:
-![preview](./assests/preview.png)
+![preview](./assets/preview.png)
 
 Used with dsh-better-sidebar:
-![preview_with_better_sidebar](./assests/preview_with_better_sidebar.png)
+![preview_with_better_sidebar](./assets/preview_with_better_sidebar.png)
 
 ## Features
 
@@ -39,6 +39,10 @@ Used with dsh-better-sidebar:
 5. Add comments to changed lines and ask the agent to continue making updates based on the feedback, or ask questions about the changes.
 6. Automatically wrap long text while reviewing. Enable it under Settings → Plugins → Plugin configuration → File review; it is disabled by default.
 7. Multilingual support, including Chinese and English.
+
+## Compatibility
+
+This plugin currently supports only RC and stable releases of DSH. Alpha, beta, and other pre-release versions are not supported.
 
 ## Quick start
 

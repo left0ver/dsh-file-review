@@ -24,10 +24,10 @@
 ## 效果预览
 
 单独使用本插件:
-![preview](./assests/preview.png)
+![preview](./assets/preview.png)
 
 与 dsh-better-sidebar 结合使用:
-![preview_with_better_sidebar](./assests/preview_with_better_sidebar.png)
+![preview_with_better_sidebar](./assets/preview_with_better_sidebar.png)
 
 ## 功能
 
@@ -39,6 +39,10 @@
 5. 可对变更行添加评论，并让 Agent 根据评论内容继续修改，或者对改变更进行询问。
 6. 支持对在review的时候，对长文本自动换行显示，可在“设置 → 插件 → 插件配置 → 文件审查”进行勾选，默认为False。
 7. 多语言支持，包括中文和英文。
+
+## 兼容性声明
+
+目前本插件暂时只支持dsh的rc版本或者正式版本，不支持alpha、beta等测试版本。
 
 ## 快速开始
 
