@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { SettingsScope } from '@deepseek-ai/dsh-client-runtime/client'
+import type { SettingsScope } from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import { DEFAULT_WORD_WRAP, type Config } from '../settings-contract.ts'
 import css from './FileReviewSettingsCard.module.css'

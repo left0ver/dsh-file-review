@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import type { ChatNodeViewProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type { ChatNodeViewProps } from '@deepseek-ai/dsh-client-ui-chat/client'
+import type { MessageImageSource } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import type { NS } from './locales.ts'
 import { ReviewCommentPill } from './ReviewCommentPill.tsx'
@@ -29,11 +30,9 @@ type UserMessageProps = ChatNodeViewProps<'user' | 'steering'> & {
   readonly reviewT: TranslateNS<typeof NS>
 }
 
-type ImageAttachment = Parameters<UserMessageProps['loadImage']>[0]
-
 interface ContentParts {
   readonly text: string
-  readonly images: readonly { readonly attachment: ImageAttachment }[]
+  readonly images: readonly MessageImageSource[]
   readonly rest: readonly unknown[]
 }
 
@@ -88,7 +87,7 @@ export function projectReviewMessageText(text: string): ReviewMessageProjection 
 
 function contentParts(content: readonly unknown[]): ContentParts {
   const texts: string[] = []
-  const images: Array<{ attachment: ImageAttachment }> = []
+  const images: MessageImageSource[] = []
   const rest: unknown[] = []
   for (const block of content) {
     const value = block as {
@@ -98,7 +97,7 @@ function contentParts(content: readonly unknown[]): ContentParts {
     }
     if (value.type === 'text' && typeof value.text === 'string') texts.push(value.text)
     else if (value.type === 'image' && value.attachment !== undefined) {
-      images.push({ attachment: value.attachment as ImageAttachment })
+      images.push({ attachment: value.attachment } as MessageImageSource)
     } else rest.push(block)
   }
   return { text: texts.join(''), images, rest }
@@ -179,120 +178,6 @@ function CopyIcon() {
   )
 }
 
-function ReviewMessageImage({
-  attachment,
-  load,
-  multiple,
-  t,
-}: {
-  readonly attachment: ImageAttachment
-  readonly load: UserMessageProps['loadImage']
-  readonly multiple: boolean
-  readonly t: UserMessageProps['t']
-}) {
-  const [attempt, setAttempt] = useState(0)
-  const [source, setSource] = useState<string | null>(null)
-  const [failed, setFailed] = useState(false)
-  const [open, setOpen] = useState(false)
-
-  useEffect(() => {
-    let current = true
-    setSource(null)
-    setFailed(false)
-    void load(attachment).then(
-      (url) => {
-        if (current) setSource(url)
-      },
-      () => {
-        if (current) setFailed(true)
-      },
-    )
-    return () => {
-      current = false
-    }
-  }, [attachment, attempt, load])
-
-  if (failed) {
-    return (
-      <button
-        type="button"
-        className={css.reviewMessageImageRetry}
-        onClick={() => {
-          setAttempt((value) => value + 1)
-        }}
-      >
-        {t('image.loadFailed')}
-      </button>
-    )
-  }
-  if (source === null)
-    return <span className={css.reviewMessageImageLoading}>{t('image.loading')}</span>
-  const label = t('image.label')
-  return (
-    <>
-      <button
-        type="button"
-        className={`${css.reviewMessageImageButton} ${multiple ? css.reviewMessageImageTile : ''}`}
-        title={t('image.openOriginal')}
-        aria-label={t('image.openOriginalLabel', { label })}
-        onClick={() => {
-          setOpen(true)
-        }}
-      >
-        <img src={source} alt={label} className={css.reviewMessageImage} />
-      </button>
-      {open && (
-        <div
-          className={css.reviewMessageLightbox}
-          role="dialog"
-          aria-modal="true"
-          aria-label={t('image.preview')}
-          onPointerDown={(event) => {
-            if (event.target === event.currentTarget) setOpen(false)
-          }}
-        >
-          <button
-            type="button"
-            className={css.reviewMessageLightboxClose}
-            aria-label={t('image.closePreview')}
-            onClick={() => {
-              setOpen(false)
-            }}
-          >
-            ×
-          </button>
-          <img src={source} alt={label} className={css.reviewMessageLightboxImage} />
-        </div>
-      )}
-    </>
-  )
-}
-
-function ReviewMessageImages({
-  images,
-  load,
-  t,
-}: {
-  readonly images: ContentParts['images']
-  readonly load: UserMessageProps['loadImage']
-  readonly t: UserMessageProps['t']
-}) {
-  if (images.length === 0) return null
-  return (
-    <div className={css.reviewMessageImages}>
-      {images.map((image, index) => (
-        <ReviewMessageImage
-          key={index}
-          attachment={image.attachment}
-          load={load}
-          multiple={images.length > 1}
-          t={t}
-        />
-      ))}
-    </div>
-  )
-}
-
 function ExtraBlock({ value, label }: { readonly value: unknown; readonly label: string }) {
   let serialized: string
   try {
@@ -356,7 +241,13 @@ function MessageActions({
 }
 
 /** Shadow the host user renderer while preserving its ordinary-message behavior. */
-export function ReviewUserMessage({ node, cwd, loadImage, t, reviewT }: UserMessageProps) {
+export function ReviewUserMessage({
+  node,
+  cwd,
+  renderMessageImages,
+  t,
+  reviewT,
+}: UserMessageProps) {
   const { content, time } = node.data
   const { text, images, rest } = contentParts(content)
   const projection = projectReviewMessageText(text)
@@ -376,7 +267,7 @@ export function ReviewUserMessage({ node, cwd, loadImage, t, reviewT }: UserMess
   return (
     <div className={css.reviewMessageRow} data-time-hover-root="">
       <div className={css.reviewMessageStack}>
-        <ReviewMessageImages images={images} load={loadImage} t={t} />
+        {images.length > 0 ? renderMessageImages({ images, align: 'end' }) : null}
         {countLabel !== null && projection !== null && (
           <ReviewCommentPill
             comments={projection.comments.map((comment, index) => ({

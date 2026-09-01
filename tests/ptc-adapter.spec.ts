@@ -1,8 +1,8 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
-import type { CodeDispatchLog, ToolDefinition } from '@deepseek-ai/dsh-tools'
+import type { PtcDispatchLog, ToolDefinition } from '@deepseek-ai/dsh-tools'
 import { describe, expect, it, vi } from 'vitest'
-import { adaptPtcDispatchLog } from '../src/ptc-adapter.ts'
+import { adaptPtcDispatchLog, registerPtcAdapter } from '../src/ptc-adapter.ts'
 import { boundedPtcFileReviewMarker, markerBlock, markerFromContent } from '../src/ptc-marker.ts'
 
 const ROOT = 'root-call'
@@ -37,7 +37,7 @@ function fixture(
     name: 'fixture',
     isError: options.isError ?? false,
     content: [{ type: 'text', text: 'complete result' }],
-  } as unknown as CodeDispatchLog
+  } as unknown as PtcDispatchLog
   return { ctx, dispatch }
 }
 
@@ -46,6 +46,12 @@ function marker(content: readonly unknown[]) {
 }
 
 describe('PTC Host Adapter', () => {
+  it('registers on the alpha.3 PTC log seam', () => {
+    const on = vi.fn(() => () => true)
+    registerPtcAdapter({ on } as unknown as Context)
+    expect(on).toHaveBeenCalledWith('tools/ptc-dispatch-log', expect.any(Function))
+  })
+
   it('round-trips v2 lifecycle diffs while continuing to parse v1 markers', () => {
     const current = boundedPtcFileReviewMarker({
       turn: 3,

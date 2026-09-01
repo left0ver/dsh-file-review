@@ -7,12 +7,15 @@
  * composing this plugin out of cordis.yml removes both surfaces entirely;
  * the owning view renders an empty chain and inert prose at zero cost.
  */
-import type { ClientContext, ISessions, SessionId } from '@deepseek-ai/dsh-client-runtime/client'
-import type { ChatFileMentions } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type { Context as ClientContext } from '@deepseek-ai/cordis'
+import type { ISessions } from '@deepseek-ai/dsh-api-session-controller/client'
+import type {} from '@deepseek-ai/dsh-api-remotes/client'
+import type { ChatFileMentions } from '@deepseek-ai/dsh-client-ui-chat/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
+import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings-plugins/client'
-import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { FileReviewRequest, FileReviewResult } from '../change-types.ts'
 import { TYPERT_REMOTE } from '../remote.ts'
 import {
@@ -46,7 +49,7 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 export const inject = [
   'slots',
   'locale',
-  'conversationEvents',
+  'uiConversation',
   'remote',
   'connection',
   'settingsScope',
@@ -54,11 +57,6 @@ export const inject = [
   'conversation',
   'inputTriggers',
 ]
-
-interface FileReviewRemote {
-  status(request: FileReviewRequest): Promise<RemoteResult<FileReviewResult>>
-  apply(request: FileReviewRequest): Promise<RemoteResult<FileReviewResult>>
-}
 
 /**
  * Client plugin body: register the dictionaries and the turn-tail entry.
@@ -86,13 +84,14 @@ export async function apply(ctx: ClientContext): Promise<() => Promise<void>> {
   ): ReturnType<typeof bindReviewReference> | undefined => {
     let binding = reviewBindings.get(sessionId)
     if (binding !== undefined) return binding
-    const scope = sessions.scope(sessionId)
-    if (scope === undefined) return undefined
+    const session = sessions.binding(sessionId)
+    if (session === undefined) return undefined
     binding = bindReviewReference(
-      scope,
+      session.ctx,
       sessionId,
-      ctx.conversation.input.for(scope),
+      ctx.conversation.input.for(session.ctx),
       ctx.locale.bind(NS),
+      session.eventSource,
     )
     reviewBindings.set(sessionId, binding)
     return binding
@@ -106,12 +105,8 @@ export async function apply(ctx: ClientContext): Promise<() => Promise<void>> {
     ): Promise<FileReviewResult> => {
       const scope = sessions.scope(sessionId)
       if (scope === undefined) throw new Error('Session is unavailable')
-      // Session scopes are minted by the client runtime and cannot statically
-      // inject namespaces contributed later by feature plugins. `get()` is the
-      // Cordis escape hatch for an explicitly mounted dynamic service; tracing
-      // still binds the Remote call to this Session scope.
-      const fileReview = scope.get('remote.fileReview') as FileReviewRemote | undefined
-      if (fileReview === undefined) throw new Error('File review Remote is unavailable')
+      const fileReview = scope.get('remote.fileReview')
+      if (fileReview === undefined) throw new Error('File review remote is unavailable')
       const result = await fileReview[method](request)
       if (!result.ok) throw new Error(result.error.message)
       return result.value
@@ -134,24 +129,19 @@ export async function apply(ctx: ClientContext): Promise<() => Promise<void>> {
 
   installBetterSidebarIntegration(ctx, {
     sessions,
+    uiConversation: ctx.uiConversation,
     wordWrap,
     locale: ctx.locale,
     t,
     runtimeFor: reviewRuntimeFor,
   })
-  ctx.conversationEvents.register(deliverablesDefinition)
+  ctx.uiConversation.events.register(deliverablesDefinition)
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'file-review: dictionaries')
-  const settingsCell = {
-    // rc.7 declares this slot keyed; rc.6 used a list id.
-    key: FILE_REVIEW_SETTINGS_NAMESPACE,
-    id: FILE_REVIEW_SETTINGS_NAMESPACE,
-    order: 30,
-  } as const
   ctx.slots.inject('settings.plugin.item', () =>
     ctx.slots.register(
       {
         name: 'settings.plugin.item',
-        ...settingsCell,
+        key: FILE_REVIEW_SETTINGS_NAMESPACE,
         locale: NS,
         inject: () => ({
           hooks: { fileReviewSettings: settings },
@@ -182,7 +172,7 @@ export async function apply(ctx: ClientContext): Promise<() => Promise<void>> {
           name: 'conversation.chat.node',
           key,
           priority: -10,
-          locale: 'conversation',
+          locale: 'chat',
           inject: () => ({ reviewT: ctx.locale.bind(NS) }),
         },
         ReviewUserMessage,

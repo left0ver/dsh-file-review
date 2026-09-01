@@ -3,7 +3,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
-import type { CodeDispatchLog, ToolCallView, ToolResultView } from '@deepseek-ai/dsh-tools'
+import type { PtcDispatchLog, ToolCallView, ToolResultView } from '@deepseek-ai/dsh-tools'
 import {
   boundedPtcFileReviewMarker,
   markerBlock,
@@ -24,7 +24,7 @@ interface RootCall {
 
 function dispatchStart(
   events: readonly SessionEvent[],
-  dispatch: CodeDispatchLog,
+  dispatch: PtcDispatchLog,
 ): DispatchStart | null {
   const rootCallId = dispatch.exec.rootCallId
   const subCallId = dispatch.subCallId
@@ -102,7 +102,7 @@ function sanitizeLoggedContent(content: ContentBlock[]): ContentBlock[] {
  */
 export async function adaptPtcDispatchLog(
   ctx: Context,
-  dispatch: CodeDispatchLog,
+  dispatch: PtcDispatchLog,
   next: () => Promise<ContentBlock[]>,
 ): Promise<ContentBlock[]> {
   const loggedContent = sanitizeLoggedContent(await next())
@@ -154,9 +154,9 @@ export async function adaptPtcDispatchLog(
   }
 }
 
-/** Register the Adapter on the awaited Code Mode log-copy seam. */
+/** Register the Adapter on the awaited PTC log-copy seam. */
 export function registerPtcAdapter(ctx: Context): () => boolean {
-  return ctx.on('tools/code-dispatch-log', (dispatch, next) =>
+  return ctx.on('tools/ptc-dispatch-log', (dispatch, next) =>
     adaptPtcDispatchLog(ctx, dispatch, next),
   )
 }

@@ -9,22 +9,18 @@ import { Context, Service } from '@deepseek-ai/cordis'
 import { readFileSync } from 'node:fs'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type {
-  ConversationEventInput,
   ConversationLocationDataStore,
   ConversationMatch,
   ConversationTurnDataMap,
-  ToolResultNode,
   TurnLocation,
-} from '@deepseek-ai/dsh-client-runtime/client'
-import type {
-  ChatFileMentions,
-  TurnTailOwnerProps,
 } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type { ChatFileMentions, TurnTailOwnerProps } from '@deepseek-ai/dsh-client-ui-chat/client'
 import { ProducedFiles } from '../src/client/ProducedFiles.tsx'
 import {
   FileReviewSettingsCard,
   type FileReviewSettingsCardProps,
 } from '../src/client/FileReviewSettingsCard.tsx'
+import { FileReviewTab } from '../src/client/FileReviewTab.tsx'
 import {
   ReviewCommentsDock,
   type ReviewCommentsDockProps,
@@ -115,12 +111,11 @@ function tailOwner(
   return { seq, openFile, turn: turnLocation(turn, data) }
 }
 
-function at(
-  seq: number,
-  type: string,
-  data: unknown,
-  view?: ConversationEventInput['view'],
-): ConversationEventInput {
+interface ConversationEventInput {
+  readonly event: ConversationMatch['event']
+}
+
+function at(seq: number, type: string, data: unknown): ConversationEventInput {
   return {
     event: {
       seq,
@@ -128,8 +123,7 @@ function at(
       type,
       data,
       ...(type === 'tool/result' ? { surfaceOp: 'append' } : {}),
-    } as ConversationEventInput['event'],
-    view,
+    } as ConversationMatch['event'],
   }
 }
 
@@ -137,57 +131,60 @@ function matched(
   input: ConversationEventInput,
   role: ConversationMatch['role'],
 ): ConversationMatch {
-  return { ...input, role, location: { kind: 'unresolved' } }
+  return { ...input, role, location: { kind: 'unresolved' } } as ConversationMatch
 }
 
-function call(
-  seq: number,
-  callId: string,
-  view: ToolResultNode['callView'],
-  turn = 1,
-  step = 1,
-): ConversationEventInput {
-  return at(
-    seq,
-    'tool/call',
-    { turn, step, callId, name: 'fixture', arguments: '{}' },
-    { for: 'call', view: view ?? { card: 'generic', title: 'fixture' } },
-  )
+function call(seq: number, callId: string, turn = 1, step = 1): ConversationEventInput {
+  return at(seq, 'tool/call', { turn, step, callId, name: 'fixture', arguments: '{}' })
+}
+
+interface MarkerFile {
+  readonly path: string
+  readonly diffs?: readonly ProducedFileDiff[]
+  readonly source?: 'result' | 'intent'
 }
 
 function result(
   seq: number,
   callId: string,
-  isError = false,
-  turn = 1,
-  view?: NonNullable<ToolResultNode['resultView']>,
+  files?: readonly MarkerFile[],
+  options: {
+    readonly isError?: boolean
+    readonly turn?: number
+    readonly step?: number
+  } = {},
 ): ConversationEventInput {
-  return at(
-    seq,
-    'tool/result',
-    {
-      turn,
-      step: 1,
-      message: {
-        source: { type: 'tool-result', callId },
-        content: [{ type: 'tool-result', content: [], isError }],
-      },
+  const turn = options.turn ?? 1
+  const step = options.step ?? 1
+  const marker =
+    files === undefined
+      ? null
+      : boundedPtcFileReviewMarker({
+          turn,
+          step,
+          rootCallId: callId,
+          subCallId: callId,
+          files: files.map((file) => ({
+            path: file.path,
+            diffs: file.diffs ?? [],
+            source: file.source ?? 'result',
+          })),
+        })
+  if (files !== undefined && marker === null) throw new Error('fixture marker exceeded its budget')
+  return at(seq, 'tool/result', {
+    turn,
+    step,
+    message: {
+      source: { type: 'tool-result', callId },
+      content: [
+        {
+          type: 'tool-result',
+          content: marker === null ? [] : [markerBlock(marker)],
+          isError: options.isError ?? false,
+        },
+      ],
     },
-    view === undefined ? undefined : { for: 'result', view },
-  )
-}
-
-function diff(...paths: string[]): ToolResultNode['callView'] {
-  return {
-    card: 'diff',
-    title: `Write ${paths[0] ?? ''}`,
-    diffs: paths.map((path) => ({ path, oldText: null, newText: 'x' })),
-    locations: paths.map((path) => ({ path })),
-  }
-}
-
-function edit(path: string): ToolResultNode['callView'] {
-  return { card: 'generic', title: `insert ${path}`, kind: 'edit', locations: [{ path }] }
+  })
 }
 
 function ptc(
@@ -227,29 +224,6 @@ function ptc(
     isError: options.isError ?? false,
     content: [markerBlock(marker)],
   })
-}
-
-function appliedDiff(
-  ...diffs: ReadonlyArray<
-    readonly [
-      path: string,
-      oldText: string | null,
-      newText: string,
-      oldStart?: number,
-      newStart?: number,
-    ]
-  >
-): NonNullable<ToolResultNode['resultView']> {
-  return {
-    card: 'diff',
-    diffs: diffs.map(([path, oldText, newText, oldStart, newStart]) => ({
-      path,
-      oldText,
-      newText,
-      ...(oldStart === undefined ? {} : { oldStart }),
-      ...(newStart === undefined ? {} : { newStart }),
-    })),
-  }
 }
 
 /** Drive the package definition directly through the public definition callbacks. */
@@ -311,28 +285,26 @@ describe('produced-file Turn data', () => {
     expect(selectProducedFiles(tailOwner(undefined, 9, () => {}, 2))).toBeNull()
   })
 
-  it('folds successful diff and generic-edit calls while ignoring reads, failures, and missing locations', () => {
+  it('folds successful native markers while ignoring markerless and failed results', () => {
     const value = fold([
       at(1, 'turn/start', { turn: 1 }),
-      call(2, 'write', diff('out/index.html', 'out/app.css')),
-      result(
-        3,
-        'write',
-        false,
-        1,
-        appliedDiff(
-          ['out/index.html', 'old html', 'new html'],
-          ['out/app.css', 'old css', 'new css'],
-        ),
-      ),
-      call(4, 'edit', edit('notes.md')),
-      result(5, 'edit'),
-      call(6, 'read', { card: 'generic', title: 'Read', locations: [{ path: 'input.txt' }] }),
+      call(2, 'write'),
+      result(3, 'write', [
+        {
+          path: 'out/index.html',
+          diffs: [{ path: 'out/index.html', oldText: 'old html', newText: 'new html' }],
+        },
+        {
+          path: 'out/app.css',
+          diffs: [{ path: 'out/app.css', oldText: 'old css', newText: 'new css' }],
+        },
+      ]),
+      call(4, 'edit'),
+      result(5, 'edit', [{ path: 'notes.md', source: 'intent' }]),
+      call(6, 'read'),
       result(7, 'read'),
-      call(8, 'failed', diff('broken.txt')),
-      result(9, 'failed', true),
-      call(10, 'locationless', { card: 'diff', title: 'Write', diffs: [] }),
-      result(11, 'locationless'),
+      call(8, 'failed'),
+      result(9, 'failed', [{ path: 'broken.txt' }], { isError: true }),
     ])
 
     expect(producedForClosing(value)).toEqual(['out/index.html', 'out/app.css', 'notes.md'])
@@ -345,20 +317,30 @@ describe('produced-file Turn data', () => {
     ])
   })
 
-  it('appends same-file hunks and only falls back when result has no diff presentation', () => {
+  it('appends same-file marker hunks and ignores markerless results', () => {
     const value = fold([
       at(1, 'turn/start', { turn: 1 }),
-      call(2, 'first', diff('same.txt')),
-      result(3, 'first'),
-      call(4, 'second', diff('same.txt')),
-      result(5, 'second', false, 1, appliedDiff(['same.txt', 'middle', 'after', 12, 12])),
-      call(6, 'malformed', diff('broken.txt')),
-      result(7, 'malformed', false, 1, {
-        card: 'diff',
-        diffs: [{ path: 'broken.txt', oldText: 'a', newText: 'b', oldStart: 0 }],
-      } as never),
-      call(8, 'unchanged', diff('unchanged.txt')),
-      result(9, 'unchanged', false, 1, appliedDiff()),
+      call(2, 'first'),
+      result(3, 'first', [
+        { path: 'same.txt', diffs: [{ path: 'same.txt', oldText: null, newText: 'x' }] },
+      ]),
+      call(4, 'second'),
+      result(5, 'second', [
+        {
+          path: 'same.txt',
+          diffs: [
+            {
+              path: 'same.txt',
+              oldText: 'middle',
+              newText: 'after',
+              oldStart: 12,
+              newStart: 12,
+            },
+          ],
+        },
+      ]),
+      call(6, 'markerless'),
+      result(7, 'markerless'),
     ])
 
     expect(reviewsForClosing(value)).toEqual([
@@ -369,11 +351,16 @@ describe('produced-file Turn data', () => {
     ])
   })
 
-  it('uses a partial result without adding unapplied intent files', () => {
+  it('uses a partial marker without adding uncaptured files', () => {
     const value = fold([
       at(1, 'turn/start', { turn: 1 }),
-      call(2, 'partial', diff('applied.txt', 'planned.txt')),
-      result(3, 'partial', false, 1, appliedDiff(['applied.txt', 'old', 'actual'])),
+      call(2, 'partial'),
+      result(3, 'partial', [
+        {
+          path: 'applied.txt',
+          diffs: [{ path: 'applied.txt', oldText: 'old', newText: 'actual' }],
+        },
+      ]),
     ])
 
     expect(reviewsForClosing(value)).toEqual([
@@ -384,7 +371,7 @@ describe('produced-file Turn data', () => {
   it('folds PTC result and intent markers into the same Turn deliverables', () => {
     const value = fold([
       at(1, 'turn/start', { turn: 1 }),
-      call(2, 'run-code', { card: 'generic', title: 'Run code', kind: 'execute' }),
+      call(2, 'run-code'),
       ptc(3, 'run-code:code:0', [
         {
           path: 'out.txt',
@@ -446,19 +433,10 @@ describe('produced-file Turn data', () => {
       ],
     })
     if (captured === null) throw new Error('fixture marker exceeded its budget')
-    const settled = result(3, callId, false, 1, appliedDiff(['created.txt', null, 'created', 1, 1]))
-    const toolResult = (
-      settled.event.data as {
-        message: { content: Array<{ content: unknown[] }> }
-      }
-    ).message.content[0]
-    if (toolResult === undefined) throw new Error('missing fixture tool result')
-    toolResult.content = [markerBlock(captured)]
-
     const value = fold([
       at(1, 'turn/start', { turn: 1 }),
-      call(2, callId, diff('created.txt')),
-      settled,
+      call(2, callId),
+      result(3, callId, captured.files),
     ])
 
     expect(reviewsForClosing(value)).toEqual([fileReview('created.txt', captured.files[0]?.diffs)])
@@ -482,7 +460,7 @@ describe('produced-file Turn data', () => {
     ;(invalidIds.event.data as { rootCallId: unknown }).rootCallId = null
     const value = fold([
       at(1, 'turn/start', { turn: 1 }),
-      call(2, 'run-code', { card: 'generic', title: 'Run code', kind: 'execute' }),
+      call(2, 'run-code'),
       accepted,
       duplicate,
       failed,
@@ -497,7 +475,7 @@ describe('produced-file Turn data', () => {
   it('restores PTC previews after a JSON history round trip', () => {
     const entries = [
       at(1, 'turn/start', { turn: 1 }),
-      call(2, 'run-code', { card: 'generic', title: 'Run code', kind: 'execute' }),
+      call(2, 'run-code'),
       ptc(3, 'run-code:code:0', [
         {
           path: 'persisted.txt',
@@ -512,16 +490,26 @@ describe('produced-file Turn data', () => {
     ])
   })
 
-  it('ignores calls without mutation locations, orphan results, and replacement results', () => {
-    const replacement = result(8, 'replacement')
+  it('ignores markerless, orphan, mismatched, and replacement results', () => {
+    const replacement = result(8, 'replacement', [
+      {
+        path: 'replaced.txt',
+        diffs: [{ path: 'replaced.txt', oldText: 'old', newText: 'new' }],
+      },
+    ])
     const value = fold([
       at(1, 'turn/start', { turn: 1 }),
-      at(2, 'tool/call', { turn: 1, step: 1, callId: 'no-view', name: 'fixture', arguments: '{}' }),
-      result(3, 'no-view'),
-      call(4, 'locationless-edit', { card: 'generic', title: 'Edit', kind: 'edit' }),
-      result(5, 'locationless-edit'),
-      result(6, 'orphan', false, 1, appliedDiff(['orphan.txt', 'old', 'new'])),
-      call(7, 'replacement', diff('replaced.txt')),
+      call(2, 'markerless'),
+      result(3, 'markerless'),
+      result(4, 'orphan', [
+        {
+          path: 'orphan.txt',
+          diffs: [{ path: 'orphan.txt', oldText: 'old', newText: 'new' }],
+        },
+      ]),
+      call(5, 'wrong-step'),
+      result(6, 'wrong-step', [{ path: 'mismatched.txt' }], { step: 2 }),
+      call(7, 'replacement'),
       {
         ...replacement,
         event: {
@@ -529,16 +517,6 @@ describe('produced-file Turn data', () => {
           surfaceOp: { op: 'replace', start: 1, end: 1 },
         } as ConversationEventInput['event'],
       },
-      call(9, 'malformed-locations', {
-        card: 'diff',
-        title: 'Write',
-        diffs: [],
-        locations: [null, { path: 4 }],
-      } as never),
-      result(10, 'malformed-locations'),
-      call(11, 'delete', { card: 'generic', title: 'Delete', kind: 'delete' }),
-      result(12, 'delete', false, 1, appliedDiff(['deleted.txt', 'old', ''])),
-      at(13, 'turn/end', { turn: 1, reason: { kind: 'completed' } }),
     ])
 
     expect(producedForClosing(value)).toEqual([])
@@ -569,6 +547,56 @@ describe('produced-file Turn data', () => {
       'deliverables start requires turn/start',
     )
     expect(deliverablesDefinition.update(context, unrelated)).toBe(state)
+  })
+})
+
+describe('better-sidebar review tab', () => {
+  it('reads the alpha.3 chat target and unsubscribes while hidden', () => {
+    const sessionBinding = {}
+    const unsubscribeChat = vi.fn()
+    const chatSnapshot = {
+      timeline: {
+        turns: new Map([[1, turnLocation(1, produced([3, 'src/a.ts'], [3, 'src/b.ts']))]]),
+      },
+    }
+    const chat = {
+      getSnapshot: () => chatSnapshot,
+      subscribe: vi.fn(() => unsubscribeChat),
+    }
+    const target = vi.fn(() => chat)
+    const bindConversation = vi.fn(() => ({ target }))
+    const sessionsSnapshot = { byId: { 'session-1': { cwd: '/workspace' } } }
+    const props = {
+      sessions: {
+        binding: vi.fn(() => sessionBinding),
+        list: {
+          getSnapshot: () => sessionsSnapshot,
+          subscribe: () => () => {},
+        },
+      },
+      uiConversation: { binding: bindConversation },
+      scope: { sessionId: 'session-1', cwd: '/workspace' },
+      tab: { meta: { turn: 1, closingSeq: 9, focusPaths: ['src/a.ts'] } },
+      visible: true,
+      runtime: {
+        inspectChanges: async () => ({ files: [] }),
+        applyChanges: async () => ({ files: [] }),
+      },
+      wordWrap: { getSnapshot: () => false, subscribe: () => () => {} },
+      openFile: vi.fn(),
+      t: makeTranslate(en),
+    } as unknown as Parameters<typeof FileReviewTab>[0]
+
+    const view = render(<FileReviewTab {...props} />)
+
+    expect(view.getByText('src/a.ts')).toBeTruthy()
+    expect(view.queryByText('src/b.ts')).toBeNull()
+    expect(bindConversation).toHaveBeenCalledWith(sessionBinding)
+    expect(target).toHaveBeenCalledWith('chat')
+    expect(chat.subscribe).toHaveBeenCalledOnce()
+
+    view.rerender(<FileReviewTab {...props} visible={false} />)
+    expect(unsubscribeChat).toHaveBeenCalledOnce()
   })
 })
 
@@ -1483,6 +1511,8 @@ describe('sent review comment projection', () => {
 
   it('renders the model-only envelope as a compact comment count pill', () => {
     const absolutePath = '/Users/test/projects/example/src/client/index.ts'
+    const attachment = { id: 'image-1' }
+    const renderMessageImages = vi.fn(() => <span>Rendered image</span>)
     setReviewComment({
       sessionId: 'rendered-session',
       turn: 3,
@@ -1503,11 +1533,14 @@ describe('sent review comment projection', () => {
     const props = {
       node: {
         data: {
-          content: [{ type: 'text', text: `${serialized}\n\nPlease apply it.` }],
+          content: [
+            { type: 'text', text: `${serialized}\n\nPlease apply it.` },
+            { type: 'image', attachment },
+          ],
           time: Date.now(),
         },
       },
-      loadImage: vi.fn(),
+      renderMessageImages,
       cwd: '/Users/test/projects/example',
       t: (key: string) => key,
       reviewT: makeTranslate(en),
@@ -1516,6 +1549,11 @@ describe('sent review comment projection', () => {
 
     expect(view.getByText('1 comment')).toBeTruthy()
     expect(view.getByText('Please apply it.')).toBeTruthy()
+    expect(view.getByText('Rendered image')).toBeTruthy()
+    expect(renderMessageImages).toHaveBeenCalledExactlyOnceWith({
+      images: [{ attachment }],
+      align: 'end',
+    })
     expect(view.queryByText(/file_review_comments/)).toBeNull()
 
     const pill = view.getByRole('button', { name: '1 comment' })
@@ -1704,6 +1742,13 @@ describe('plugin registration', () => {
       settingsScope: { bind: bindSettings },
       sessions: {
         scope: vi.fn(() => sessionScope.ctx),
+        binding: vi.fn(() => ({
+          ctx: sessionScope.ctx,
+          eventSource: {
+            getSnapshot: () => ({ change: { kind: 'replace', entries: [] } }),
+            subscribe: () => () => {},
+          },
+        })),
         list: {
           getSnapshot: () => ({
             byId: {
@@ -1712,10 +1757,12 @@ describe('plugin registration', () => {
           }),
         },
       },
-      conversationEvents: {
-        register: (value: unknown) => {
-          definition = value
-          return () => {}
+      uiConversation: {
+        events: {
+          register: (value: unknown) => {
+            definition = value
+            return () => {}
+          },
         },
       },
       conversation: {
@@ -1761,7 +1808,7 @@ describe('plugin registration', () => {
     expect(inject).toEqual([
       'slots',
       'locale',
-      'conversationEvents',
+      'uiConversation',
       'remote',
       'connection',
       'settingsScope',
@@ -1782,8 +1829,6 @@ describe('plugin registration', () => {
       options: expect.objectContaining({
         name: 'settings.plugin.item',
         key: 'file-review',
-        id: 'file-review',
-        order: 30,
         locale: NS,
         inject: expect.any(Function),
       }),
@@ -1811,7 +1856,7 @@ describe('plugin registration', () => {
             name: 'conversation.chat.node',
             key: 'user',
             priority: -10,
-            locale: 'conversation',
+            locale: 'chat',
           }),
           component: ReviewUserMessage,
         },
@@ -1820,7 +1865,7 @@ describe('plugin registration', () => {
             name: 'conversation.chat.node',
             key: 'steering',
             priority: -10,
-            locale: 'conversation',
+            locale: 'chat',
           }),
           component: ReviewUserMessage,
         },
