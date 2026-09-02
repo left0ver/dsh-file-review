@@ -14,7 +14,11 @@ function event(seq: number, type: string, data: unknown) {
 
 function fixture(
   definition: Partial<ToolDefinition>,
-  options: { readonly events?: readonly unknown[]; readonly isError?: boolean } = {},
+  options: {
+    readonly events?: readonly unknown[]
+    readonly isError?: boolean
+    readonly snapshotEvents?: boolean
+  } = {},
 ) {
   const events = options.events ?? [
     event(0, 'tool/call', { turn: 3, step: 2, callId: ROOT, name: 'run_code', arguments: '{}' }),
@@ -26,7 +30,9 @@ function fixture(
       arguments: { path: 'out.txt' },
     }),
   ]
-  const agent = { session: { events } }
+  const agent = {
+    session: options.snapshotEvents ? { snapshotEvents: () => events } : { events },
+  }
   const ctx = {
     tools: { get: vi.fn(() => definition) },
   } as unknown as Context
@@ -150,18 +156,23 @@ describe('PTC Host Adapter', () => {
   })
 
   it('prefers applied result diffs and keeps existing shaped text invisible', async () => {
-    const { ctx, dispatch } = fixture({
-      presentCall: () => ({
-        card: 'diff',
-        title: 'Edit out.txt',
-        locations: [{ path: 'out.txt' }],
-        diffs: [{ path: 'out.txt', oldText: 'planned', newText: 'intent' }],
-      }),
-      presentResult: () => ({
-        card: 'diff',
-        diffs: [{ path: 'out.txt', oldText: 'before', newText: 'after', oldStart: 7, newStart: 7 }],
-      }),
-    })
+    const { ctx, dispatch } = fixture(
+      {
+        presentCall: () => ({
+          card: 'diff',
+          title: 'Edit out.txt',
+          locations: [{ path: 'out.txt' }],
+          diffs: [{ path: 'out.txt', oldText: 'planned', newText: 'intent' }],
+        }),
+        presentResult: () => ({
+          card: 'diff',
+          diffs: [
+            { path: 'out.txt', oldText: 'before', newText: 'after', oldStart: 7, newStart: 7 },
+          ],
+        }),
+      },
+      { snapshotEvents: true },
+    )
     const next = vi.fn(async () => [{ type: 'text', text: 'shaped preview' }] as ContentBlock[])
     const content = await adaptPtcDispatchLog(ctx, dispatch, next)
 

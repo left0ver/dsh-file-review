@@ -10,6 +10,7 @@ import {
   markerFromContent,
   normalizeMutationPresentation,
 } from './ptc-marker.ts'
+import { sessionEvents } from './session-events.ts'
 
 interface DispatchStart {
   readonly arguments: unknown
@@ -108,7 +109,7 @@ export async function adaptPtcDispatchLog(
   const loggedContent = sanitizeLoggedContent(await next())
   if (dispatch.isError || dispatch.agent === undefined) return loggedContent
   try {
-    const events = dispatch.agent.session.events
+    const events = sessionEvents(dispatch.agent.session)
     const start = dispatchStart(events, dispatch)
     if (start === null) return loggedContent
     const root = rootCall(events, start.rootCallId)
