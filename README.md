@@ -4,7 +4,8 @@
 
 **Review every file an agent just changed—without leaving DeepSeek Harness Web.**
 
-![DeepSeek Harness 0.1.x](https://img.shields.io/badge/DeepSeek%20Harness-0.1.x-4f46e5)
+![Adapted DSH CLI version](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fleft0ver%2Fdsh-file-review%2Fdev%2Fpackage.json&query=%24.dsh.adapter.cliVersion&label=DSH%20CLI&color=4f46e5)
+![Adapted dsh-better-sidebar version](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fleft0ver%2Fdsh-file-review%2Fdev%2Fpackage.json&query=%24.dsh.adapter.betterSidebarVersion&label=dsh-better-sidebar&color=8b5cf6)
 ![Web profile](https://img.shields.io/badge/profile-Web-0ea5e9)
 [![npm version](https://img.shields.io/npm/v/dsh-file-review.svg)](https://www.npmjs.com/package/dsh-file-review)
 [![npm downloads](https://img.shields.io/npm/dm/dsh-file-review.svg)](https://www.npmjs.com/package/dsh-file-review)
@@ -42,7 +43,7 @@ Used with dsh-better-sidebar:
 
 ## Compatibility
 
-This plugin currently supports only RC and stable releases of DSH. Alpha, beta, and other pre-release versions are not supported.
+The currently adapted versions are shown in the compatibility badges above. Other versions have not been verified.
 
 ## Quick start
 

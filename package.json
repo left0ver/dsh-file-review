@@ -67,8 +67,8 @@
     "test:e2e": "npm run build && playwright test",
     "test:e2e:standalone": "npm run build && E2E_VARIANT=standalone playwright test --project=standalone",
     "test:e2e:better-sidebar": "npm run build && E2E_VARIANT=better-sidebar playwright test --project=better-sidebar",
-    "adapter:e2e": "sh scripts/run-e2e.sh",
-    "adapter:start-dsh": "sh scripts/start-dsh.sh",
+    "adapter:e2e": "sh adapter_script/run-e2e.sh",
+    "adapter:start-dsh": "sh adapter_script/start-dsh.sh",
     "test": "npm run build && vitest run && npm run test:pack",
     "test:pack": "node scripts/verify-pack.mjs",
     "prepack": "npm run codecheck && npm run typecheck && npm test",
@@ -164,6 +164,10 @@
     }
   },
   "dsh": {
+    "adapter": {
+      "cliVersion": "0.1.2-alpha.3",
+      "betterSidebarVersion": "0.18.0-alpha.0"
+    },
     "bundle": {
       "patch": "./cordis.patch.yml"
     },

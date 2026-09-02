@@ -2,6 +2,9 @@ name: Publish to npm
 
 on:
   workflow_dispatch:
+  pull_request:
+    branches:
+      - dev
   push:
     tags:
       - 'v*'
@@ -45,24 +48,6 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Install DSH CLI
-        shell: bash
-        run: |
-          dsh_version="$(
-            npm view @deepseek-ai/dsh time --json |
-              node -e '
-                const times = JSON.parse(require("node:fs").readFileSync(0, "utf8"))
-                const versions = Object.entries(times)
-                  .filter(([version]) => version !== "created" && version !== "modified")
-                  .sort((left, right) => Date.parse(right[1]) - Date.parse(left[1]))
-                if (versions.length === 0) throw new Error("No published DSH CLI versions found")
-                process.stdout.write(versions[0][0])
-              '
-          )"
-          echo "Installing latest published DSH CLI version: ${dsh_version}"
-          npm install --global "@deepseek-ai/dsh@${dsh_version}"
-          dsh --version
-
       - name: Verify E2E configuration
         shell: bash
         run: |
@@ -85,7 +70,11 @@ jobs:
         run: pnpm exec playwright install --with-deps chromium
 
       - name: Run E2E tests
-        run: pnpm test:e2e
+        shell: bash
+        run: |
+          DSH_VERSION="$(node -p 'require("./package.json").dsh.adapter.cliVersion')"
+          BETTER_SIDEBAR_VERSION="$(node -p 'require("./package.json").dsh.adapter.betterSidebarVersion')"
+          npm run adapter:e2e -- "$DSH_VERSION" "$BETTER_SIDEBAR_VERSION"
 
       - name: Upload E2E diagnostics
         if: failure()

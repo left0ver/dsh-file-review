@@ -6,7 +6,7 @@ dsh_version=${1:-}
 sidebar_version=${2:-}
 
 if [ -z "$dsh_version" ] || [ -z "$sidebar_version" ]; then
-  echo 'Usage: ./scripts/run-e2e.sh <dsh-version> <better-sidebar-version> [Playwright options]' >&2
+  echo 'Usage: ./adapter_script/run-e2e.sh <dsh-version> <better-sidebar-version> [Playwright options]' >&2
   exit 2
 fi
 shift 2

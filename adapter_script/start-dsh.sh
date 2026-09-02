@@ -7,7 +7,7 @@ plugin_branch=${2:-}
 sidebar_version=${3:-}
 
 if [ -z "$dsh_version" ] || [ -z "$plugin_branch" ] || [ -z "$sidebar_version" ]; then
-  echo 'Usage: ./scripts/start-dsh-github.sh <dsh-version> <plugin-branch> <better-sidebar-version> [dsh web options]' >&2
+  echo 'Usage: ./adapter_script/start-dsh.sh <dsh-version> <plugin-branch> <better-sidebar-version> [dsh web options]' >&2
   exit 2
 fi
 shift 3
