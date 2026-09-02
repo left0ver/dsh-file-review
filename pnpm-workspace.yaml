@@ -1,3 +1,5 @@
+autoInstallPeers: false
+
 allowBuilds:
   esbuild: true
   node-pty: true

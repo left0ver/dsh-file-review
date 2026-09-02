@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { spawn, spawnSync } from 'node:child_process'
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { dshInvocation, seedRuntimeState } from './dsh-runtime.mjs'
@@ -64,6 +64,10 @@ function allowNodePtyBuild() {
 
 seedRuntimeState({ dshHome, root })
 
+const launchUrlFile = path.join(root, `.e2e/dsh-web-${port}.url`)
+writeFileSync(launchUrlFile, '', { mode: 0o600 })
+chmodSync(launchUrlFile, 0o600)
+
 let manifest = readManifest()
 const expectedFileReviewLink = `link:${root}`
 if (
@@ -99,7 +103,20 @@ const webInvocation = dshInvocation([
 const child = spawn(webInvocation.command, webInvocation.args, {
   cwd: root,
   env: pluginEnvironment,
-  stdio: 'inherit',
+  stdio: ['inherit', 'pipe', 'inherit'],
+})
+
+let pendingOutput = ''
+child.stdout.setEncoding('utf8')
+child.stdout.on('data', (chunk) => {
+  process.stdout.write(chunk)
+  pendingOutput += chunk
+  const match = pendingOutput.match(
+    /dsh web: (http:\/\/127\.0\.0\.1:\d+(?:\/\?token=[A-Za-z0-9_-]+)?)/u,
+  )
+  if (match === null) return
+  writeFileSync(launchUrlFile, `${match[1]}\n`)
+  pendingOutput = ''
 })
 
 const forwardSignal = (signal) => {

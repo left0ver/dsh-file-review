@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import type { Ref } from 'react'
-import type { ObservableSnapshot } from '@deepseek-ai/dsh-client-runtime/client'
+import type { ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type { FileReviewRequest, FileReviewResult } from '../change-types.ts'
 import { displayProjectPath } from './project-path.ts'

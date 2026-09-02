@@ -1,21 +1,18 @@
 /**
  * Turn-scoped produced-file definition and readers. Client-only and
- * model-free: Native calls use Host presentation views while PTC settlements
- * use this plugin's validated durable marker, never the closing prose.
+ * model-free: Native and PTC settlements use this plugin's validated durable
+ * Host marker, never transient Client presentation data or the closing prose.
  */
+import type { TurnTailOwnerProps } from '@deepseek-ai/dsh-client-ui-chat/client'
 import type {
+  ConversationMatch,
   ConversationNodeDefinition,
-  ToolResultNode,
-} from '@deepseek-ai/dsh-client-runtime/client'
+} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { MarkdownFileMentions } from '@deepseek-ai/dsh-client-ui-primitives'
-import type { TurnTailOwnerProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
-import type { SessionEvent } from '@deepseek-ai/dsh-session'
+import { isAppendSurfaceEvent } from '@deepseek-ai/dsh-session/surface'
+import type {} from '@deepseek-ai/dsh-tools/types'
 import type { ProducedFileDiff, ProducedFileReview } from '../change-types.ts'
-import {
-  markerFromContent,
-  normalizeMutationPresentation,
-  type PtcFileReviewMarker,
-} from '../ptc-marker.ts'
+import { markerFromContent, type PtcFileReviewMarker } from '../ptc-marker.ts'
 
 export type { ProducedFileDiff, ProducedFileReview } from '../change-types.ts'
 
@@ -31,7 +28,7 @@ export interface DeliverablesTurnData {
   readonly produced: readonly ProducedPath[]
 }
 
-declare module '@deepseek-ai/dsh-client-runtime/client' {
+declare module '@deepseek-ai/dsh-client-ui-conversation/client' {
   interface ConversationTurnDataMap {
     /** Successful mutation paths accumulated in this Turn. */
     deliverables: DeliverablesTurnData
@@ -44,13 +41,14 @@ interface DeliverablesState extends DeliverablesTurnData {
     string,
     {
       readonly step: number
-      readonly view: ToolResultNode['callView']
     }
   >
   readonly subCalls: ReadonlySet<string>
 }
 
-function dispatchMarker(event: SessionEvent): PtcFileReviewMarker | null {
+type ConversationEvent = ConversationMatch['event']
+
+function dispatchMarker(event: ConversationEvent): PtcFileReviewMarker | null {
   if (event.type !== 'tool/code-dispatch') return null
   const data = event.data as unknown as Record<string, unknown>
   if (
@@ -68,7 +66,7 @@ function dispatchMarker(event: SessionEvent): PtcFileReviewMarker | null {
   })
 }
 
-function nativeResultMarker(event: SessionEvent): PtcFileReviewMarker | null {
+function nativeResultMarker(event: ConversationEvent): PtcFileReviewMarker | null {
   if (event.type !== 'tool/result') return null
   const callId = event.data.message.source.callId
   const result = event.data.message.content[0]
@@ -111,13 +109,13 @@ export function reviewsForClosing(
 /**
  * Files produced by one Turn data value.
  *
- * The source is the mutation tools' presentation contract, not the closing
- * prose: Native calls arrive as Host views and PTC calls as the Adapter's
- * marker. A mutation is recognized by render intent, never by tool name, so a
- * new mutation tool joins by declaring what it does. Reads and failed calls
- * contribute nothing; successful deletes are included when their mutation
- * intent names a path. Paths keep first-seen order and appear once, so a file
- * written and then edited in the same turn is one entry.
+ * The source is the Host marker derived from mutation-tool presentation and
+ * filesystem snapshots, not the closing prose. A mutation is recognized by
+ * render intent, never by tool name, so a new mutation tool joins by declaring
+ * what it does. Reads and failed calls contribute nothing; successful deletes
+ * are included when their mutation intent names a path. Paths keep first-seen
+ * order and appear once, so a file written and then edited in the same turn is
+ * one entry.
  *
  * The Conversation Location index owns turn membership before this function
  * runs, so paths cannot spill across turns and this derivation does not infer
@@ -159,7 +157,7 @@ export const deliverablesDefinition: ConversationNodeDefinition<DeliverablesStat
   match: (event) => {
     if (event.type === 'turn/start') return { id: String(event.data.turn), role: 'start' }
     if (event.type === 'tool/call') return { id: String(event.data.turn), role: 'update' }
-    if (event.type === 'tool/result' && (event as { surfaceOp?: unknown }).surfaceOp === 'append') {
+    if (event.type === 'tool/result' && isAppendSurfaceEvent(event)) {
       return { id: String(event.data.turn), role: 'update' }
     }
     const marker = dispatchMarker(event)
@@ -178,7 +176,6 @@ export const deliverablesDefinition: ConversationNodeDefinition<DeliverablesStat
       const calls = new Map(context.state.calls)
       calls.set(match.event.data.callId, {
         step: match.event.data.step,
-        view: match.view?.for === 'call' ? match.view.view : null,
       })
       return { ...context.state, calls }
     }
@@ -189,12 +186,10 @@ export const deliverablesDefinition: ConversationNodeDefinition<DeliverablesStat
       if (typeof callId !== 'string' || callId === '') return context.state
       const call = context.state.calls.get(callId)
       if (call === undefined) return context.state
-      const resultView = match.view?.for === 'result' ? match.view.view : undefined
       const captured = nativeResultMarker(match.event)
-      const files =
-        captured !== null && captured.turn === context.state.turn && captured.step === call.step
-          ? captured.files
-          : normalizeMutationPresentation(call.view, resultView)
+      if (captured === null || captured.turn !== context.state.turn || captured.step !== call.step)
+        return context.state
+      const files = captured.files
       const additions = files.map((file) => ({
         seq: match.event.seq,
         path: file.path,

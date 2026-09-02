@@ -4,7 +4,8 @@
 
 **无需离开 DeepSeek Harness Web，即可立即审查 Agent 刚刚修改的每个文件。**
 
-![DeepSeek Harness 0.1.x](https://img.shields.io/badge/DeepSeek%20Harness-0.1.x-4f46e5)
+![Adapted DSH CLI version](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fleft0ver%2Fdsh-file-review%2Fdev%2Fpackage.json&query=%24.dsh.adapter.cliVersion&label=DSH%20CLI&color=4f46e5)
+![Adapted dsh-better-sidebar version](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fleft0ver%2Fdsh-file-review%2Fdev%2Fpackage.json&query=%24.dsh.adapter.betterSidebarVersion&label=dsh-better-sidebar&color=8b5cf6)
 ![Web profile](https://img.shields.io/badge/profile-Web-0ea5e9)
 [![npm version](https://img.shields.io/npm/v/dsh-file-review.svg)](https://www.npmjs.com/package/dsh-file-review)
 [![npm downloads](https://img.shields.io/npm/dm/dsh-file-review.svg)](https://www.npmjs.com/package/dsh-file-review)
@@ -42,7 +43,7 @@
 
 ## 兼容性声明
 
-目前本插件暂时只支持dsh的rc版本或者正式版本，不支持alpha、beta等测试版本。
+当前适配版本见文档顶部的兼容性徽章，其他版本尚未验证。
 
 ## 快速开始
 

@@ -7,7 +7,7 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
-import { installSettingsSection, settingsNamespace } from '@deepseek-ai/dsh-settings'
+import type {} from '@deepseek-ai/dsh-settings'
 import type {} from '@deepseek-ai/dsh-system-prompt'
 import type {} from '@deepseek-ai/dsh-tools'
 import { FileReviewService } from './file-review-service.ts'
@@ -43,11 +43,13 @@ const FILE_REFERENCE_PROMPT =
  * @param ctx - host context carrying the system-prompt registry.
  */
 export function apply(ctx: Context, config: ConfigShape = {}): void {
-  installSettingsSection(ctx, settingsNamespace(FILE_REVIEW_SETTINGS_NAMESPACE), Config, config, {
-    // The Host owns persistence; the browser mirrors this section through
-    // settingsScope, so no Host-side projection needs rebuilding on change.
-    setSource: () => {},
-    onChange: () => {},
+  ctx.inject(['settings'], (settingsCtx) => {
+    settingsCtx.settings.installSection(ctx, FILE_REVIEW_SETTINGS_NAMESPACE, Config, config, {
+      // The Host owns persistence; the browser mirrors this section through
+      // settingsScope, so no Host-side projection needs rebuilding on change.
+      setSource: () => {},
+      onChange: () => {},
+    })
   })
   new FileReviewService(ctx)
   registerFileLifecycleCapture(ctx)
