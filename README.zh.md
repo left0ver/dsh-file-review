@@ -42,7 +42,13 @@
 
 ## 兼容性声明
 
-目前本插件暂时只支持dsh的rc版本或者正式版本，不支持alpha、beta等测试版本。
+目前本插件main分支暂时只支持dsh的rc版本或者正式版本，发布到npm上的也是main分支的代码
+
+如果你使用最新版本的 DSH，例如alpha、beta等测试版本，可在dev分支的README中插件插件版本的适配情况， 基于`dev` 分支的代码安装
+
+```sh
+dsh plugin --profile web add github:left0ver/dsh-file-review#dev
+```
 
 ## 快速开始
 

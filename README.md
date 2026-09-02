@@ -42,7 +42,13 @@ Used with dsh-better-sidebar:
 
 ## Compatibility
 
-This plugin currently supports only RC and stable releases of DSH. Alpha, beta, and other pre-release versions are not supported.
+The plugin's `main` branch currently supports only RC and stable releases of DSH. The npm package is also published from the `main` branch.
+
+If you use the latest version of DSH, such as an alpha or beta pre-release, check the README on the `dev` branch for plugin version compatibility and install the plugin from that branch:
+
+```sh
+dsh plugin --profile web add github:left0ver/dsh-file-review#dev
+```
 
 ## Quick start
 
