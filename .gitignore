@@ -4,7 +4,6 @@ lib
 *.tgz
 .codegraph
 .DS_Store
-.codex
 .e2e/
 midscene_run/
 test-results/
