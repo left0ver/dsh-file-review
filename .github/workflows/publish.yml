@@ -69,7 +69,7 @@ jobs:
           done
 
       - name: Install Playwright browser
-        run: pnpm exec playwright install --with-deps chromium
+        run: pnpm exec playwright install --with-deps --only-shell chromium
 
       - name: Run E2E tests
         shell: bash
