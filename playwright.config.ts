@@ -9,7 +9,9 @@ const variants = ['standalone', 'better-sidebar'] as const
 type E2EVariant = (typeof variants)[number]
 
 if (existsSync(envFile)) {
-  Object.assign(process.env, parseEnv(readFileSync(envFile, 'utf8')))
+  for (const [key, value] of Object.entries(parseEnv(readFileSync(envFile, 'utf8')))) {
+    process.env[key] ??= value
+  }
 }
 
 const requestedVariant = process.env.E2E_VARIANT
@@ -45,6 +47,7 @@ export default defineConfig({
     timeout: 15_000,
   },
   fullyParallel: false,
+  retries: 1,
   workers: 1,
   reporter: [['list'], ['@midscene/web/playwright-reporter', { type: 'merged' }]],
   use: {

@@ -1,11 +1,10 @@
 /** Dynamically-scoped optional adapter for dsh-better-sidebar. */
 
 import type { ReactNode } from 'react'
-import type {
-  ClientContext,
-  ISessions,
-  ObservableSnapshot,
-} from '@deepseek-ai/dsh-client-runtime/client'
+import type { Context as ClientContext } from '@deepseek-ai/cordis'
+import type { ISessions } from '@deepseek-ai/dsh-api-session-controller/client'
+import type { ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
+import type { UiConversation } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import { FileReviewTab, type FileReviewTabRuntime } from './FileReviewTab.tsx'
 import { attachReviewHost, type ReviewHostAdapter } from './review-host.ts'
@@ -94,6 +93,7 @@ function supportsReviewTab(value: unknown): value is BetterSidebarService {
 
 export interface BetterSidebarIntegrationOptions {
   readonly sessions: ISessions
+  readonly uiConversation: UiConversation
   readonly wordWrap: ObservableSnapshot<boolean>
   readonly locale: { readonly subscribe: (listener: () => void) => () => void }
   readonly t: TranslateNS<typeof NS>
@@ -103,7 +103,7 @@ export interface BetterSidebarIntegrationOptions {
 /** Install a child fiber that appears and disappears with the optional service. */
 export function installBetterSidebarIntegration(
   ctx: ClientContext,
-  { sessions, wordWrap, locale, t, runtimeFor }: BetterSidebarIntegrationOptions,
+  { sessions, uiConversation, wordWrap, locale, t, runtimeFor }: BetterSidebarIntegrationOptions,
 ): void {
   let warned = false
   const warnOnce = (message: string, error?: unknown): void => {
@@ -142,6 +142,7 @@ export function installBetterSidebarIntegration(
             return (
               <FileReviewTab
                 sessions={sessions}
+                uiConversation={uiConversation}
                 scope={scope}
                 tab={tab}
                 visible={visible}

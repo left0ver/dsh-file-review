@@ -1,8 +1,8 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
-import type { CodeDispatchLog, ToolDefinition } from '@deepseek-ai/dsh-tools'
+import type { PtcDispatchLog, ToolDefinition } from '@deepseek-ai/dsh-tools'
 import { describe, expect, it, vi } from 'vitest'
-import { adaptPtcDispatchLog } from '../src/ptc-adapter.ts'
+import { adaptPtcDispatchLog, registerPtcAdapter } from '../src/ptc-adapter.ts'
 import { boundedPtcFileReviewMarker, markerBlock, markerFromContent } from '../src/ptc-marker.ts'
 
 const ROOT = 'root-call'
@@ -14,7 +14,11 @@ function event(seq: number, type: string, data: unknown) {
 
 function fixture(
   definition: Partial<ToolDefinition>,
-  options: { readonly events?: readonly unknown[]; readonly isError?: boolean } = {},
+  options: {
+    readonly events?: readonly unknown[]
+    readonly isError?: boolean
+    readonly snapshotEvents?: boolean
+  } = {},
 ) {
   const events = options.events ?? [
     event(0, 'tool/call', { turn: 3, step: 2, callId: ROOT, name: 'run_code', arguments: '{}' }),
@@ -26,7 +30,9 @@ function fixture(
       arguments: { path: 'out.txt' },
     }),
   ]
-  const agent = { session: { events } }
+  const agent = {
+    session: options.snapshotEvents ? { snapshotEvents: () => events } : { events },
+  }
   const ctx = {
     tools: { get: vi.fn(() => definition) },
   } as unknown as Context
@@ -37,7 +43,7 @@ function fixture(
     name: 'fixture',
     isError: options.isError ?? false,
     content: [{ type: 'text', text: 'complete result' }],
-  } as unknown as CodeDispatchLog
+  } as unknown as PtcDispatchLog
   return { ctx, dispatch }
 }
 
@@ -46,6 +52,12 @@ function marker(content: readonly unknown[]) {
 }
 
 describe('PTC Host Adapter', () => {
+  it('registers on the alpha.3 PTC log seam', () => {
+    const on = vi.fn(() => () => true)
+    registerPtcAdapter({ on } as unknown as Context)
+    expect(on).toHaveBeenCalledWith('tools/ptc-dispatch-log', expect.any(Function))
+  })
+
   it('round-trips v2 lifecycle diffs while continuing to parse v1 markers', () => {
     const current = boundedPtcFileReviewMarker({
       turn: 3,
@@ -144,18 +156,23 @@ describe('PTC Host Adapter', () => {
   })
 
   it('prefers applied result diffs and keeps existing shaped text invisible', async () => {
-    const { ctx, dispatch } = fixture({
-      presentCall: () => ({
-        card: 'diff',
-        title: 'Edit out.txt',
-        locations: [{ path: 'out.txt' }],
-        diffs: [{ path: 'out.txt', oldText: 'planned', newText: 'intent' }],
-      }),
-      presentResult: () => ({
-        card: 'diff',
-        diffs: [{ path: 'out.txt', oldText: 'before', newText: 'after', oldStart: 7, newStart: 7 }],
-      }),
-    })
+    const { ctx, dispatch } = fixture(
+      {
+        presentCall: () => ({
+          card: 'diff',
+          title: 'Edit out.txt',
+          locations: [{ path: 'out.txt' }],
+          diffs: [{ path: 'out.txt', oldText: 'planned', newText: 'intent' }],
+        }),
+        presentResult: () => ({
+          card: 'diff',
+          diffs: [
+            { path: 'out.txt', oldText: 'before', newText: 'after', oldStart: 7, newStart: 7 },
+          ],
+        }),
+      },
+      { snapshotEvents: true },
+    )
     const next = vi.fn(async () => [{ type: 'text', text: 'shaped preview' }] as ContentBlock[])
     const content = await adaptPtcDispatchLog(ctx, dispatch, next)
 

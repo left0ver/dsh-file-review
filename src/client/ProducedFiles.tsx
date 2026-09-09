@@ -1,8 +1,8 @@
 // ProducedFiles: compact turn-tail summary and automatic review-container selection.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { ObservableSnapshot } from '@deepseek-ai/dsh-client-runtime/client'
-import type { TurnTailOwnerProps } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type { ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
+import type { TurnTailOwnerProps } from '@deepseek-ai/dsh-client-ui-chat/client'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type { FileReviewRequest, FileReviewResult } from '../change-types.ts'
 import type { NS } from './locales.ts'

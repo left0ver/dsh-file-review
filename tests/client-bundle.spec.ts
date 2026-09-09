@@ -36,7 +36,7 @@ describe('published browser artifact', () => {
     expect(client?.inject).toEqual([
       'slots',
       'locale',
-      'conversationEvents',
+      'uiConversation',
       'remote',
       'connection',
       'settingsScope',

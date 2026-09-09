@@ -24,7 +24,7 @@ export const names = {
   commentHistory: /^(?:1 comment|1 个评论)$/,
   commentPreview: /^(?:Review comment preview|审查评论预览)$/,
   composer:
-    /Describe what you want to build|描述你想(?:要)?构建的内容|Message the agent|给智能体发消息/,
+    /Describe what you want to build|描述你想(?:要)?构建的内容|Message the agent|给智能体发消息|Message or run a task|发送消息或运行任务/,
   producedCard: /^(?:Edited files|已编辑文件)$/,
   reapply: /^(?:Reapply|重新应用)$/,
   reviewAll: /^(?:Review all produced files|审查所有产出文件)$/,
@@ -115,7 +115,7 @@ export async function openNewSession(page: Page, preset: AgentPreset): Promise<L
     name: /^(?:Continue|继续)$/,
   })
 
-  await expect(composer.or(continueWelcome)).toBeVisible()
+  await expect(composer.or(continueWelcome).first()).toBeVisible()
   if (await continueWelcome.isVisible()) await continueWelcome.click()
   await expect(composer).toBeVisible()
 
@@ -134,7 +134,8 @@ export async function openNewSession(page: Page, preset: AgentPreset): Promise<L
 }
 
 export async function sendTask(page: Page, composer: Locator, prompt: string): Promise<void> {
-  await composer.fill(prompt)
+  await composer.press('End')
+  await page.keyboard.insertText(prompt)
   await page.getByRole('button', { name: names.send }).click()
 }
 

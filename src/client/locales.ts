@@ -6,13 +6,14 @@ export const NS = 'file-review'
 /** English dictionary (the key-set source of truth). */
 export const en = {
   'settings.title': 'File review',
-  'settings.description': 'Configuration options for the File Review plugin.',
+  'settings.description': 'See every file your agent changes clearly.',
+  'settings.star.title': 'Star on GitHub',
+  'settings.star.aria': 'Star dsh-file-review on GitHub (opens in a new tab)',
   'settings.expand': 'Expand',
   'settings.collapse': 'Collapse',
   'settings.readOnly': 'The settings file is read-only.',
   'settings.wordWrap.title': 'Automatically wrap long lines',
-  'settings.wordWrap.description':
-    'Controls whether long single-line text wraps automatically during review. Defaults to false.',
+  'settings.wordWrap.description': 'Wrap long lines to fit the review panel. Off by default.',
   'produced.summary': 'Edited files',
   'produced.editedOne': 'Edited 1 file',
   'produced.edited': 'Edited {count} files',
@@ -77,13 +78,14 @@ export type DeliverablesKey = keyof typeof en
 /** Simplified Chinese dictionary. */
 export const zh: Record<DeliverablesKey, string> = {
   'settings.title': '文件审查',
-  'settings.description': 'file review插件的配置项',
+  'settings.description': '让你看清agent改动的每一个文件',
+  'settings.star.title': '去 GitHub 点 Star',
+  'settings.star.aria': '在 GitHub 为 dsh-file-review 点 Star（在新标签页打开）',
   'settings.expand': '展开',
   'settings.collapse': '收起',
   'settings.readOnly': '配置文件为只读。',
   'settings.wordWrap.title': '是否自动换行显示',
-  'settings.wordWrap.description':
-    '控制review的时候对于单行文本很长的情况下是否自动换行显示，默认为False',
+  'settings.wordWrap.description': '长行自动换行，适应审查面板宽度。默认关闭。',
   'produced.summary': '已编辑文件',
   'produced.editedOne': '已编辑 1 个文件',
   'produced.edited': '已编辑 {count} 个文件',

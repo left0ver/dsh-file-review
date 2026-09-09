@@ -20,6 +20,7 @@ import {
   markerBlock,
   normalizeMutationPresentation,
 } from './ptc-marker.ts'
+import { sessionEvents } from './session-events.ts'
 
 interface MissingCapture {
   readonly kind: 'missing'
@@ -100,7 +101,7 @@ function mutationPaths(view: ToolCallView | undefined): readonly string[] {
 }
 
 function rootCall(agent: Agent, rootCallId: string): { turn: number; step: number } | null {
-  const events = agent.session.events
+  const events = sessionEvents(agent.session)
   for (let index = events.length - 1; index >= 0; index--) {
     const event = events[index]
     if (

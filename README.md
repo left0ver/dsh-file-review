@@ -4,7 +4,8 @@
 
 **Review every file an agent just changed—without leaving DeepSeek Harness Web.**
 
-![DeepSeek Harness 0.1.x](https://img.shields.io/badge/DeepSeek%20Harness-0.1.x-4f46e5)
+![Adapted DSH CLI version](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fleft0ver%2Fdsh-file-review%2Fdev%2Fpackage.json&query=%24.dsh.adapter.cliVersion&label=DSH%20CLI&color=4f46e5)
+![Adapted dsh-better-sidebar version](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fleft0ver%2Fdsh-file-review%2Fdev%2Fpackage.json&query=%24.dsh.adapter.betterSidebarVersion&label=dsh-better-sidebar&color=8b5cf6)
 ![Web profile](https://img.shields.io/badge/profile-Web-0ea5e9)
 [![npm version](https://img.shields.io/npm/v/dsh-file-review.svg)](https://www.npmjs.com/package/dsh-file-review)
 [![npm downloads](https://img.shields.io/npm/dm/dsh-file-review.svg)](https://www.npmjs.com/package/dsh-file-review)
@@ -42,13 +43,7 @@ Used with dsh-better-sidebar:
 
 ## Compatibility
 
-The plugin's `main` branch currently supports only RC and stable releases of DSH. The npm package is also published from the `main` branch.
-
-If you use the latest version of DSH, such as an alpha or beta pre-release, check the README on the `dev` branch for plugin version compatibility and install the plugin from that branch:
-
-```sh
-dsh plugin --profile web add github:left0ver/dsh-file-review#dev
-```
+See the badges above for the currently adapted versions.
 
 ## Quick start
 
@@ -70,9 +65,7 @@ Recent versions of `pnpm` enforce a minimum release age, so newly published pack
 > For details, see the [DSH Better Sidebar installation instructions](https://github.com/omdsh-dev/DSH-better-sidebar#installation).
 
 ```sh
-dsh plugin --profile web add dsh-better-sidebar@latest   # 首次会因 pnpm 11 拦截 node-pty 构建脚本而失败（依赖已写入）
-cd ~/.dsh/profiles/web && pnpm approve-builds --all      # 放行构建脚本（自动重跑安装）
-dsh plugin --profile web add dsh-better-sidebar@latest   # 重跑即成功
+dsh plugin --profile web add --allow-build=node-pty dsh-better-sidebar@0.18.1
 ```
 
 ### 1. Install this plugin

@@ -1,11 +1,7 @@
 import { Context } from '@deepseek-ai/cordis'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import Tools from '@deepseek-ai/dsh-tools'
-import {
-  SettingsProvider,
-  settingsNamespace,
-  type SettingsNamespace,
-} from '@deepseek-ai/dsh-settings'
+import { SettingsProvider, type SettingsNamespace } from '@deepseek-ai/dsh-settings'
 import { afterEach, describe, expect, it } from 'vitest'
 import { apply, Config, FILE_REVIEW_SETTINGS_NAMESPACE, inject } from '../src/index.ts'
 
@@ -48,9 +44,8 @@ describe('file-review settings', () => {
     await ctx.plugin(Tools, {})
     await ctx.plugin({ apply, inject }, { wordWrap: true }).await()
 
-    const namespace = settingsNamespace(FILE_REVIEW_SETTINGS_NAMESPACE)
-    expect(settings?.get(namespace)).toEqual({ wordWrap: true })
-    await settings?.update(namespace, { wordWrap: false })
-    expect(settings?.get(namespace)).toEqual({ wordWrap: false })
+    expect(settings?.get(FILE_REVIEW_SETTINGS_NAMESPACE)).toEqual({ wordWrap: true })
+    await settings?.update(FILE_REVIEW_SETTINGS_NAMESPACE, { wordWrap: false })
+    expect(settings?.get(FILE_REVIEW_SETTINGS_NAMESPACE)).toEqual({ wordWrap: false })
   })
 })

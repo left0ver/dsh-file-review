@@ -1,6 +1,7 @@
 /** Composer reference bridge for aggregate session review comments. */
 
-import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
+import type { Context as ClientContext } from '@deepseek-ai/cordis'
+import type { SessionEventSource } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { InputTriggerSource } from '@deepseek-ai/dsh-client-ui-input-trigger/client'
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import type { NS } from './locales.ts'
@@ -12,13 +13,13 @@ import {
 } from './review-comments.ts'
 
 export const REVIEW_COMMENT_SOURCE = 'file-review-comments'
-export const REVIEW_COMMENT_HIDDEN_LABEL = '\u200B'
 
 interface ReviewOccurrence {
   readonly source: string
   readonly ref: string
   readonly label: string
   readonly offset: number
+  readonly length: number
 }
 
 interface ReviewInputState {
@@ -73,10 +74,10 @@ export function bindReviewReference(
   scope: ClientContext,
   sessionId: string,
   input: ReviewInput,
-  _t: TranslateNS<typeof NS>,
+  t: TranslateNS<typeof NS>,
+  events: SessionEventSource,
 ): { readonly sync: () => void; readonly dispose: () => void } {
   let reconciling = false
-  let submittedWithReference = false
 
   const sync = (): void => {
     if (reconciling) return
@@ -84,14 +85,19 @@ export function bindReviewReference(
     if (state.phase !== 'plain') return
     const count = reviewComments(sessionId).length
     const current = occurrenceFor(state, sessionId)
-    const expectedLabel = count > 0 ? REVIEW_COMMENT_HIDDEN_LABEL : undefined
+    const expectedLabel =
+      count === 0
+        ? undefined
+        : count === 1
+          ? t('review.commentCountOne')
+          : t('review.commentCount', { count: String(count) })
     if (current !== undefined && count > 0 && current.label === expectedLabel) return
 
     reconciling = true
     try {
       if (current !== undefined) {
-        const removeEnd =
-          state.draft[current.offset + 1] === ' ' ? current.offset + 2 : current.offset + 1
+        const end = current.offset + current.length
+        const removeEnd = state.draft[end] === ' ' ? end + 1 : end
         input.setDraft(state.draft.slice(0, current.offset) + state.draft.slice(removeEnd))
         state = input.state.getSnapshot()
       }
@@ -113,13 +119,23 @@ export function bindReviewReference(
   const unsubscribe = input.state.subscribe(() => {
     if (reconciling) return
     const state = input.state.getSnapshot()
-    const hasReference = occurrenceFor(state, sessionId) !== undefined
-    if (state.phase === 'submitting' && hasReference) submittedWithReference = true
-    if (submittedWithReference && state.phase === 'plain') {
-      submittedWithReference = false
-      if (!hasReference && state.draft === '') clearReviewComments(sessionId)
-    }
     if (state.phase === 'plain') sync()
+  })
+  const unsubscribeEvents = events.subscribe(() => {
+    const change = events.getSnapshot().change
+    if (
+      change.kind === 'append' &&
+      change.entries.some(
+        ({ event }) =>
+          event.type === 'user/message' &&
+          event.data.source.kind === 'user' &&
+          event.data.content.some(
+            (part) => part.type === 'text' && part.text.includes('<file_review_comments>'),
+          ),
+      )
+    ) {
+      clearReviewComments(sessionId)
+    }
   })
   const unsubscribeComments = subscribeReviewComments(sessionId, sync)
 
@@ -128,6 +144,7 @@ export function bindReviewReference(
     sync,
     dispose: () => {
       unsubscribeComments()
+      unsubscribeEvents()
       unsubscribe()
     },
   }

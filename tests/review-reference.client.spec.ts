@@ -1,12 +1,12 @@
 // @vitest-environment jsdom
 
 import { afterEach, describe, expect, it } from 'vitest'
-import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
-import {
-  bindReviewReference,
-  REVIEW_COMMENT_HIDDEN_LABEL,
-  REVIEW_COMMENT_SOURCE,
-} from '../src/client/review-reference.ts'
+import type { Context as ClientContext } from '@deepseek-ai/cordis'
+import type {
+  SessionEventSource,
+  SessionLiveEventEntry,
+} from '@deepseek-ai/dsh-api-session-controller/client'
+import { bindReviewReference, REVIEW_COMMENT_SOURCE } from '../src/client/review-reference.ts'
 import {
   clearAllReviewComments,
   clearReviewComments,
@@ -15,7 +15,58 @@ import {
 } from '../src/client/review-comments.ts'
 import { en } from '../src/client/locales.ts'
 
-const PLACEHOLDER = '\uFFFC'
+const REVIEW_REFERENCE = '@review-comments'
+
+class FakeEventSource implements SessionEventSource {
+  private readonly listeners = new Set<() => void>()
+  private snapshot: ReturnType<SessionEventSource['getSnapshot']> = {
+    entries: [],
+    hasMore: false,
+    revision: 0,
+    change: { kind: 'replace', entries: [] },
+  }
+
+  getSnapshot(): ReturnType<SessionEventSource['getSnapshot']> {
+    return this.snapshot
+  }
+
+  subscribe(listener: () => void): () => void {
+    this.listeners.add(listener)
+    return () => this.listeners.delete(listener)
+  }
+
+  append(entry: SessionLiveEventEntry): void {
+    this.snapshot = {
+      entries: [...this.snapshot.entries, entry],
+      hasMore: false,
+      revision: this.snapshot.revision + 1,
+      change: { kind: 'append', entries: [entry] },
+    }
+    for (const listener of this.listeners) listener()
+  }
+}
+
+function eventSource(): FakeEventSource {
+  return new FakeEventSource()
+}
+
+function userMessage(text: string): SessionLiveEventEntry {
+  return {
+    type: 'event',
+    event: {
+      type: 'user/message',
+      seq: 1,
+      time: 1,
+      data: {
+        role: 'user',
+        id: 'message-1',
+        source: { kind: 'user' },
+        content: [{ type: 'text', text }],
+      },
+      surfaceOp: 'append',
+    },
+  } as SessionLiveEventEntry
+}
 
 function t(key: keyof typeof en, params?: Record<string, unknown>): string {
   let value: string = en[key]
@@ -35,6 +86,8 @@ class FakeInput {
       ref: string
       label: string
       offset: number
+      length: number
+      clipboardText: string
     }>,
   }
 
@@ -51,24 +104,38 @@ class FakeInput {
   }
 
   setDraft(text: string): void {
-    const occurrences = text.includes(PLACEHOLDER)
-      ? this.snapshot.occurrences.map((value) => ({ ...value, offset: text.indexOf(PLACEHOLDER) }))
-      : []
     this.snapshot = {
       ...this.snapshot,
       draft: text,
-      occurrences,
+      occurrences: [],
       draftRev: this.snapshot.draftRev + 1,
     }
     this.emit()
   }
 
-  insert(reference: { source: string; ref: string; label: string }, start: number): void {
+  type(text: string): void {
     this.snapshot = {
       ...this.snapshot,
-      draft: this.snapshot.draft.slice(0, start) + PLACEHOLDER + this.snapshot.draft.slice(start),
+      draft: text,
+      occurrences: this.snapshot.occurrences.map((value) => ({
+        ...value,
+        offset: text.indexOf(value.clipboardText),
+      })),
       draftRev: this.snapshot.draftRev + 1,
-      occurrences: [{ ...reference, offset: start }],
+    }
+    this.emit()
+  }
+
+  insert(
+    reference: { source: string; ref: string; label: string; clipboardText?: string },
+    start: number,
+  ): void {
+    const clipboardText = reference.clipboardText ?? REVIEW_REFERENCE
+    this.snapshot = {
+      ...this.snapshot,
+      draft: this.snapshot.draft.slice(0, start) + clipboardText + this.snapshot.draft.slice(start),
+      draftRev: this.snapshot.draftRev + 1,
+      occurrences: [{ ...reference, clipboardText, offset: start, length: clipboardText.length }],
     }
     this.emit()
   }
@@ -142,26 +209,31 @@ describe('review comment composer reference', () => {
     } as unknown as ClientContext
 
     setReviewComment(comment(0, 'First'))
-    const binding = bindReviewReference(scope, 'session-1', input, t)
-    expect(input.snapshot.draft).toBe(PLACEHOLDER)
-    expect(input.snapshot.occurrences[0]?.label).toBe(REVIEW_COMMENT_HIDDEN_LABEL)
+    const events = eventSource()
+    const binding = bindReviewReference(scope, 'session-1', input, t, events)
+    expect(input.snapshot.draft).toBe(REVIEW_REFERENCE)
+    expect(input.snapshot.occurrences[0]?.label).toBe('1 comment')
 
-    input.setDraft(`${PLACEHOLDER}Please fix these.`)
+    input.type(`${REVIEW_REFERENCE} Please fix these.`)
     setReviewComment(comment(1, 'Second'))
     binding.sync()
-    expect(input.snapshot.draft).toBe(`${PLACEHOLDER}Please fix these.`)
+    expect(input.snapshot.draft).toBe(`${REVIEW_REFERENCE}Please fix these.`)
     expect(input.snapshot.occurrences).toEqual([
       expect.objectContaining({
         source: REVIEW_COMMENT_SOURCE,
-        label: REVIEW_COMMENT_HIDDEN_LABEL,
+        label: '2 comments',
         offset: 0,
       }),
     ])
-    expect(inserts).toBe(1)
+    expect(inserts).toBe(2)
 
-    input.transition('submitting')
     input.transition('plain', true)
+    expect(reviewComments('session-1')).toHaveLength(2)
+    expect(input.snapshot.occurrences).toHaveLength(1)
+    events.append(userMessage('<file_review_comments>sent</file_review_comments>'))
     expect(reviewComments('session-1')).toHaveLength(0)
+    expect(input.snapshot.draft).toBe('')
+    expect(input.snapshot.occurrences).toHaveLength(0)
     binding.dispose()
   })
 
@@ -181,11 +253,39 @@ describe('review comment composer reference', () => {
       },
     } as unknown as ClientContext
     setReviewComment(comment(0, 'Still pending'))
-    const binding = bindReviewReference(scope, 'session-1', input, t)
-    input.transition('submitting')
-    input.transition('plain')
+    const events = eventSource()
+    const binding = bindReviewReference(scope, 'session-1', input, t, events)
+    input.transition('plain', true)
+    events.append(userMessage('An unrelated message'))
     expect(reviewComments('session-1')).toHaveLength(1)
     expect(input.snapshot.occurrences).toHaveLength(1)
+    binding.dispose()
+  })
+
+  it('removes the serialized review reference after a successful submission', () => {
+    const input = new FakeInput()
+    const scope = {
+      bail: (
+        _subject: unknown,
+        _event: string,
+        payload: {
+          reference: { source: string; ref: string; label: string }
+          span: { start: number }
+        },
+      ) => {
+        input.insert(payload.reference, payload.span.start)
+        return true
+      },
+    } as unknown as ClientContext
+    setReviewComment(comment(0, 'Sent'))
+    const events = eventSource()
+    const binding = bindReviewReference(scope, 'session-1', input, t, events)
+
+    input.type(`${REVIEW_REFERENCE}Question`)
+    input.transition('plain', true)
+    events.append(userMessage('<file_review_comments>sent</file_review_comments>'))
+
+    expect(input.snapshot.draft).toBe('')
     binding.dispose()
   })
 })

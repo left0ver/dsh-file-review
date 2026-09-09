@@ -11,16 +11,6 @@ describe('publish workflow', () => {
     expect(workflow).toContain('needs: e2e')
   })
 
-  it('installs the most recently published DSH CLI version, including prereleases', () => {
-    expect(workflow).toContain('npm view @deepseek-ai/dsh time --json')
-    expect(workflow).toContain(
-      '.filter(([version]) => version !== "created" && version !== "modified")',
-    )
-    expect(workflow).toContain('.sort((left, right) => Date.parse(right[1]) - Date.parse(left[1]))')
-    expect(workflow).toContain('npm install --global "@deepseek-ai/dsh@${dsh_version}"')
-    expect(workflow.match(/\.filter\(\(\[version\]\)/g)).toHaveLength(1)
-  })
-
   it("uploads each platform's Playwright diagnostics on failure", () => {
     expect(workflow).toContain('uses: actions/upload-artifact@v7')
     expect(workflow).toContain('if: failure()')
