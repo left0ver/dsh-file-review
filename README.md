@@ -43,7 +43,7 @@ Used with dsh-better-sidebar:
 
 ## Compatibility
 
-The currently adapted versions are shown in the compatibility badges above. Other versions have not been verified.
+See the badges above for the currently adapted versions.
 
 ## Quick start
 
@@ -65,9 +65,7 @@ Recent versions of `pnpm` enforce a minimum release age, so newly published pack
 > For details, see the [DSH Better Sidebar installation instructions](https://github.com/omdsh-dev/DSH-better-sidebar#installation).
 
 ```sh
-dsh plugin --profile web add dsh-better-sidebar@latest   # 首次会因 pnpm 11 拦截 node-pty 构建脚本而失败（依赖已写入）
-cd ~/.dsh/profiles/web && pnpm approve-builds --all      # 放行构建脚本（自动重跑安装）
-dsh plugin --profile web add dsh-better-sidebar@latest   # 重跑即成功
+dsh plugin --profile web add --allow-build=node-pty dsh-better-sidebar@0.18.1
 ```
 
 ### 1. Install this plugin

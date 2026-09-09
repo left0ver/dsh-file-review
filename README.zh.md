@@ -37,13 +37,13 @@
 3. 可以通过`Diff`面板审查 Agent 刚刚修改的每个文件。
 4. 支持撤销操作，目前支持对编辑文件、新增文件等操作进行撤销。**暂不支持对删除的文件进行撤销操作。**
    > 因为目前dsh暂时没有提供删除文件的相关tool，因此本插件暂时不支持对删除的文件进行撤销操作。后续若dsh提供了删除文件的tool，本插件会进一步地支持。
-5. 可对变更行添加评论，并让 Agent 根据评论内容继续修改，或者对改变更进行询问。
-6. 支持对在review的时候，对长文本自动换行显示，可在“设置 → 插件 → 插件配置 → 文件审查”进行勾选，默认为False。
+5. 可对变更行添加评论，并让 Agent 根据评论内容继续修改，或者对该变更进行询问。
+6. 审查时支持长文本自动换行，可在“设置 → 插件 → 插件配置 → 文件审查”中开启，默认关闭。
 7. 多语言支持，包括中文和英文。
 
 ## 兼容性声明
 
-当前适配版本见文档顶部的兼容性徽章，其他版本尚未验证。
+当前适配版本见顶部的徽章
 
 ## 快速开始
 
@@ -65,9 +65,7 @@ minimumReleaseAgeExclude:
 > 安装步骤具体可看[DSH-better-sidebar的安装说明](https://github.com/omdsh-dev/DSH-better-sidebar#installation)
 
 ```sh
-dsh plugin --profile web add dsh-better-sidebar@latest   # 首次会因 pnpm 11 拦截 node-pty 构建脚本而失败（依赖已写入）
-cd ~/.dsh/profiles/web && pnpm approve-builds --all      # 放行构建脚本（自动重跑安装）
-dsh plugin --profile web add dsh-better-sidebar@latest   # 重跑即成功
+dsh plugin --profile web add --allow-build=node-pty dsh-better-sidebar@0.18.1
 ```
 
 ### 1. 安装本插件
