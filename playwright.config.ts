@@ -47,6 +47,7 @@ export default defineConfig({
     timeout: 15_000,
   },
   fullyParallel: false,
+  retries: 1,
   workers: 1,
   reporter: [['list'], ['@midscene/web/playwright-reporter', { type: 'merged' }]],
   use: {
