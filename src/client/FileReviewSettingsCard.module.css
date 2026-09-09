@@ -1,8 +1,13 @@
 .card {
+  --accent: #9b8afb;
   list-style: none;
-  border: 1px solid var(--dsw-alias-border-l2);
-  border-radius: 12px;
-  background: var(--dsw-alias-bg-layer-3);
+  border: 1px solid color-mix(in srgb, var(--accent) 65%, var(--dsw-alias-border-l2));
+  border-radius: 16px;
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--accent) 12%, var(--dsw-alias-bg-layer-3)),
+    var(--dsw-alias-bg-layer-3) 65%
+  );
   transition:
     border-color 0.16s,
     background 0.16s;
@@ -10,11 +15,7 @@
 
 .card:hover,
 .cardOpen {
-  border-color: var(--dsw-alias-label-dimmed);
-}
-
-.cardOpen {
-  background: var(--dsw-alias-bg-layer-2);
+  border-color: color-mix(in srgb, var(--dsw-alias-brand-primary) 40%, var(--dsw-alias-border-l2));
 }
 
 .header {
@@ -22,7 +23,7 @@
   width: 100%;
   align-items: center;
   gap: 12px;
-  padding: 14px 16px;
+  padding: 18px 16px;
   border: 0;
   border-radius: 12px;
   background: none;
@@ -33,9 +34,87 @@
 }
 
 .header:focus-visible,
+.github:focus-visible,
 .toggle:focus-visible {
   outline: 2px solid var(--dsw-alias-brand-primary);
   outline-offset: -2px;
+}
+
+.icon {
+  width: 48px;
+  height: 48px;
+  box-sizing: border-box;
+  flex: none;
+  padding: 8px;
+  border: 1px solid var(--accent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--dsw-alias-brand-primary);
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.github {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 16px 16px;
+  padding: 12px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 13px;
+  background: color-mix(in srgb, var(--accent) 10%, var(--dsw-alias-bg-layer-3));
+  color: var(--dsw-alias-label-secondary);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+  transition:
+    border-color 0.16s,
+    background 0.16s;
+}
+
+.github:hover {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 18%, var(--dsw-alias-bg-layer-3));
+}
+
+.githubIcon {
+  width: 24px;
+  height: 24px;
+  flex: none;
+  color: var(--dsw-alias-label-primary);
+  fill: currentColor;
+}
+
+.githubTitle {
+  color: var(--dsw-alias-label-primary);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.githubSlug {
+  color: var(--dsw-alias-label-tertiary);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.externalIcon {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.star {
+  margin-right: 6px;
+  color: #f4b74e;
 }
 
 .heading {
@@ -48,7 +127,7 @@
 
 .title {
   color: var(--dsw-alias-label-primary);
-  font-size: 15px;
+  font-size: 18px;
   font-weight: 600;
   line-height: 1.4;
 }
@@ -62,6 +141,10 @@
 }
 
 .chevron {
+  box-sizing: content-box;
+  padding: 8px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 12px;
   flex: none;
   color: var(--dsw-alias-label-tertiary);
   transition: transform 0.16s;
@@ -143,4 +226,14 @@
 
 .toggle[data-checked='true'] .thumb {
   transform: translateX(18px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card,
+  .github,
+  .chevron,
+  .toggle,
+  .thumb {
+    transition: none;
+  }
 }

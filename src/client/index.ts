@@ -142,6 +142,7 @@ export async function apply(ctx: ClientContext): Promise<() => Promise<void>> {
       {
         name: 'settings.plugin.item',
         key: FILE_REVIEW_SETTINGS_NAMESPACE,
+        priority: -100,
         locale: NS,
         inject: () => ({
           hooks: { fileReviewSettings: settings },
