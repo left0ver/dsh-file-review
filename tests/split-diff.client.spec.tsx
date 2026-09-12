@@ -265,6 +265,7 @@ it('synchronizes horizontal scrolling in both directions without clamped feedbac
 // 验证单栏和双栏都能一键收起所有文件正文，保留摘要与已保存评论，并丢弃草稿。
 it.each<DiffLayout>(['split', 'unified'])('collapses and expands every file in %s', (layout) => {
   const settings = settingsScope(layout)
+  const openFile = vi.fn()
   const view = render(
     <ReviewContent
       reviews={[
@@ -278,7 +279,7 @@ it.each<DiffLayout>(['split', 'unified'])('collapses and expands every file in %
       turn={1}
       closingSeq={2}
       settings={settings}
-      openFile={() => {}}
+      openFile={openFile}
       t={t}
     />,
   )
@@ -307,5 +308,24 @@ it.each<DiffLayout>(['split', 'unified'])('collapses and expands every file in %
   expect(view.getByRole('button', { name: 'Collapse all' }).getAttribute('aria-expanded')).toBe(
     'true',
   )
+  fireEvent.click(view.getByRole('button', { name: 'Collapse example.ts' }))
+  expect(view.container.querySelectorAll('[data-diff]')).toHaveLength(1)
+  expect(
+    view.getByRole('button', { name: 'Expand example.ts' }).getAttribute('aria-expanded'),
+  ).toBe('false')
+  expect(
+    view.getByRole('button', { name: 'Collapse second.ts' }).getAttribute('aria-expanded'),
+  ).toBe('true')
+  fireEvent.click(view.getAllByRole('button', { name: 'Open in editor' })[0]!)
+  expect(openFile).toHaveBeenCalledWith('example.ts')
+  expect(view.container.querySelectorAll('[data-diff]')).toHaveLength(1)
+  fireEvent.click(view.getByRole('button', { name: 'Collapse all' }))
+  expect(view.container.querySelectorAll('[data-diff]')).toHaveLength(0)
+  fireEvent.click(view.getByRole('button', { name: 'Expand example.ts' }))
+  expect(view.container.querySelectorAll('[data-diff]')).toHaveLength(1)
+  expect(view.getByText('saved comment')).toBeTruthy()
+  fireEvent.click(view.getByRole('button', { name: 'Collapse example.ts' }))
+  fireEvent.click(view.getByRole('button', { name: 'Expand all' }))
+  expect(view.container.querySelectorAll('[data-diff]')).toHaveLength(2)
   expect(settings.set).not.toHaveBeenCalled()
 })
