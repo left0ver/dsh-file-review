@@ -92,7 +92,7 @@ test('Shift+Enter 在评论中保留换行且不会提前保存', async ({ page,
   await expect(preview).toContainText('第二行反馈')
 })
 
-test('Escape 取消评论并关闭 Review 且不会改变已保存内容', async ({ page, agentForPage }) => {
+test('Escape 取消编辑并保留原生 Tab 和已保存评论', async ({ page, agentForPage }) => {
   const target = files.escape
   const savedBody = '保持这条已保存评论'
   const composer = await openNewSession(page, 'standard')
@@ -109,7 +109,8 @@ test('Escape 取消评论并关闭 Review 且不会改变已保存内容', async
   let editor = await startComment(review)
   await editor.fill('不应保存的新草稿')
   await editor.press('Escape')
-  await expect(review).toBeHidden()
+  await expect(editor).toBeHidden()
+  await expect(review).toBeVisible()
   await expect(page.getByRole('button', { name: names.commentDock })).toHaveCount(0)
 
   review = await openReview(card, page)
@@ -124,7 +125,8 @@ test('Escape 取消评论并关闭 Review 且不会改变已保存内容', async
   await editor.fill('不应覆盖的编辑草稿')
   await editor.press('Escape')
 
-  await expect(review).toBeHidden()
+  await expect(editor).toBeHidden()
+  await expect(review).toBeVisible()
   review = await openReview(card, page)
   await expect(review.getByRole('button', { name: savedBody, exact: true })).toBeVisible()
   await expect(review.getByText('不应覆盖的编辑草稿', { exact: true })).toHaveCount(0)

@@ -46,7 +46,7 @@ test('新建文件可以撤销并以原内容和权限重新应用', async ({ pa
   await sendTask(
     page,
     composer,
-    `请只创建 ${target.relativePath}，文件内容必须恰好为 created 加一个换行，不要修改其他文件，然后结束任务。`,
+    `请使用 write 工具创建 ${target.relativePath}，文件内容必须恰好为 created 加一个换行；禁止使用 bash、shell 命令或脚本写入文件，不要修改其他文件，然后结束任务。`,
   )
   const card = await waitForProducedCard(page, agent, target)
   await expectCardSummary(card, target, 1, 0, 'undo')

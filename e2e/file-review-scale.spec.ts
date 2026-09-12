@@ -1,4 +1,4 @@
-/** 验证多文件折叠、同文件多处修改统计以及跨轮次 Review 抽屉切换。 */
+/** 验证多文件折叠、同文件多处修改统计以及跨轮次 Review 标签页切换。 */
 
 import { expect } from '@playwright/test'
 import { test } from './fixture.ts'
@@ -91,7 +91,7 @@ test('同一文件的两处修改会合并统计并保留各自行号', async ({
   await expectDiffLine(review, 'add', 3, 'bottom-after')
 })
 
-test('跨轮次打开 Review 时抽屉切换到最新卡片', async ({ page, agentForPage }) => {
+test('跨轮次打开 Review 时标签页切换到最新卡片', async ({ page, agentForPage }) => {
   const composer = await openNewSession(page, 'standard')
   const agent = await agentForPage(page)
 
@@ -113,7 +113,7 @@ test('跨轮次打开 Review 时抽屉切换到最新卡片', async ({ page, age
   await expectReviewSummary(firstReview, files.firstTurn, 1, 1)
 
   await cards.nth(1).getByRole('button', { name: names.reviewAll }).click()
-  const transferredReview = page.getByRole('dialog', { name: names.reviewDialog })
+  const transferredReview = page.locator('[data-file-review-sidebar-tab]')
   await expectReviewSummary(transferredReview, files.secondTurn, 1, 1)
   await expect(
     transferredReview.getByText(files.firstTurn.relativePath, { exact: true }),
@@ -121,5 +121,4 @@ test('跨轮次打开 Review 时抽屉切换到最新卡片', async ({ page, age
   await expectDiffLine(transferredReview, 'del', 1, 'second-before')
   await expectDiffLine(transferredReview, 'add', 1, 'second-after')
   await closeReview(transferredReview)
-  await expect(cards.nth(1).getByRole('button', { name: names.reviewAll })).toBeFocused()
 })

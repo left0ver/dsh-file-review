@@ -88,7 +88,7 @@ if (variant === 'standalone') {
   }
 } else {
   allowNodePtyBuild()
-  const sidebarSpec = process.env.E2E_BETTER_SIDEBAR_SPEC ?? 'dsh-better-sidebar@latest'
+  const sidebarSpec = process.env.E2E_BETTER_SIDEBAR_SPEC ?? 'dsh-better-sidebar@0.19.0'
   runPlugin('add', sidebarSpec)
 }
 

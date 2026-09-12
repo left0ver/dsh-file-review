@@ -1,6 +1,6 @@
-/** 验证安装与未安装 dsh-better-sidebar 时分别使用集成标签页和独立抽屉。 */
+/** 验证安装与未安装 dsh-better-sidebar 时均使用 DSH 原生标签页。 */
 
-import { expect, type Locator, type Page, type TestInfo } from '@playwright/test'
+import { expect, type Locator } from '@playwright/test'
 import { test } from './fixture.ts'
 import {
   e2eTimeout,
@@ -12,10 +12,11 @@ import {
   names,
   openNewSession,
   prepareExistingTarget,
-  reviewFileName,
+  openFileReview,
+  openReview,
+  nativeReviewTab,
   sendTask,
   targetFile,
-  type TargetFile,
   waitForProducedCard,
 } from './file-review-helpers.ts'
 
@@ -29,33 +30,6 @@ const files = {
 } as const
 
 test.setTimeout(e2eTimeout)
-
-function requireBetterSidebar(testInfo: TestInfo): void {
-  test.skip(
-    testInfo.project.metadata.reviewHost !== 'better-sidebar',
-    '仅在安装 dsh-better-sidebar 的 project 中运行',
-  )
-}
-
-async function openSidebarFileReview(
-  card: Locator,
-  page: Page,
-  target: TargetFile,
-): Promise<Locator> {
-  await card.getByRole('button', { name: reviewFileName(target) }).click({ timeout: 15_000 })
-  const review = page.locator('[data-file-review-sidebar-tab]')
-  await expect(review).toBeVisible()
-  await expect(page.getByRole('dialog', { name: names.reviewDialog })).toHaveCount(0)
-  return review
-}
-
-async function openSidebarReview(card: Locator, page: Page): Promise<Locator> {
-  await card.getByRole('button', { name: names.reviewAll }).click()
-  const review = page.locator('[data-file-review-sidebar-tab]')
-  await expect(review).toBeVisible()
-  await expect(page.getByRole('dialog', { name: names.reviewDialog })).toHaveCount(0)
-  return review
-}
 
 function changedLine(review: Locator, kind: 'del' | 'add', text: string): Locator {
   const lineAttribute = kind === 'del' ? 'data-old-line' : 'data-new-line'
@@ -71,7 +45,7 @@ async function addComment(review: Locator, line: Locator, body: string): Promise
   await expect(review.getByRole('button', { name: body, exact: true })).toBeVisible()
 }
 
-test('根据 dsh-better-sidebar 安装状态选择 Review 宿主', async ({
+test('安装与未安装 better-sidebar 均使用原生 Review Tab', async ({
   page,
   agentForPage,
 }, testInfo) => {
@@ -94,31 +68,20 @@ test('根据 dsh-better-sidebar 安装状态选择 Review 宿主', async ({
   await expectCardSummary(card, target, 1, 1)
   await expectFileText(target.absolutePath, 'after\n')
 
-  await card.getByRole('button', { name: names.reviewAll }).click()
-  const standaloneReview = page.getByRole('dialog', { name: names.reviewDialog })
-  const sidebarReview = page.locator('[data-file-review-sidebar-tab]')
-  const sidebarHost = page.locator('[data-dsh-better-sidebar]')
-  const review = reviewHost === 'standalone' ? standaloneReview : sidebarReview
-
-  await expect(review).toBeVisible()
+  const review = await openReview(card, page)
   await expectReviewSummary(review, target, 1, 1)
   await expectDiffLine(review, 'del', 1, 'before')
   await expectDiffLine(review, 'add', 1, 'after')
-
-  if (reviewHost === 'standalone') {
-    await expect(sidebarHost).toHaveCount(0)
-    await expect(sidebarReview).toHaveCount(0)
-  } else {
-    await expect(sidebarHost).toHaveCount(1)
-    await expect(standaloneReview).toHaveCount(0)
-  }
+  await expect(nativeReviewTab(page)).toHaveCount(1)
+  await review.getByRole('button', { name: /^(?:Open in editor|在编辑器中打开)$/ }).click()
+  await expect(
+    page.locator('[data-dockkit-tab]').filter({ hasText: target.basename }),
+  ).toBeVisible()
+  await nativeReviewTab(page).click()
+  await expectReviewSummary(review, target, 1, 1)
 })
 
-test('dsh-better-sidebar 多文件修改后可以只审查选中的单文件', async ({
-  page,
-  agentForPage,
-}, testInfo) => {
-  requireBetterSidebar(testInfo)
+test('原生 Tab 多文件修改后可以只审查选中的单文件', async ({ page, agentForPage }) => {
   await Promise.all([
     prepareExistingTarget(files.sidebarMultiFirst, 'first-before\n'),
     prepareExistingTarget(files.sidebarMultiSecond, 'second-before\n'),
@@ -136,7 +99,7 @@ test('dsh-better-sidebar 多文件修改后可以只审查选中的单文件', a
   await expectFileText(files.sidebarMultiFirst.absolutePath, 'first-after\n')
   await expectFileText(files.sidebarMultiSecond.absolutePath, 'second-after\n')
 
-  const review = await openSidebarFileReview(card, page, files.sidebarMultiFirst)
+  const review = await openFileReview(card, page, files.sidebarMultiFirst)
   await expectReviewSummary(review, files.sidebarMultiFirst, 1, 1)
   await expect(
     review.getByText(files.sidebarMultiSecond.relativePath, { exact: true }),
@@ -145,11 +108,7 @@ test('dsh-better-sidebar 多文件修改后可以只审查选中的单文件', a
   await expectDiffLine(review, 'add', 1, 'first-after')
 })
 
-test('dsh-better-sidebar 中的审查评论可以驱动下一轮修改', async ({
-  page,
-  agentForPage,
-}, testInfo) => {
-  requireBetterSidebar(testInfo)
+test('原生 Tab 中的审查评论可以驱动下一轮修改', async ({ page, agentForPage }) => {
   const target = files.sidebarComment
   const comment = '请将这一行改成 final'
   await prepareExistingTarget(target)
@@ -165,7 +124,7 @@ test('dsh-better-sidebar 中的审查评论可以驱动下一轮修改', async (
   await expectCardSummary(firstCard, target, 1, 1)
   await expectFileText(target.absolutePath, 'after\n')
 
-  const firstReview = await openSidebarReview(firstCard, page)
+  const firstReview = await openReview(firstCard, page)
   await expectReviewSummary(firstReview, target, 1, 1)
   await addComment(firstReview, changedLine(firstReview, 'add', 'after'), comment)
 
@@ -178,17 +137,13 @@ test('dsh-better-sidebar 中的审查评论可以驱动下一轮修改', async (
   await expectFileText(target.absolutePath, 'final\n')
   await expect(commentDock).toBeHidden()
 
-  const secondReview = await openSidebarReview(secondCard, page)
+  const secondReview = await openReview(secondCard, page)
   await expectReviewSummary(secondReview, target, 1, 1)
   await expectDiffLine(secondReview, 'del', 1, 'after')
   await expectDiffLine(secondReview, 'add', 1, 'final')
 })
 
-test('dsh-better-sidebar 刷新后会恢复 Review 标签页及审查目标', async ({
-  page,
-  agentForPage,
-}, testInfo) => {
-  requireBetterSidebar(testInfo)
+test('刷新后从历史卡片重新打开原生 Review Tab', async ({ page, agentForPage }) => {
   const target = files.sidebarRefresh
   await prepareExistingTarget(target)
   const composer = await openNewSession(page, 'standard')
@@ -203,18 +158,18 @@ test('dsh-better-sidebar 刷新后会恢复 Review 标签页及审查目标', as
   await expectCardSummary(card, target, 1, 1)
   await expectFileText(target.absolutePath, 'after\n')
 
-  const initialReview = await openSidebarReview(card, page)
+  const initialReview = await openReview(card, page)
   await expectReviewSummary(initialReview, target, 1, 1)
   await expectDiffLine(initialReview, 'del', 1, 'before')
   await expectDiffLine(initialReview, 'add', 1, 'after')
 
-  // dsh-better-sidebar debounces its per-session layout persistence by 200ms.
-  await page.waitForTimeout(300)
   await page.reload()
 
-  const restoredReview = page.locator('[data-file-review-sidebar-tab]')
+  const restoredCard = page.getByRole('region', { name: names.producedCard }).last()
+  await expect(restoredCard).toBeVisible({ timeout: 60_000 })
+  const restoredReview = await openReview(restoredCard, page)
   await expect(restoredReview).toBeVisible({ timeout: 60_000 })
-  await expect(page.getByRole('dialog', { name: names.reviewDialog })).toHaveCount(0)
+  await expect(page.getByRole('dialog', { name: names.reviewTitle })).toHaveCount(0)
   await expectReviewSummary(restoredReview, target, 1, 1)
   await expectDiffLine(restoredReview, 'del', 1, 'before')
   await expectDiffLine(restoredReview, 'add', 1, 'after')

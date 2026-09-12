@@ -43,6 +43,8 @@ describe('published browser artifact', () => {
       'sessions',
       'conversation',
       'inputTriggers',
+      'sidebarRight',
+      'sidebarRightTabs',
     ])
     expect(document.querySelectorAll('style[data-plugin="dsh-file-review"]')).toHaveLength(3)
   })

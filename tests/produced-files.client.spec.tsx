@@ -15,12 +15,15 @@ import type {
   TurnLocation,
 } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { ChatFileMentions, TurnTailOwnerProps } from '@deepseek-ai/dsh-client-ui-chat/client'
-import { ProducedFiles } from '../src/client/ProducedFiles.tsx'
+import { useMemo, useState } from 'react'
+import type { ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import { ProducedFiles, type ProducedFilesProps } from '../src/client/ProducedFiles.tsx'
 import {
   FileReviewSettingsCard,
   type FileReviewSettingsCardProps,
 } from '../src/client/FileReviewSettingsCard.tsx'
-import { FileReviewTab } from '../src/client/FileReviewTab.tsx'
+import { FileReviewTab, type ReviewTarget } from '../src/client/FileReviewTab.tsx'
 import {
   ReviewCommentsDock,
   type ReviewCommentsDockProps,
@@ -47,6 +50,81 @@ import {
 import { boundedPtcFileReviewMarker, markerBlock } from '../src/ptc-marker.ts'
 import { apply, inject } from '../src/client/index.ts'
 import { en, NS, zh } from '../src/client/locales.ts'
+
+/** Supply the host-owned tab lifecycle while exercising the real card and tab content. */
+function ReviewFixture({
+  sessionId = 'session-test',
+  projectRoot,
+  syncComments,
+  wordWrap,
+  ...props
+}: Omit<ProducedFilesProps, 'openReview'> & {
+  sessionId?: string
+  projectRoot?: string
+  syncComments?: () => void
+  wordWrap?: ObservableSnapshot<boolean>
+}) {
+  const [params, setParams] = useState<ReviewTarget>()
+  const sessionSnapshot = useMemo(
+    () => ({ byId: { [sessionId]: { cwd: projectRoot } } }),
+    [sessionId, projectRoot],
+  )
+  const snapshot = useMemo(
+    () => ({
+      timeline: {
+        turns: new Map([
+          [
+            props.turn?.turn ?? 0,
+            turnLocation(
+              props.turn?.turn ?? 0,
+              produced(
+                ...props.matched.map(
+                  (review) => [props.seq ?? 0, review.path, review.diffs] as const,
+                ),
+              ),
+            ),
+          ],
+        ]),
+      },
+    }),
+    [props.matched, props.turn, props.seq],
+  )
+  return (
+    <>
+      <ProducedFiles {...props} openReview={setParams} />
+      {params !== undefined && (
+        <section role="tabpanel" aria-label={props.t('review.title')}>
+          <button onClick={() => setParams(undefined)}>
+            {props.t('review.title') === '审查' ? '关闭' : 'Close'}
+          </button>
+          <FileReviewTab
+            sessions={
+              {
+                binding: () => ({}),
+                list: { getSnapshot: () => sessionSnapshot, subscribe: () => () => {} },
+              } as never
+            }
+            uiConversation={
+              {
+                binding: () => ({
+                  target: () => ({ getSnapshot: () => snapshot, subscribe: () => () => {} }),
+                }),
+              } as never
+            }
+            sessionId={sessionId as SessionId}
+            projectRoot={projectRoot}
+            params={params}
+            visible
+            syncComments={syncComments}
+            wordWrap={wordWrap ?? { getSnapshot: () => false, subscribe: () => () => {} }}
+            openFile={props.openFile}
+            t={props.t}
+          />
+        </section>
+      )}
+    </>
+  )
+}
 
 const unifiedDiffCss = readFileSync('src/client/UnifiedDiff.module.css', 'utf8')
 
@@ -215,7 +293,7 @@ function ptc(
     })),
   })
   if (marker === null) throw new Error('fixture marker exceeded its budget')
-  return at(seq, 'tool/code-dispatch', {
+  return at(seq, 'tool/ptc-dispatch', {
     rootCallId,
     parentCallId: rootCallId,
     subCallId,
@@ -550,8 +628,8 @@ describe('produced-file Turn data', () => {
   })
 })
 
-describe('better-sidebar review tab', () => {
-  it('reads the alpha.3 chat target and unsubscribes while hidden', () => {
+describe('native review tab', () => {
+  it('reads the rc.1 chat target and unsubscribes while hidden', () => {
     const sessionBinding = {}
     const unsubscribeChat = vi.fn()
     const chatSnapshot = {
@@ -575,13 +653,10 @@ describe('better-sidebar review tab', () => {
         },
       },
       uiConversation: { binding: bindConversation },
-      scope: { sessionId: 'session-1', cwd: '/workspace' },
-      tab: { meta: { turn: 1, closingSeq: 9, focusPaths: ['src/a.ts'] } },
+      sessionId: 'session-1',
+      projectRoot: '/workspace',
+      params: { turn: 1, closingSeq: 9, focusPaths: ['src/a.ts'] },
       visible: true,
-      runtime: {
-        inspectChanges: async () => ({ files: [] }),
-        applyChanges: async () => ({ files: [] }),
-      },
       wordWrap: { getSnapshot: () => false, subscribe: () => () => {} },
       openFile: vi.fn(),
       t: makeTranslate(en),
@@ -640,7 +715,7 @@ describe('ProducedFiles review card', () => {
 
   it('renders aggregate and per-file totals and expands the six-file preview', () => {
     const paths = ['deep/a.html', 'b.css', 'c.ts', 'd.ts', 'e.ts', 'f.ts', 'g.ts']
-    const view = render(<ProducedFiles matched={reviews(paths)} openFile={() => {}} t={t} />)
+    const view = render(<ReviewFixture matched={reviews(paths)} openFile={() => {}} t={t} />)
     const card = view.getByRole('region', { name: 'Edited files' })
     expect(within(card).getByText('Edited 7 files')).toBeTruthy()
     const expand = within(card).getByRole('button', { name: '1 more file' })
@@ -661,26 +736,25 @@ describe('ProducedFiles review card', () => {
     const translate = (key: string, params?: Record<string, unknown>): string =>
       makeTranslate(active)(key, params)
     const view = render(
-      <ProducedFiles matched={changedReviews} openFile={() => {}} t={translate} />,
+      <ReviewFixture matched={changedReviews} openFile={() => {}} t={translate} />,
     )
 
     expect(view.getByRole('region', { name: 'Edited files' })).toBeTruthy()
     expect(view.getByRole('button', { name: 'Review all produced files' })).toBeTruthy()
 
     active = zh
-    view.rerender(<ProducedFiles matched={changedReviews} openFile={() => {}} t={translate} />)
+    view.rerender(<ReviewFixture matched={changedReviews} openFile={() => {}} t={translate} />)
 
     const card = view.getByRole('region', { name: '已编辑文件' })
     expect(within(card).getByText('已编辑 2 个文件')).toBeTruthy()
     expect(within(card).getByLabelText('新增 3 行，删除 1 行')).toBeTruthy()
     fireEvent.click(within(card).getByRole('button', { name: '审查所有产出文件' }))
 
-    const drawer = view.getByRole('dialog', { name: '审查' })
-    expect(within(drawer).getByText('2 个文件')).toBeTruthy()
-    expect(within(drawer).getByRole('button', { name: '复制差异' })).toBeTruthy()
-    expect(within(drawer).getByRole('button', { name: '关闭' })).toBeTruthy()
-    expect(within(drawer).getByRole('separator', { name: '调整审查面板大小' })).toBeTruthy()
-    expect(within(drawer).getAllByRole('button', { name: '在编辑器中打开' })).toHaveLength(2)
+    const panel = view.getByRole('tabpanel', { name: '审查' })
+    expect(within(panel).getByText('2 个文件')).toBeTruthy()
+    expect(within(panel).getByRole('button', { name: '复制差异' })).toBeTruthy()
+    expect(within(panel).getByRole('button', { name: '关闭' })).toBeTruthy()
+    expect(within(panel).getAllByRole('button', { name: '在编辑器中打开' })).toHaveLength(2)
   })
 
   it('switches to reapply only after every reversible file is undone', async () => {
@@ -692,7 +766,7 @@ describe('ProducedFiles review card', () => {
       .mockResolvedValueOnce({ files: [{ path: 'deep/a.html', state: 'undone', changed: true }] })
       .mockResolvedValueOnce({ files: [{ path: 'deep/a.html', state: 'applied', changed: true }] })
     const view = render(
-      <ProducedFiles
+      <ReviewFixture
         matched={[changedReviews[0]!]}
         openFile={() => {}}
         inspectChanges={inspectChanges}
@@ -759,7 +833,7 @@ describe('ProducedFiles review card', () => {
       })),
     }))
     const view = render(
-      <ProducedFiles
+      <ReviewFixture
         matched={[lifecycleReviews[0]!]}
         openFile={() => {}}
         inspectChanges={inspectChanges}
@@ -773,7 +847,7 @@ describe('ProducedFiles review card', () => {
     })
 
     view.rerender(
-      <ProducedFiles
+      <ReviewFixture
         matched={[lifecycleReviews[1]!]}
         openFile={() => {}}
         inspectChanges={inspectChanges}
@@ -786,7 +860,7 @@ describe('ProducedFiles review card', () => {
     })
 
     view.rerender(
-      <ProducedFiles
+      <ReviewFixture
         matched={[
           fileReview('legacy.txt', [
             {
@@ -805,7 +879,7 @@ describe('ProducedFiles review card', () => {
     })
 
     view.rerender(
-      <ProducedFiles
+      <ReviewFixture
         matched={[
           {
             path: 'truncated.txt',
@@ -841,7 +915,7 @@ describe('ProducedFiles review card', () => {
     }))
     const openFile = vi.fn<(path: string) => void>()
     const view = render(
-      <ProducedFiles
+      <ReviewFixture
         matched={twoReversible}
         openFile={openFile}
         inspectChanges={inspectChanges}
@@ -879,7 +953,7 @@ describe('ProducedFiles review card', () => {
       expect(applyChanges).toHaveBeenCalledTimes(2)
     })
 
-    view.rerender(<ProducedFiles matched={[fileReview('notes.md')]} openFile={() => {}} t={t} />)
+    view.rerender(<ReviewFixture matched={[fileReview('notes.md')]} openFile={() => {}} t={t} />)
     await vi.waitFor(() => {
       const button = view.getByRole('button', { name: 'Undo' }) as HTMLButtonElement
       expect(button.disabled).toBe(true)
@@ -890,38 +964,36 @@ describe('ProducedFiles review card', () => {
   it('reviews every file from the header and copies the visible unified diff', async () => {
     const writeText = vi.fn(() => Promise.resolve())
     vi.stubGlobal('navigator', { clipboard: { writeText } })
-    const view = render(<ProducedFiles matched={changedReviews} openFile={() => {}} t={t} />)
+    const view = render(<ReviewFixture matched={changedReviews} openFile={() => {}} t={t} />)
 
     fireEvent.click(view.getByRole('button', { name: 'Review all produced files' }))
-    const drawer = view.getByRole('dialog', { name: 'Review' })
-    const drawerHeader = drawer.querySelector('[data-review-content] > header') as HTMLElement
-    expect(within(drawer).getByText('2 files')).toBeTruthy()
-    expect(within(drawerHeader).queryByRole('button', { name: 'Undo' })).toBeNull()
+    const panel = view.getByRole('tabpanel', { name: 'Review' })
+    const reviewHeader = panel.querySelector('[data-review-content] > header') as HTMLElement
+    expect(within(panel).getByText('2 files')).toBeTruthy()
+    expect(within(reviewHeader).queryByRole('button', { name: 'Undo' })).toBeNull()
     expect(
-      within(drawerHeader)
+      within(reviewHeader)
         .getAllByRole('button')
         .map((button) => button.getAttribute('aria-label') ?? button.textContent?.trim()),
-    ).toEqual(['Copy diff', 'Close'])
-    expect(within(drawer).getByText('deep/a.html')).toBeTruthy()
-    expect(within(drawer).getByText('styles/b.css')).toBeTruthy()
-    expect(drawer.querySelectorAll('[data-diff-layout="unified"]')).toHaveLength(2)
-    const firstDiff = drawer.querySelectorAll('[data-diff-layout="unified"]')[0]
+    ).toEqual(['Copy diff'])
+    expect(within(panel).getByText('deep/a.html')).toBeTruthy()
+    expect(within(panel).getByText('styles/b.css')).toBeTruthy()
+    expect(panel.querySelectorAll('[data-diff-layout="unified"]')).toHaveLength(2)
+    const firstDiff = panel.querySelectorAll('[data-diff-layout="unified"]')[0]
     expect(firstDiff?.getAttribute('data-word-wrap')).toBe('false')
     const firstDiffLines = firstDiff?.querySelectorAll('[data-line-kind]') ?? []
     expect([...firstDiffLines].map((line) => line.childElementCount)).toEqual([3, 3, 3])
-    expect([...firstDiffLines].map((line) => line.firstElementChild?.textContent)).toEqual([
-      '7',
-      '7',
-      '8',
-    ])
+    expect(
+      [...firstDiffLines].map((line) => line.firstElementChild?.lastElementChild?.textContent),
+    ).toEqual(['7', '7', '8'])
 
-    fireEvent.click(within(drawer).getByRole('button', { name: 'Copy diff' }))
+    fireEvent.click(within(panel).getByRole('button', { name: 'Copy diff' }))
     await vi.waitFor(() => {
       expect(writeText).toHaveBeenCalledOnce()
     })
     expect(writeText.mock.calls[0]?.[0]).toContain('deep/a.html')
     expect(writeText.mock.calls[0]?.[0]).toContain('styles/b.css')
-    expect(within(drawer).getByRole('button', { name: 'Copied' })).toBeTruthy()
+    expect(within(panel).getByRole('button', { name: 'Copied' })).toBeTruthy()
   })
 
   it('does not invent missing legacy coordinates and preserves a known side', () => {
@@ -931,7 +1003,7 @@ describe('ProducedFiles review card', () => {
       { path: 'legacy.txt', oldText: 'third before', newText: 'third after', newStart: 9 },
     ])
     const view = render(
-      <ProducedFiles
+      <ReviewFixture
         matched={[review]}
         openFile={() => {}}
         sessionId="legacy-session"
@@ -942,8 +1014,8 @@ describe('ProducedFiles review card', () => {
     )
 
     fireEvent.click(view.getByRole('button', { name: 'Review legacy.txt' }))
-    const drawer = view.getByRole('dialog', { name: 'Review' })
-    const lines = drawer.querySelectorAll('[data-line-kind]')
+    const panel = view.getByRole('tabpanel', { name: 'Review' })
+    const lines = panel.querySelectorAll('[data-line-kind]')
     expect([...lines].map((line) => line.firstElementChild?.lastElementChild?.textContent)).toEqual(
       ['', '', '', '', '', '9'],
     )
@@ -955,10 +1027,10 @@ describe('ProducedFiles review card', () => {
         ),
     ).toBe(true)
     expect(lines[5]?.getAttribute('data-new-line')).toBe('9')
-    expect(within(drawer).getByText('@@ -? +? @@')).toBeTruthy()
-    expect(within(drawer).getByText('@@ -? +9 @@')).toBeTruthy()
-    expect(within(drawer).getByRole('button', { name: 'Add comment on line 9' })).toBeTruthy()
-    expect(within(drawer).queryByRole('button', { name: 'Add comment on line 0' })).toBeNull()
+    expect(within(panel).getByText('@@ -? +? @@')).toBeTruthy()
+    expect(within(panel).getByText('@@ -? +9 @@')).toBeTruthy()
+    expect(within(panel).getByRole('button', { name: 'Add comment on line 9' })).toBeTruthy()
+    expect(within(panel).queryByRole('button', { name: 'Add comment on line 0' })).toBeNull()
     expect(unifiedDiffText(review.diffs)).toContain('@@ -? +? @@')
     expect(unifiedDiffText(review.diffs)).toContain('@@ -? +9 @@')
   })
@@ -981,15 +1053,15 @@ describe('ProducedFiles review card', () => {
         newStart: 14,
       },
     ])
-    const view = render(<ProducedFiles matched={[review]} openFile={() => {}} t={t} />)
+    const view = render(<ReviewFixture matched={[review]} openFile={() => {}} t={t} />)
 
     fireEvent.click(view.getByRole('button', { name: 'Review threshold.txt' }))
-    const drawer = view.getByRole('dialog', { name: 'Review' })
+    const panel = view.getByRole('tabpanel', { name: 'Review' })
     for (let line = 1; line <= 5; line++) {
-      expect(within(drawer).getByText(`keep-${line}`)).toBeTruthy()
+      expect(within(panel).getByText(`keep-${line}`)).toBeTruthy()
     }
-    expect(within(drawer).queryByText('5 unchanged lines')).toBeNull()
-    expect(within(drawer).getByText('6 unchanged lines')).toBeTruthy()
+    expect(within(panel).queryByText('5 unchanged lines')).toBeNull()
+    expect(within(panel).getByText('6 unchanged lines')).toBeTruthy()
   })
 
   it('visually wraps long lines without changing their logical text', () => {
@@ -1003,12 +1075,12 @@ describe('ProducedFiles review card', () => {
     ])
     const wordWrap = { getSnapshot: () => true, subscribe: () => () => {} }
     const view = render(
-      <ProducedFiles matched={[review]} openFile={() => {}} wordWrap={wordWrap} t={t} />,
+      <ReviewFixture matched={[review]} openFile={() => {}} wordWrap={wordWrap} t={t} />,
     )
 
     fireEvent.click(view.getByRole('button', { name: 'Review src/long-line.ts' }))
-    const drawer = view.getByRole('dialog', { name: 'Review' })
-    const diff = drawer.querySelector('[data-diff-layout="unified"]')
+    const panel = view.getByRole('tabpanel', { name: 'Review' })
+    const diff = panel.querySelector('[data-diff-layout="unified"]')
     expect(diff?.getAttribute('data-word-wrap')).toBe('true')
     const added = diff?.querySelector('[data-line-kind="add"]')
     expect(added?.lastElementChild?.textContent).toBe(longText)
@@ -1034,7 +1106,7 @@ describe('ProducedFiles review card', () => {
     ])
     const ownerTurn = turnLocation(4)
     const view = render(
-      <ProducedFiles
+      <ReviewFixture
         matched={[commented]}
         openFile={() => {}}
         sessionId="session-comments"
@@ -1044,25 +1116,25 @@ describe('ProducedFiles review card', () => {
       />,
     )
     fireEvent.click(view.getByRole('button', { name: 'Review src/example.ts' }))
-    const drawer = view.getByRole('dialog', { name: 'Review' })
+    const panel = view.getByRole('tabpanel', { name: 'Review' })
 
-    const changedLineButtons = within(drawer).getAllByRole('button', {
+    const changedLineButtons = within(panel).getAllByRole('button', {
       name: 'Add comment on line 5',
     })
     fireEvent.click(changedLineButtons[0]!)
-    let editor = within(drawer).getByRole('textbox', { name: 'Edit comment on line 5' })
+    let editor = within(panel).getByRole('textbox', { name: 'Edit comment on line 5' })
     expect(
-      (within(drawer).getByRole('button', { name: 'Save' }) as HTMLButtonElement).disabled,
+      (within(panel).getByRole('button', { name: 'Save' }) as HTMLButtonElement).disabled,
     ).toBe(true)
     fireEvent.change(editor, { target: { value: 'Discard me.' } })
-    fireEvent.click(within(drawer).getByRole('button', { name: 'Cancel' }))
+    fireEvent.click(within(panel).getByRole('button', { name: 'Cancel' }))
     expect(reviewComments('session-comments')).toHaveLength(0)
 
-    fireEvent.click(within(drawer).getAllByRole('button', { name: 'Add comment on line 5' })[0]!)
-    editor = within(drawer).getByRole('textbox', { name: 'Edit comment on line 5' })
+    fireEvent.click(within(panel).getAllByRole('button', { name: 'Add comment on line 5' })[0]!)
+    editor = within(panel).getByRole('textbox', { name: 'Edit comment on line 5' })
     fireEvent.change(editor, { target: { value: 'Keep the previous behavior <safe>.' } })
-    fireEvent.click(within(drawer).getByRole('button', { name: 'Save' }))
-    const savedComment = within(drawer).getByRole('button', {
+    fireEvent.click(within(panel).getByRole('button', { name: 'Save' }))
+    const savedComment = within(panel).getByRole('button', {
       name: 'Keep the previous behavior <safe>.',
     })
     expect(savedComment.textContent).toBe('Keep the previous behavior <safe>.')
@@ -1088,27 +1160,27 @@ describe('ProducedFiles review card', () => {
     expect(serializeReviewComments('session-comments')).toContain('&lt;safe&gt;')
 
     fireEvent.click(
-      within(drawer).getByRole('button', { name: 'Keep the previous behavior <safe>.' }),
+      within(panel).getByRole('button', { name: 'Keep the previous behavior <safe>.' }),
     )
-    const existingEditor = within(drawer).getByRole('textbox', { name: 'Edit comment on line 5' })
+    const existingEditor = within(panel).getByRole('textbox', { name: 'Edit comment on line 5' })
     fireEvent.change(existingEditor, { target: { value: 'Do not keep this edit.' } })
-    fireEvent.click(within(drawer).getByRole('button', { name: 'Cancel' }))
-    expect(within(drawer).getByText('Keep the previous behavior <safe>.')).toBeTruthy()
+    fireEvent.click(within(panel).getByRole('button', { name: 'Cancel' }))
+    expect(within(panel).getByText('Keep the previous behavior <safe>.')).toBeTruthy()
     expect(reviewComments('session-comments')[0]?.body).toBe('Keep the previous behavior <safe>.')
 
-    fireEvent.click(within(drawer).getAllByRole('button', { name: /unchanged lines/ })[0]!)
-    fireEvent.click(within(drawer).getByRole('button', { name: 'Add comment on line 1' }))
-    const contextEditor = within(drawer).getByRole('textbox', { name: 'Edit comment on line 1' })
+    fireEvent.click(within(panel).getAllByRole('button', { name: /unchanged lines/ })[0]!)
+    fireEvent.click(within(panel).getByRole('button', { name: 'Add comment on line 1' }))
+    const contextEditor = within(panel).getByRole('textbox', { name: 'Edit comment on line 1' })
     fireEvent.change(contextEditor, { target: { value: 'This context also matters.' } })
-    fireEvent.click(within(drawer).getByRole('button', { name: 'Save' }))
+    fireEvent.click(within(panel).getByRole('button', { name: 'Save' }))
     expect(reviewComments('session-comments')).toHaveLength(2)
     expect(serializeReviewComments('session-comments')).toContain(
       '<comment kind="context" old_line="1" new_line="1">',
     )
 
-    fireEvent.click(within(drawer).getByRole('button', { name: 'Close' }))
+    fireEvent.click(within(panel).getByRole('button', { name: 'Close' }))
     fireEvent.click(view.getByRole('button', { name: 'Review src/example.ts' }))
-    const reopened = view.getByRole('dialog', { name: 'Review' })
+    const reopened = view.getByRole('tabpanel', { name: 'Review' })
     expect(within(reopened).getByText('Keep the previous behavior <safe>.')).toBeTruthy()
     fireEvent.click(within(reopened).getAllByRole('button', { name: /unchanged lines/ })[0]!)
     expect(within(reopened).getByText('This context also matters.')).toBeTruthy()
@@ -1131,7 +1203,7 @@ describe('ProducedFiles review card', () => {
       },
     ])
     const view = render(
-      <ProducedFiles
+      <ReviewFixture
         matched={[review]}
         openFile={() => {}}
         sessionId="comment-height"
@@ -1141,17 +1213,17 @@ describe('ProducedFiles review card', () => {
       />,
     )
     fireEvent.click(view.getByRole('button', { name: 'Review src/height.ts' }))
-    const drawer = view.getByRole('dialog', { name: 'Review' })
-    fireEvent.click(within(drawer).getAllByRole('button', { name: 'Add comment on line 1' })[0]!)
-    let editor = within(drawer).getByRole('textbox', { name: 'Edit comment on line 1' })
-    expect(within(drawer).getByText('Shift+Enter for a new line')).toBeTruthy()
+    const panel = view.getByRole('tabpanel', { name: 'Review' })
+    fireEvent.click(within(panel).getAllByRole('button', { name: 'Add comment on line 1' })[0]!)
+    let editor = within(panel).getByRole('textbox', { name: 'Edit comment on line 1' })
+    expect(within(panel).getByText('Shift+Enter for a new line')).toBeTruthy()
     expect(editor.style.height).toBe('52px')
     expect(editor.style.overflowY).toBe('hidden')
 
     fireEvent.change(editor, { target: { value: 'IME composition' } })
     expect(fireEvent.keyDown(editor, { key: 'Enter', isComposing: true })).toBe(true)
     expect(reviewComments('comment-height')).toHaveLength(0)
-    expect(within(drawer).queryByRole('textbox', { name: 'Edit comment on line 1' })).not.toBeNull()
+    expect(within(panel).queryByRole('textbox', { name: 'Edit comment on line 1' })).not.toBeNull()
     expect(fireEvent.keyDown(editor, { key: 'Enter', shiftKey: true })).toBe(true)
     expect(reviewComments('comment-height')).toHaveLength(0)
 
@@ -1167,31 +1239,29 @@ describe('ProducedFiles review card', () => {
     expect(fireEvent.keyDown(editor, { key: 'Enter' })).toBe(false)
     expect(reviewComments('comment-height')[0]?.body).toBe(longComment)
 
-    fireEvent.click(within(drawer).getByRole('button', { name: longComment }))
-    editor = within(drawer).getByRole('textbox', { name: 'Edit comment on line 1' })
+    fireEvent.click(within(panel).getByRole('button', { name: longComment }))
+    editor = within(panel).getByRole('textbox', { name: 'Edit comment on line 1' })
     expect(editor.style.height).toBe('176px')
     expect(editor.style.overflowY).toBe('auto')
   })
 
-  it('focuses one file from its row, opens it in the editor, and restores focus on close', () => {
+  it('focuses one file from its row, opens it in the editor, and closes the tab', () => {
     const openFile = vi.fn<(path: string) => void>()
-    const view = render(<ProducedFiles matched={changedReviews} openFile={openFile} t={t} />)
+    const view = render(<ReviewFixture matched={changedReviews} openFile={openFile} t={t} />)
     const trigger = view.getByRole('button', { name: 'Review deep/a.html' })
 
     fireEvent.click(trigger)
-    const drawer = view.getByRole('dialog', { name: 'Review' })
-    expect(within(drawer).getByText('1 file')).toBeTruthy()
-    expect(within(drawer).queryByText('styles/b.css')).toBeNull()
-    expect(document.activeElement).toBe(view.getByRole('button', { name: 'Close' }))
-    fireEvent.click(within(drawer).getByRole('button', { name: 'Open in editor' }))
+    const panel = view.getByRole('tabpanel', { name: 'Review' })
+    expect(within(panel).getByText('1 file')).toBeTruthy()
+    expect(within(panel).queryByText('styles/b.css')).toBeNull()
+    fireEvent.click(within(panel).getByRole('button', { name: 'Open in editor' }))
     expect(openFile).toHaveBeenCalledExactlyOnceWith('deep/a.html')
-    fireEvent.keyDown(document, { key: 'Escape' })
-    expect(view.queryByRole('dialog')).toBeNull()
-    expect(document.activeElement).toBe(trigger)
+    fireEvent.click(view.getByRole('button', { name: 'Close' }))
+    expect(view.queryByRole('tabpanel')).toBeNull()
 
     fireEvent.click(trigger)
     fireEvent.click(view.getByRole('button', { name: 'Close' }))
-    expect(view.queryByRole('dialog')).toBeNull()
+    expect(view.queryByRole('tabpanel')).toBeNull()
   })
 
   it('shows review paths relative to the Session project while opening the absolute path', () => {
@@ -1207,7 +1277,7 @@ describe('ProducedFiles review card', () => {
     ])
     const openFile = vi.fn<(path: string) => void>()
     const view = render(
-      <ProducedFiles
+      <ReviewFixture
         matched={[absoluteReview]}
         openFile={openFile}
         projectRoot="/Users/test/projects/example"
@@ -1216,214 +1286,29 @@ describe('ProducedFiles review card', () => {
     )
 
     fireEvent.click(view.getByRole('button', { name: `Review ${absolutePath}` }))
-    const drawer = view.getByRole('dialog', { name: 'Review' })
-    expect(within(drawer).getByText('docs/guide.md')).toBeTruthy()
-    expect(within(drawer).queryByText(absolutePath)).toBeNull()
-    fireEvent.click(within(drawer).getByRole('button', { name: 'Open in editor' }))
+    const panel = view.getByRole('tabpanel', { name: 'Review' })
+    expect(within(panel).getByText('docs/guide.md')).toBeTruthy()
+    expect(within(panel).queryByText(absolutePath)).toBeNull()
+    fireEvent.click(within(panel).getByRole('button', { name: 'Open in editor' }))
     expect(openFile).toHaveBeenCalledExactlyOnceWith(absolutePath)
-  })
-
-  it('transfers the review drawer between produced-file cards from file and review buttons', () => {
-    const view = render(
-      <main data-testid="session-scroll-container">
-        <ProducedFiles
-          matched={[fileReview('first.md'), fileReview('first-extra.md')]}
-          openFile={() => {}}
-          t={t}
-        />
-        <ProducedFiles
-          matched={[fileReview('second.md'), fileReview('second-extra.md')]}
-          openFile={() => {}}
-          t={t}
-        />
-      </main>,
-    )
-
-    const session = view.getByTestId('session-scroll-container')
-    const firstTrigger = view.getByRole('button', { name: 'Review first.md' })
-    vi.spyOn(firstTrigger, 'focus').mockImplementation((options) => {
-      if (options?.preventScroll !== true) session.scrollTop = 0
-    })
-    fireEvent.click(firstTrigger)
-    session.scrollTop = 1050
-    expect(view.getAllByRole('dialog', { name: 'Review' })).toHaveLength(1)
-    let drawer = view.getByRole('dialog', { name: 'Review' })
-    expect(within(drawer).getByText('first.md')).toBeTruthy()
-    expect(within(drawer).queryByText('first-extra.md')).toBeNull()
-
-    fireEvent.click(view.getAllByRole('button', { name: 'Review all produced files' })[1]!)
-    expect(session.scrollTop).toBe(1050)
-    expect(view.getAllByRole('dialog', { name: 'Review' })).toHaveLength(1)
-    drawer = view.getByRole('dialog', { name: 'Review' })
-    expect(within(drawer).getByText('second.md')).toBeTruthy()
-    expect(within(drawer).getByText('second-extra.md')).toBeTruthy()
-    expect(within(drawer).queryByText('first.md')).toBeNull()
-
-    fireEvent.click(view.getAllByRole('button', { name: 'Review all produced files' })[0]!)
-    expect(view.getAllByRole('dialog', { name: 'Review' })).toHaveLength(1)
-    drawer = view.getByRole('dialog', { name: 'Review' })
-    expect(within(drawer).getByText('first.md')).toBeTruthy()
-    expect(within(drawer).getByText('first-extra.md')).toBeTruthy()
-    expect(within(drawer).queryByText('second.md')).toBeNull()
-
-    fireEvent.click(view.getByRole('button', { name: 'Review second.md' }))
-    expect(view.getAllByRole('dialog', { name: 'Review' })).toHaveLength(1)
-    drawer = view.getByRole('dialog', { name: 'Review' })
-    expect(within(drawer).getByText('second.md')).toBeTruthy()
-    expect(within(drawer).queryByText('second-extra.md')).toBeNull()
-  })
-
-  it('resizes the drawer by dragging or keyboard and persists the chosen width', () => {
-    const innerWidth = vi.spyOn(window, 'innerWidth', 'get').mockReturnValue(1024)
-    const view = render(<ProducedFiles matched={changedReviews} openFile={() => {}} t={t} />)
-    fireEvent.click(view.getByRole('button', { name: 'Review all produced files' }))
-    const drawer = view.getByRole('dialog', { name: 'Review' })
-    const handle = within(drawer).getByRole('separator', { name: 'Resize review panel' })
-
-    expect(handle.getAttribute('aria-valuenow')).toBe('369')
-    fireEvent.pointerDown(handle, { button: 0, pointerId: 7, clientX: 500 })
-    fireEvent.pointerMove(handle, { pointerId: 7, clientX: 400 })
-    fireEvent.pointerUp(handle, { pointerId: 7, clientX: 400 })
-    expect(drawer.style.getPropertyValue('--review-drawer-width')).toBe('45.77vw')
-    expect(window.localStorage.getItem('dsh-file-review:drawer-ratio')).toBe('0.4577')
-
-    fireEvent.keyDown(handle, { key: 'ArrowRight' })
-    expect(drawer.style.getPropertyValue('--review-drawer-width')).toBe('43.77vw')
-    fireEvent.keyDown(handle, { key: 'Home' })
-    expect(drawer.style.getPropertyValue('--review-drawer-width')).toBe('24vw')
-
-    fireEvent.keyDown(handle, { key: 'ArrowLeft' })
-    innerWidth.mockReturnValue(1440)
-    fireEvent(window, new Event('resize'))
-    expect(drawer.style.getPropertyValue('--review-drawer-width')).toBe('26vw')
-    expect(handle.getAttribute('aria-valuenow')).toBe('374')
-
-    fireEvent.doubleClick(handle)
-    expect(drawer.style.getPropertyValue('--review-drawer-width')).toBe('')
-    expect(window.localStorage.getItem('dsh-file-review:drawer-ratio')).toBeNull()
-  })
-
-  it('uses the host details track instead of covering the conversation', () => {
-    const view = render(
-      <div
-        data-testid="host-frame"
-        style={{ display: 'grid', gridTemplateColumns: '280px minmax(0, 1fr) 0px' }}
-      >
-        <aside style={{ width: 280 }} />
-        <main>
-          <ProducedFiles matched={changedReviews} openFile={() => {}} t={t} />
-        </main>
-        <aside data-testid="host-details">Native details</aside>
-      </div>,
-    )
-    const frame = view.getByTestId('host-frame')
-    const details = view.getByTestId('host-details')
-
-    fireEvent.click(view.getByRole('button', { name: 'Review all produced files' }))
-    expect(frame.style.gridTemplateColumns).toBe(
-      '280px minmax(0, 1fr) var(--dsh-file-review-drawer-width)',
-    )
-    expect(frame.style.getPropertyValue('--dsh-file-review-drawer-width')).toBe('36vw')
-    expect(details.style.visibility).toBe('hidden')
-    expect(details.style.pointerEvents).toBe('none')
-    expect(details.getAttribute('aria-hidden')).toBe('true')
-    const drawer = view.getByRole('dialog', { name: 'Review' })
-    expect(drawer.className).toContain('drawerSplit')
-
-    const handle = within(drawer).getByRole('separator', { name: 'Resize review panel' })
-    fireEvent.keyDown(handle, { key: 'ArrowLeft' })
-    expect(frame.style.getPropertyValue('--dsh-file-review-drawer-width')).toBe('38vw')
-
-    fireEvent.click(within(drawer).getByRole('button', { name: 'Close' }))
-    expect(frame.style.gridTemplateColumns).toBe('280px minmax(0, 1fr) 0px')
-    expect(frame.style.getPropertyValue('--dsh-file-review-drawer-width')).toBe('')
-    expect(details.style.visibility).toBe('')
-    expect(details.style.pointerEvents).toBe('')
-    expect(details.getAttribute('aria-hidden')).toBeNull()
-  })
-
-  it('keeps the host split owned by the new drawer after a cross-turn takeover', () => {
-    const host = (showFirst: boolean) => (
-      <div
-        data-testid="host-frame"
-        style={{ display: 'grid', gridTemplateColumns: '280px minmax(0, 1fr) 0px' }}
-      >
-        <aside style={{ width: 280 }} />
-        <main>
-          {showFirst && (
-            <ProducedFiles
-              key="first"
-              matched={[fileReview('first.md')]}
-              openFile={() => {}}
-              t={t}
-            />
-          )}
-          <ProducedFiles
-            key="second"
-            matched={[fileReview('second.md')]}
-            openFile={() => {}}
-            t={t}
-          />
-        </main>
-        <aside data-testid="host-details">Native details</aside>
-      </div>
-    )
-    const view = render(host(true))
-    const frame = view.getByTestId('host-frame')
-    const details = view.getByTestId('host-details')
-    let detailsWidth = 0
-    vi.spyOn(details, 'getBoundingClientRect').mockImplementation(
-      () => ({ width: detailsWidth }) as DOMRect,
-    )
-
-    fireEvent.click(view.getByRole('button', { name: 'Review first.md' }))
-    expect(frame.style.gridTemplateColumns).toBe(
-      '280px minmax(0, 1fr) var(--dsh-file-review-drawer-width)',
-    )
-
-    // The host animates the released details track, so it can still report a visible width
-    // while the next turn takes ownership of the shared review drawer.
-    detailsWidth = 320
-    fireEvent.click(view.getByRole('button', { name: 'Review second.md' }))
-    expect(view.getAllByRole('dialog', { name: 'Review' })).toHaveLength(1)
-    expect(within(view.getByRole('dialog', { name: 'Review' })).getByText('second.md')).toBeTruthy()
-    expect(frame.style.gridTemplateColumns).toBe(
-      '280px minmax(0, 1fr) var(--dsh-file-review-drawer-width)',
-    )
-    expect(details.style.visibility).toBe('hidden')
-    expect(details.getAttribute('aria-hidden')).toBe('true')
-
-    view.rerender(host(false))
-    expect(within(view.getByRole('dialog', { name: 'Review' })).getByText('second.md')).toBeTruthy()
-    expect(frame.style.gridTemplateColumns).toBe(
-      '280px minmax(0, 1fr) var(--dsh-file-review-drawer-width)',
-    )
-    expect(details.style.visibility).toBe('hidden')
-
-    fireEvent.click(
-      within(view.getByRole('dialog', { name: 'Review' })).getByRole('button', { name: 'Close' }),
-    )
-    expect(frame.style.gridTemplateColumns).toBe('280px minmax(0, 1fr) 0px')
-    expect(details.style.visibility).toBe('')
-    expect(details.getAttribute('aria-hidden')).toBeNull()
   })
 
   it('explains unavailable diffs and disables copying while keeping editor access', () => {
     const openFile = vi.fn<(path: string) => void>()
     const view = render(
-      <ProducedFiles matched={[fileReview('notes.md')]} openFile={openFile} t={t} />,
+      <ReviewFixture matched={[fileReview('notes.md')]} openFile={openFile} t={t} />,
     )
     fireEvent.click(view.getByRole('button', { name: 'Review notes.md' }))
-    const drawer = view.getByRole('dialog', { name: 'Review' })
+    const panel = view.getByRole('tabpanel', { name: 'Review' })
     expect(
-      within(drawer).getByText(
+      within(panel).getByText(
         'No reconstructable diff is available for this change. You can still open the current file.',
       ),
     ).toBeTruthy()
     expect(
-      (within(drawer).getByRole('button', { name: 'Copy diff' }) as HTMLButtonElement).disabled,
+      (within(panel).getByRole('button', { name: 'Copy diff' }) as HTMLButtonElement).disabled,
     ).toBe(true)
-    fireEvent.click(within(drawer).getByRole('button', { name: 'Open in editor' }))
+    fireEvent.click(within(panel).getByRole('button', { name: 'Open in editor' }))
     expect(openFile).toHaveBeenCalledExactlyOnceWith('notes.md')
   })
 })
@@ -1778,6 +1663,8 @@ describe('plugin registration', () => {
         },
       },
       inputTriggers: { registerSource },
+      sidebarRight: { openTabIn: vi.fn() },
+      sidebarRightTabs: { register: vi.fn(() => () => {}) },
       effect: (setup: () => void) => {
         setup()
       },
@@ -1819,6 +1706,8 @@ describe('plugin registration', () => {
       'sessions',
       'conversation',
       'inputTriggers',
+      'sidebarRight',
+      'sidebarRightTabs',
     ])
     expect(bindSettings).toHaveBeenCalledWith({ namespace: 'file-review' })
     publishWordWrap(true)
@@ -1880,20 +1769,19 @@ describe('plugin registration', () => {
     expect(slot?.options.locale).toBe(NS)
     expect(slot?.options.inject).toBeTypeOf('function')
     const reviewActions = slot?.options.inject?.('session-1') as {
-      projectRoot?: string
-      sessionId?: string
-      wordWrap: { getSnapshot(): boolean }
-      syncComments?: () => void
+      openReview(target: ReviewTarget): void
       inspectChanges(request: {
         action: 'undo'
         files: readonly []
       }): Promise<{ files: readonly [] }>
       applyChanges(request: { action: 'undo'; files: readonly [] }): Promise<{ files: readonly [] }>
     }
-    expect(reviewActions.projectRoot).toBe('/workspace/project')
-    expect(reviewActions.sessionId).toBe('session-1')
-    expect(reviewActions.wordWrap.getSnapshot()).toBe(true)
-    expect(reviewActions.syncComments).toBeTypeOf('function')
+    expect(reviewActions.openReview).toBeTypeOf('function')
+    const target = { turn: 1, closingSeq: 2, focusPaths: ['a.txt'] }
+    reviewActions.openReview(target)
+    expect(ctx.sidebarRight.openTabIn).toHaveBeenCalledWith('session-1', 'dsh-file-review:review', {
+      params: target,
+    })
     await expect(reviewActions.inspectChanges({ action: 'undo', files: [] })).resolves.toEqual({
       files: [],
     })
@@ -1907,7 +1795,6 @@ describe('plugin registration', () => {
     expect(settingsActions.hooks.fileReviewSettings).toBe(settingsScope)
     await settingsActions.setWordWrap(false)
     expect(settingsScope.set).toHaveBeenCalledExactlyOnceWith('wordWrap', false)
-    expect(reviewActions.wordWrap.getSnapshot()).toBe(false)
 
     const opened: string[] = []
     const owner = tailOwner(produced([2, 'site/report.html']), 3, (path) => {

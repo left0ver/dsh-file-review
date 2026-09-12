@@ -39,7 +39,7 @@ function dispatchStart(
   for (let index = events.length - 1; index >= 0; index--) {
     const event = events[index]
     if (
-      event?.type !== 'tool/code-dispatch-start' ||
+      event?.type !== 'tool/ptc-dispatch-start' ||
       event.data.subCallId !== subCallId ||
       event.data.rootCallId !== rootCallId ||
       event.data.name !== dispatch.name

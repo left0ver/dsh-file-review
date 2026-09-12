@@ -22,7 +22,7 @@ function fixture(
 ) {
   const events = options.events ?? [
     event(0, 'tool/call', { turn: 3, step: 2, callId: ROOT, name: 'run_code', arguments: '{}' }),
-    event(1, 'tool/code-dispatch-start', {
+    event(1, 'tool/ptc-dispatch-start', {
       rootCallId: ROOT,
       parentCallId: ROOT,
       subCallId: SUB,
@@ -52,7 +52,7 @@ function marker(content: readonly unknown[]) {
 }
 
 describe('PTC Host Adapter', () => {
-  it('registers on the alpha.3 PTC log seam', () => {
+  it('registers on the rc.1 PTC log seam', () => {
     const on = vi.fn(() => () => true)
     registerPtcAdapter({ on } as unknown as Context)
     expect(on).toHaveBeenCalledWith('tools/ptc-dispatch-log', expect.any(Function))
