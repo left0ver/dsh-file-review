@@ -14,6 +14,7 @@ afterEach(async () => {
 })
 
 describe('dsh-file-review node plugin', () => {
+  // 验证插件挂载期间添加最终回复中的文件引用格式提示，卸载后移除该提示。
   it('registers final-response file-reference guidance only while mounted', async () => {
     ctx = new Context()
     await ctx.plugin(SystemPrompt, { persona: '' })

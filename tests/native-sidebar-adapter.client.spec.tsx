@@ -81,6 +81,7 @@ function fixture() {
 }
 
 describe('native sidebar review registration', () => {
+  // 验证原生审查 Tab 只注册一次，打开时传递正确会话和目标，卸载时清理注册项。
   it('registers and opens the native review tab', () => {
     const f = fixture()
     const first = { turn: 1, closingSeq: 10, focusPaths: ['a.md'] }
@@ -99,6 +100,7 @@ describe('native sidebar review registration', () => {
     expect(f.slots.size).toBe(0)
   })
 
+  // 验证 Tab 使用最新导航参数和可见状态，在对应会话中打开文件，并随语言切换更新标题。
   it('reads current navigation and visibility, routes files in the tab session, and localizes its title', () => {
     const f = fixture()
     const Body = f.slots.get('sidebar.right.pane.tab')!
@@ -134,6 +136,7 @@ describe('native sidebar review registration', () => {
     f.dispose()
   })
 
+  // 验证真实文件卡片的总览和单文件按钮传递不同审查范围，且不会打开旧抽屉。
   it('sends all-file and single-file targets from the real card without opening a drawer', () => {
     const openReview = vi.fn()
     const view = render(

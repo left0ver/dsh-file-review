@@ -39,6 +39,7 @@ test.beforeEach(async () => {
   ])
 })
 
+// 验证七文件卡片默认展示六项，展开后显示全部文件，逐文件统计与总计一致。
 test('七文件卡片先显示六项并可展开剩余文件', async ({ page, agentForPage }) => {
   const composer = await openNewSession(page, 'code')
   const agent = await agentForPage(page)
@@ -69,6 +70,7 @@ test('七文件卡片先显示六项并可展开剩余文件', async ({ page, ag
   await expect(card.getByLabel(statsName(1, 1))).toHaveCount(7)
 })
 
+// 验证同一文件两处修改合并为一份审查，统计正确且分别保留第一行和第三行的坐标。
 test('同一文件的两处修改会合并统计并保留各自行号', async ({ page, agentForPage }) => {
   const target = files.multiHunk
   const composer = await openNewSession(page, 'standard')
@@ -91,6 +93,7 @@ test('同一文件的两处修改会合并统计并保留各自行号', async ({
   await expectDiffLine(review, 'add', 3, 'bottom-after')
 })
 
+// 验证从下一轮卡片打开审查会更新当前 Tab 的文件范围，不残留上一轮文件。
 test('跨轮次打开 Review 时标签页切换到最新卡片', async ({ page, agentForPage }) => {
   const composer = await openNewSession(page, 'standard')
   const agent = await agentForPage(page)

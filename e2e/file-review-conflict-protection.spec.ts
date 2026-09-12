@@ -56,6 +56,7 @@ async function expectPartialAlert(
   return alert
 }
 
+// 验证用户在 Agent 修改后再次改写文件，点击撤销只报告冲突，不覆盖用户内容。
 test('文件发生外部冲突时撤销不会覆盖用户内容', async ({ page, agentForPage }) => {
   const target = files.undo
   const composer = await openNewSession(page, 'standard')
@@ -80,6 +81,7 @@ test('文件发生外部冲突时撤销不会覆盖用户内容', async ({ page,
   await expect(card.getByRole('button', { name: names.reapply })).toHaveCount(0)
 })
 
+// 验证文件撤销后被外部改写，重新应用时保留用户内容并提示冲突。
 test('撤销后发生外部冲突时重新应用不会覆盖用户内容', async ({ page, agentForPage }) => {
   const target = files.reapply
   const composer = await openNewSession(page, 'standard')
@@ -104,6 +106,7 @@ test('撤销后发生外部冲突时重新应用不会覆盖用户内容', async
   await expect(card.getByRole('button', { name: names.undo })).toHaveCount(0)
 })
 
+// 验证批量撤销中一个文件发生冲突时，仍恢复另一个安全文件，提示只列出冲突项。
 test('双文件撤销只跳过冲突文件并恢复安全文件', async ({ page, agentForPage }) => {
   const composer = await openNewSession(page, 'standard')
   const agent = await agentForPage(page)

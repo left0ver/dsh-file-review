@@ -178,6 +178,7 @@ afterEach(() => {
 })
 
 describe('review comment composer reference', () => {
+  // 验证内存评论按会话隔离，清除一个会话的评论不影响另一个会话。
   it('isolates in-memory comments by session', () => {
     setReviewComment(comment(0, 'First session'))
     setReviewComment({ ...comment(1, 'Second session'), sessionId: 'session-2' })
@@ -188,6 +189,7 @@ describe('review comment composer reference', () => {
     expect(reviewComments('session-2')).toHaveLength(1)
   })
 
+  // 验证多条评论合并为输入框开头的单个引用，保留用户问题，提交对应消息后清理评论和引用。
   it('aggregates comments into one leading reference without replacing the question', () => {
     const input = new FakeInput()
     let inserts = 0
@@ -237,6 +239,7 @@ describe('review comment composer reference', () => {
     binding.dispose()
   })
 
+  // 验证提交后草稿未清空时保留评论并恢复引用，避免失败提交丢失审查反馈。
   it('keeps comments and restores the reference when submission does not clear the draft', () => {
     const input = new FakeInput()
     const scope = {
@@ -262,6 +265,7 @@ describe('review comment composer reference', () => {
     binding.dispose()
   })
 
+  // 验证成功提交并清空草稿后移除序列化评论引用，避免下次消息重复携带。
   it('removes the serialized review reference after a successful submission', () => {
     const input = new FakeInput()
     const scope = {

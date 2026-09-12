@@ -28,6 +28,7 @@ test.beforeEach(async () => {
   await Promise.all([prepareExistingTarget(files.copy), prepareExistingTarget(files.focus)])
 })
 
+// 验证点击复制差异后，剪贴板包含文件路径及修改前后内容，按钮显示已复制状态。
 test('复制 Diff 会写入完整文件差异并反馈成功状态', async ({ page, agentForPage }) => {
   const target = files.copy
   await page.context().grantPermissions(['clipboard-read', 'clipboard-write'])
@@ -51,6 +52,7 @@ test('复制 Diff 会写入完整文件差异并反馈成功状态', async ({ pa
   expect(clipboard).toContain('+ after')
 })
 
+// 验证重复审查复用同一个原生 Tab，关闭后可从文件卡片重新打开正确内容。
 test('重复打开复用原生 Tab，关闭后可重新打开', async ({ page, agentForPage }) => {
   const target = files.focus
   const composer = await openNewSession(page, 'standard')

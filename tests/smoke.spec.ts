@@ -39,6 +39,7 @@ function smokeAgent(cwd: string, callId: string): Agent {
 }
 
 describe('file review smoke', () => {
+  // 验证从工具执行捕获到文件服务的完整链路：创建和删除标记可用于撤销及重新应用，并恢复正确内容和权限。
   it('captures, undoes, and reapplies created and deleted files end to end', async () => {
     root = await mkdtemp(join(tmpdir(), 'dsh-file-review-smoke-'))
     const createdPath = join(root, 'created.txt')

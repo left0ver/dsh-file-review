@@ -10,6 +10,7 @@ interface ClientHandoff {
 }
 
 describe('published browser artifact', () => {
+  // 验证构建后的浏览器包能通过 DSH 模块加载器独立加载，并注册入口、依赖声明和插件样式。
   it('registers through the Harness module loader and materializes without repository modules', async () => {
     let handoff: ClientHandoff | undefined
     const browserWindow = window as unknown as {

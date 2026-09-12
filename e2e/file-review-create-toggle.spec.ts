@@ -37,6 +37,7 @@ test.beforeEach(async () => {
   ])
 })
 
+// 验证通过 write 工具创建的文件可从卡片撤销删除，再次应用后恢复相同内容和权限。
 test('新建文件可以撤销并以原内容和权限重新应用', async ({ page, agentForPage }) => {
   const target = files.roundTrip
   await expectFileText(target.absolutePath, null)
@@ -65,6 +66,7 @@ test('新建文件可以撤销并以原内容和权限重新应用', async ({ pa
   await expect(card.getByRole('button', { name: names.undo })).toBeEnabled()
 })
 
+// 验证新建两行文件的审查统计为新增两行，展示准确行号且没有删除行。
 test('新建多行文件的审查只包含新增行', async ({ page, agentForPage }) => {
   const target = files.review
   const composer = await openNewSession(page, 'standard')
@@ -86,6 +88,7 @@ test('新建多行文件的审查只包含新增行', async ({ page, agentForPag
   await expectDiffLine(review, 'add', 2, 'second-created')
 })
 
+// 验证新建文件被外部改写后撤销会报告冲突，保留用户内容并继续显示撤销按钮。
 test('新建文件被用户外部改写后撤销不会删除用户内容', async ({ page, agentForPage }) => {
   const target = files.conflict
   const composer = await openNewSession(page, 'standard')

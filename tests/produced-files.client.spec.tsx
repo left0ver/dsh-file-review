@@ -343,6 +343,7 @@ function makeTranslate(...dicts: readonly Record<string, string>[]) {
 }
 
 describe('produced-file Turn data', () => {
+  // 验证产出文件按首次出现顺序去重，只汇总结束回复之前的结果，无产出时不挂载卡片。
   it('deduplicates paths in first-seen order and stops at the closing Assistant seq', () => {
     const data = produced(
       [3, 'out/index.html'],
@@ -363,6 +364,7 @@ describe('produced-file Turn data', () => {
     expect(selectProducedFiles(tailOwner(undefined, 9, () => {}, 2))).toBeNull()
   })
 
+  // 验证仅汇总成功且带审查标记的原生工具结果，忽略读取或失败结果，并标记不完整数据。
   it('folds successful native markers while ignoring markerless and failed results', () => {
     const value = fold([
       at(1, 'turn/start', { turn: 1 }),
@@ -395,6 +397,7 @@ describe('produced-file Turn data', () => {
     ])
   })
 
+  // 验证同一文件多次修改的差异块按顺序追加，无审查标记的结果不会产生额外差异。
   it('appends same-file marker hunks and ignores markerless results', () => {
     const value = fold([
       at(1, 'turn/start', { turn: 1 }),
@@ -429,6 +432,7 @@ describe('produced-file Turn data', () => {
     ])
   })
 
+  // 验证部分捕获的标记只生成已记录文件的审查数据，不补充未捕获的文件。
   it('uses a partial marker without adding uncaptured files', () => {
     const value = fold([
       at(1, 'turn/start', { turn: 1 }),
@@ -446,6 +450,7 @@ describe('produced-file Turn data', () => {
     ])
   })
 
+  // 验证 PTC 的执行结果与调用意图合并到同一轮产出，并保留缺少完整差异的状态。
   it('folds PTC result and intent markers into the same Turn deliverables', () => {
     const value = fold([
       at(1, 'turn/start', { turn: 1 }),
@@ -486,6 +491,7 @@ describe('produced-file Turn data', () => {
     ])
   })
 
+  // 验证汇总原生创建标记时保留明确的生命周期和权限信息，不丢失创建语义。
   it('folds a native lifecycle marker instead of its ambiguous presentation diff', () => {
     const callId = 'native-create'
     const captured = boundedPtcFileReviewMarker({
@@ -520,6 +526,7 @@ describe('produced-file Turn data', () => {
     expect(reviewsForClosing(value)).toEqual([fileReview('created.txt', captured.files[0]?.diffs)])
   })
 
+  // 验证 PTC 重复结果只计入一次，失败、步骤不符、调用标识错配或缺失的结果被忽略。
   it('deduplicates PTC settlements and rejects failures or mismatched marker correlations', () => {
     const accepted = ptc(3, 'run-code:code:0', [{ path: 'one.txt' }])
     const duplicate = ptc(4, 'run-code:code:0', [{ path: 'duplicate.txt' }])
@@ -550,6 +557,7 @@ describe('produced-file Turn data', () => {
     expect(producedForClosing(value)).toEqual(['one.txt'])
   })
 
+  // 验证 PTC 会话事件经过 JSON 序列化和恢复后，仍能还原文件路径及差异预览。
   it('restores PTC previews after a JSON history round trip', () => {
     const entries = [
       at(1, 'turn/start', { turn: 1 }),
@@ -568,6 +576,7 @@ describe('produced-file Turn data', () => {
     ])
   })
 
+  // 验证没有标记、没有对应调用、步骤错配或替换历史内容的结果不会生成产出文件。
   it('ignores markerless, orphan, mismatched, and replacement results', () => {
     const replacement = result(8, 'replacement', [
       {
@@ -600,6 +609,7 @@ describe('produced-file Turn data', () => {
     expect(producedForClosing(value)).toEqual([])
   })
 
+  // 验证产出状态必须由 turn/start 初始化，无关更新事件不会改变已有状态。
   it('rejects an invalid start match and preserves state for an unrelated update', () => {
     const startMatch = matched(at(1, 'turn/start', { turn: 1 }), 'start')
     const emptyContext: Parameters<typeof deliverablesDefinition.start>[0] = {
@@ -629,6 +639,7 @@ describe('produced-file Turn data', () => {
 })
 
 describe('native review tab', () => {
+  // 验证原生 Tab 通过 rc.1 的 chat 数据接口读取指定文件，隐藏后取消聊天数据订阅。
   it('reads the rc.1 chat target and unsubscribes while hidden', () => {
     const sessionBinding = {}
     const unsubscribeChat = vi.fn()
@@ -698,6 +709,7 @@ describe('ProducedFiles review card', () => {
     ]),
   ]
 
+  // 验证替换、新增、多差异块和空列表的新增行数与删除行数计算准确。
   it('derives exact totals for replacements, additions, multiple hunks, and empty reviews', () => {
     expect(summarizeDiffs(changedReviews[0]?.diffs ?? [])).toEqual({ added: 1, removed: 1 })
     expect(summarizeDiffs(changedReviews[1]?.diffs ?? [])).toEqual({ added: 2, removed: 0 })
@@ -713,6 +725,7 @@ describe('ProducedFiles review card', () => {
     )
   })
 
+  // 验证卡片同时展示总计和逐文件统计，默认仅显示六个文件，展开后显示剩余项。
   it('renders aggregate and per-file totals and expands the six-file preview', () => {
     const paths = ['deep/a.html', 'b.css', 'c.ts', 'd.ts', 'e.ts', 'f.ts', 'g.ts']
     const view = render(<ReviewFixture matched={reviews(paths)} openFile={() => {}} t={t} />)
@@ -731,6 +744,7 @@ describe('ProducedFiles review card', () => {
     expect(first.getAttribute('title')).toBe('deep/a.html')
   })
 
+  // 验证运行时切换语言后，文件卡片、行数统计、审查按钮和面板文案同步更新。
   it('renders the active Web UI language after the locale changes', () => {
     let active = en
     const translate = (key: string, params?: Record<string, unknown>): string =>
@@ -757,6 +771,7 @@ describe('ProducedFiles review card', () => {
     expect(within(panel).getAllByRole('button', { name: '在编辑器中打开' })).toHaveLength(2)
   })
 
+  // 验证所有可逆文件撤销完成后按钮才切换为重新应用，操作成功时显示对应反馈。
   it('switches to reapply only after every reversible file is undone', async () => {
     const inspectChanges = vi.fn(async () => ({
       files: [{ path: 'deep/a.html', state: 'applied' as const, changed: false }],
@@ -795,6 +810,7 @@ describe('ProducedFiles review card', () => {
     expect(applyChanges.mock.calls[1]?.[0].action).toBe('redo')
   })
 
+  // 验证明确的创建和删除标记允许撤销，旧格式中语义不明的空快照不会启用撤销。
   it('enables Undo for explicit create/delete lifecycles but not legacy null snapshots', async () => {
     const lifecycleReviews = [
       fileReview('created.txt', [
@@ -896,6 +912,7 @@ describe('ProducedFiles review card', () => {
     })
   })
 
+  // 验证部分文件冲突时保留撤销按钮并提示失败文件；没有可逆文件时禁用操作。
   it('keeps Undo in a mixed state and disables it when no file is reversible', async () => {
     const twoReversible = [
       fileReview('deep/a.txt', [{ path: 'deep/a.txt', oldText: 'a', newText: 'A' }]),
@@ -961,6 +978,7 @@ describe('ProducedFiles review card', () => {
     })
   })
 
+  // 验证卡片总览打开全部文件的统一差异，复制内容包含各文件路径和差异，并显示成功反馈。
   it('reviews every file from the header and copies the visible unified diff', async () => {
     const writeText = vi.fn(() => Promise.resolve())
     vi.stubGlobal('navigator', { clipboard: { writeText } })
@@ -996,6 +1014,7 @@ describe('ProducedFiles review card', () => {
     expect(within(panel).getByRole('button', { name: 'Copied' })).toBeTruthy()
   })
 
+  // 验证旧差异缺少行号时显示未知坐标，保留已知一侧行号，不生成虚假的评论位置。
   it('does not invent missing legacy coordinates and preserves a known side', () => {
     const review = fileReview('legacy.txt', [
       { path: 'legacy.txt', oldText: 'before', newText: 'after' },
@@ -1035,6 +1054,7 @@ describe('ProducedFiles review card', () => {
     expect(unifiedDiffText(review.diffs)).toContain('@@ -? +9 @@')
   })
 
+  // 验证最多五行未修改内容直接展示，差异块之间更长的间隔显示折叠提示。
   it('shows up to five unchanged lines inline and collapses a larger hunk gap', () => {
     const inline = ['old-a', 'keep-1', 'keep-2', 'keep-3', 'keep-4', 'keep-5', 'old-b']
     const review = fileReview('threshold.txt', [
@@ -1064,6 +1084,7 @@ describe('ProducedFiles review card', () => {
     expect(within(panel).getByText('6 unchanged lines')).toBeTruthy()
   })
 
+  // 验证自动换行只改变视觉布局，不改变长行原文或复制出的差异文本。
   it('visually wraps long lines without changing their logical text', () => {
     const longText = `const message = '${'long content '.repeat(24)}'`
     const review = fileReview('src/long-line.ts', [
@@ -1094,6 +1115,7 @@ describe('ProducedFiles review card', () => {
     expect(wrapTextRule).toContain('overflow-wrap: anywhere')
   })
 
+  // 验证新增行、删除行及展开的上下文行可添加评论，重新打开审查后评论仍在，并安全转义内容。
   it('comments added, deleted, and expanded context lines while retaining comments on reopen', () => {
     const commented = fileReview('src/example.ts', [
       {
@@ -1189,6 +1211,7 @@ describe('ProducedFiles review card', () => {
     expect(reviewComments('session-comments')).toHaveLength(0)
   })
 
+  // 验证评论输入框随内容增高至上限后滚动，输入法组合和 Shift+Enter 不保存，普通 Enter 保存。
   it('keeps comment height stable while auto-growing until the scroll limit', () => {
     vi.spyOn(HTMLTextAreaElement.prototype, 'scrollHeight', 'get').mockImplementation(function () {
       return Math.max(52, this.value.split('\n').length * 22)
@@ -1245,6 +1268,7 @@ describe('ProducedFiles review card', () => {
     expect(editor.style.overflowY).toBe('auto')
   })
 
+  // 验证点击文件行只审查该文件，可在编辑器中打开，关闭后移除审查面板。
   it('focuses one file from its row, opens it in the editor, and closes the tab', () => {
     const openFile = vi.fn<(path: string) => void>()
     const view = render(<ReviewFixture matched={changedReviews} openFile={openFile} t={t} />)
@@ -1264,6 +1288,7 @@ describe('ProducedFiles review card', () => {
     expect(view.queryByRole('tabpanel')).toBeNull()
   })
 
+  // 验证界面显示相对会话工作区的路径，但打开编辑器时仍传递完整绝对路径。
   it('shows review paths relative to the Session project while opening the absolute path', () => {
     const absolutePath = '/Users/test/projects/example/docs/guide.md'
     const absoluteReview = fileReview(absolutePath, [
@@ -1293,6 +1318,7 @@ describe('ProducedFiles review card', () => {
     expect(openFile).toHaveBeenCalledExactlyOnceWith(absolutePath)
   })
 
+  // 验证差异不可用时显示原因并禁用复制，同时保留在编辑器中打开文件的能力。
   it('explains unavailable diffs and disables copying while keeping editor access', () => {
     const openFile = vi.fn<(path: string) => void>()
     const view = render(
@@ -1316,6 +1342,7 @@ describe('ProducedFiles review card', () => {
 describe('review comment composer chip', () => {
   const t = makeTranslate(en)
 
+  // 验证悬停评论汇总入口可预览相对路径、行号和正文，清除入口会删除本会话评论。
   it('previews comments on hover with project-relative paths and can remove the aggregate', () => {
     const absolutePath = '/Users/test/projects/example/src/client/index.ts'
     setReviewComment({
@@ -1359,6 +1386,7 @@ describe('review comment composer chip', () => {
 })
 
 describe('sent review comment projection', () => {
+  // 验证仅识别消息开头的审查评论封装，并保留后续用户文字，不误识别正文中的同类片段。
   it('recognizes the leading review envelope and preserves following user text', () => {
     setReviewComment({
       sessionId: 'sent-session',
@@ -1394,6 +1422,7 @@ describe('sent review comment projection', () => {
     expect(projectReviewMessageText(`Prefix\n${serialized}`)).toBeNull()
   })
 
+  // 验证模型专用评论封装显示为数量标签，隐藏原始标记，同时保留用户文字、图片及悬停预览。
   it('renders the model-only envelope as a compact comment count pill', () => {
     const absolutePath = '/Users/test/projects/example/src/client/index.ts'
     const attachment = { id: 'image-1' }
@@ -1465,6 +1494,7 @@ describe('sent review comment projection', () => {
 describe('producedFileMentions resolver', () => {
   const label = (path: string) => `Open ${path}`
 
+  // 验证精确路径和唯一文件名能解析为可点击引用，重名或未知文件保持未解析状态。
   it('resolves exact paths and unique basenames; ambiguity and unknowns stay unresolved', () => {
     const opened: string[] = []
     const resolver = producedFileMentions(
@@ -1492,6 +1522,7 @@ describe('producedFileMentions resolver', () => {
 })
 
 describe('FileReview settings card', () => {
+  // 验证展开插件设置后显示换行开关，切换时保存新值，并提供安全的新窗口项目链接。
   it('discloses the word-wrap switch and saves its next value', async () => {
     const snapshot = {
       status: 'ready' as const,
@@ -1527,6 +1558,7 @@ describe('FileReview settings card', () => {
 })
 
 describe('plugin registration', () => {
+  // 验证客户端入口注册远程服务、轮次数据、文件卡片、评论入口、语言和文件引用，并在卸载时释放资源。
   it('registers the Remote, turn definition, tail entry, dictionaries, and mention service', async () => {
     let definition: unknown
     let slot:

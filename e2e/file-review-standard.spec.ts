@@ -38,6 +38,7 @@ test.beforeEach(async () => {
   ])
 })
 
+// 验证标准模式编辑文件后，卡片和面板显示正确增删统计、差异行号，并允许复制。
 test('标准模式可以审查 Agent 对已有文件的编辑', async ({ page, agentForPage }) => {
   const target = files.single
   const composer = await openNewSession(page, 'standard')
@@ -60,6 +61,7 @@ test('标准模式可以审查 Agent 对已有文件的编辑', async ({ page, a
   await expect(review.getByRole('button', { name: /Copy diff|复制差异/ })).toBeEnabled()
 })
 
+// 验证只修改中间行时使用真实行号，上下未修改内容默认折叠并显示省略提示。
 test('多行文件只修改中间行时显示省略提示和准确行号', async ({ page, agentForPage }) => {
   const target = files.multiline
   const composer = await openNewSession(page, 'standard')
@@ -83,6 +85,7 @@ test('多行文件只修改中间行时显示省略提示和准确行号', async
   await expectDiffLine(review, 'add', 2, 'center')
 })
 
+// 验证双文件卡片的总览包含全部差异，单文件入口仅展示选中文件。
 test('双文件修改支持总览和单文件审查', async ({ page, agentForPage }) => {
   const composer = await openNewSession(page, 'standard')
   const agent = await agentForPage(page)

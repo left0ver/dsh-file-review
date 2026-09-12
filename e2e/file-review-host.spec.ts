@@ -44,6 +44,7 @@ async function addComment(review: Locator, line: Locator, body: string): Promise
   await expect(review.getByRole('button', { name: body, exact: true })).toBeVisible()
 }
 
+// 验证卡片在原生 Tab 中展示文件差异，可打开对应编辑器标签并切回审查。
 test('使用原生 Review Tab 审查文件并在编辑器中打开', async ({ page, agentForPage }) => {
   const target = files.standalone
   await prepareExistingTarget(target)
@@ -72,6 +73,7 @@ test('使用原生 Review Tab 审查文件并在编辑器中打开', async ({ pa
   await expectReviewSummary(review, target, 1, 1)
 })
 
+// 验证多文件卡片的单文件入口只展示选中文件，不混入同轮其他文件。
 test('原生 Tab 多文件修改后可以只审查选中的单文件', async ({ page, agentForPage }) => {
   await Promise.all([
     prepareExistingTarget(files.sidebarMultiFirst, 'first-before\n'),
@@ -99,6 +101,7 @@ test('原生 Tab 多文件修改后可以只审查选中的单文件', async ({ 
   await expectDiffLine(review, 'add', 1, 'first-after')
 })
 
+// 验证在原生 Tab 添加的评论可随消息发送，驱动下一轮文件修改并清空待发送入口。
 test('原生 Tab 中的审查评论可以驱动下一轮修改', async ({ page, agentForPage }) => {
   const target = files.sidebarComment
   const comment = '请将这一行改成 final'
@@ -134,6 +137,7 @@ test('原生 Tab 中的审查评论可以驱动下一轮修改', async ({ page, 
   await expectDiffLine(secondReview, 'add', 1, 'final')
 })
 
+// 验证页面刷新后可从历史卡片重新打开原生审查 Tab，并恢复文件统计和原始差异。
 test('刷新后从历史卡片重新打开原生 Review Tab', async ({ page, agentForPage }) => {
   const target = files.sidebarRefresh
   await prepareExistingTarget(target)

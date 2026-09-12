@@ -26,10 +26,12 @@ afterEach(async () => {
 })
 
 describe('file-review settings', () => {
+  // 验证未配置时自动换行默认为关闭。
   it('defaults visual line wrapping to false', () => {
     expect(Config({})).toEqual({ wordWrap: false })
   })
 
+  // 验证插件配置可初始化实时设置，且后续设置更新立即覆盖旧值。
   it('registers a live settings section over the plugin entry config', async () => {
     ctx = new Context()
     let settings: MemorySettings | undefined

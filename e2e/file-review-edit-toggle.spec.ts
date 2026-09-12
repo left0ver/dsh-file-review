@@ -35,6 +35,7 @@ test.beforeEach(async () => {
   ])
 })
 
+// 验证已有文件可在修改前后内容间撤销和重新应用，按钮随磁盘状态正确切换。
 test('已有文件的编辑可以撤销并重新应用', async ({ page, agentForPage }) => {
   const target = files.roundTrip
   const composer = await openNewSession(page, 'standard')
@@ -62,6 +63,7 @@ test('已有文件的编辑可以撤销并重新应用', async ({ page, agentFor
   await expect(card.getByRole('button', { name: names.reapply })).toHaveCount(0)
 })
 
+// 验证撤销后刷新页面不会重新应用修改，仍可从历史卡片查看原始差异。
 test('撤销后刷新不会改写磁盘且历史审查仍可查看', async ({ page, agentForPage }) => {
   const target = files.reload
   const composer = await openNewSession(page, 'standard')
@@ -90,6 +92,7 @@ test('撤销后刷新不会改写磁盘且历史审查仍可查看', async ({ pa
   await expectDiffLine(restoredReview, 'add', 1, 'after')
 })
 
+// 验证撤销和重新应用只改变磁盘状态，审查面板始终保留原始修改前后的差异。
 test('撤销和重新应用不会丢失原始审查 Diff', async ({ page, agentForPage }) => {
   const target = files.review
   const composer = await openNewSession(page, 'standard')
