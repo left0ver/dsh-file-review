@@ -75,7 +75,7 @@ test('新建多行文件的审查只包含新增行', async ({ page, agentForPag
   await sendTask(
     page,
     composer,
-    `请只创建 ${target.relativePath}，内容必须恰好是两行：第一行 first-created，第二行 second-created，并保留文件末尾换行；不要修改其他文件，然后结束任务。`,
+    `请使用 write 工具创建 ${target.relativePath}，内容必须恰好是两行：第一行 first-created，第二行 second-created，并保留文件末尾换行；禁止使用 bash、shell 命令或脚本写入文件，不要修改其他文件，然后结束任务。`,
   )
   const card = await waitForProducedCard(page, agent, target)
   await expectCardSummary(card, target, 2, 0)
@@ -97,7 +97,7 @@ test('新建文件被用户外部改写后撤销不会删除用户内容', async
   await sendTask(
     page,
     composer,
-    `请只创建 ${target.relativePath}，内容必须恰好为 created 加一个换行，不要修改其他文件，然后结束任务。`,
+    `请使用 write 工具创建 ${target.relativePath}，内容必须恰好为 created 加一个换行；禁止使用 bash、shell 命令或脚本写入文件，不要修改其他文件，然后结束任务。`,
   )
   const card = await waitForProducedCard(page, agent, target)
   await expectCardSummary(card, target, 1, 0)
