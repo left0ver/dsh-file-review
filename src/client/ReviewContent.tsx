@@ -90,6 +90,8 @@ export function ReviewContent({
   const [savingLayout, setSavingLayout] = useState(false)
   const [layoutError, setLayoutError] = useState(false)
   const [commentPath, setCommentPath] = useState<string | null>(null)
+  const [collapsedPaths, setCollapsedPaths] = useState<Set<string>>(() => new Set())
+  const collapsed = reviews.length > 0 && reviews.every((review) => collapsedPaths.has(review.path))
   const subscribeSettings = useCallback(
     (listener: () => void) => (visible ? (settings?.subscribe(listener) ?? (() => {})) : () => {}),
     [settings, visible],
@@ -231,6 +233,23 @@ export function ReviewContent({
           <button
             type="button"
             className={css.toolbarButton}
+            aria-label={t(collapsed ? 'review.expandAll' : 'review.collapseAll')}
+            title={t(collapsed ? 'review.expandAll' : 'review.collapseAll')}
+            aria-expanded={!collapsed}
+            disabled={reviews.length === 0}
+            onClick={() =>
+              setCollapsedPaths(new Set(collapsed ? [] : reviews.map((review) => review.path)))
+            }
+          >
+            <svg viewBox="0 0 20 20" aria-hidden="true" className={css.buttonIcon}>
+              <path d={collapsed ? 'M5 7l5-4 5 4M5 13l5 4 5-4' : 'M5 3l5 4 5-4M5 17l5-4 5 4'} />
+              <path d="M4 10h12" />
+            </svg>
+            {t(collapsed ? 'review.expandAll' : 'review.collapseAll')}
+          </button>
+          <button
+            type="button"
+            className={css.toolbarButton}
             disabled={diffs.length === 0}
             onClick={copyDiff}
           >
@@ -244,13 +263,33 @@ export function ReviewContent({
         {reviews.map((review) => {
           const fileStats = summarizeDiffs(review.diffs)
           const relativePath = displayProjectPath(review.path, projectRoot)
+          const fileCollapsed = collapsedPaths.has(review.path)
           return (
             <section key={review.path} className={css.reviewFile}>
               <header className={css.reviewFileHeader}>
                 <span className={css.reviewStatus}>M</span>
-                <span className={css.reviewPath} title={relativePath}>
-                  {relativePath}
-                </span>
+                <button
+                  type="button"
+                  className={css.reviewPath}
+                  title={relativePath}
+                  aria-label={t(fileCollapsed ? 'review.expandFile' : 'review.collapseFile', {
+                    name: relativePath,
+                  })}
+                  aria-expanded={!fileCollapsed}
+                  onClick={() =>
+                    setCollapsedPaths((paths) => {
+                      const next = new Set(paths)
+                      if (next.has(review.path)) next.delete(review.path)
+                      else next.add(review.path)
+                      return next
+                    })
+                  }
+                >
+                  <svg viewBox="0 0 20 20" aria-hidden="true" className={css.buttonIcon}>
+                    <path d={fileCollapsed ? 'M7 5l5 5-5 5' : 'M5 7l5 5 5-5'} />
+                  </svg>
+                  <span className={css.reviewPathText}>{relativePath}</span>
+                </button>
                 <ReviewStats
                   stats={fileStats}
                   label={t('review.stats', {
@@ -268,7 +307,7 @@ export function ReviewContent({
                   {t('review.openInEditor')}
                 </button>
               </header>
-              {review.diffs.length === 0 ? (
+              {fileCollapsed ? null : review.diffs.length === 0 ? (
                 <p className={css.reviewUnavailable}>{t('review.unavailable')}</p>
               ) : (
                 <UnifiedDiff
