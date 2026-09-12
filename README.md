@@ -4,13 +4,12 @@
 
 **Review every file an agent just changed—without leaving DeepSeek Harness Web.**
 
-![Adapted DSH CLI version](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fleft0ver%2Fdsh-file-review%2Fdev%2Fpackage.json&query=%24.dsh.adapter.cliVersion&label=DSH%20CLI&color=4f46e5)
-![Adapted dsh-better-sidebar version](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fleft0ver%2Fdsh-file-review%2Fdev%2Fpackage.json&query=%24.dsh.adapter.betterSidebarVersion&label=dsh-better-sidebar&color=8b5cf6)
-![Web profile](https://img.shields.io/badge/profile-Web-0ea5e9)
-[![npm version](https://img.shields.io/npm/v/dsh-file-review.svg)](https://www.npmjs.com/package/dsh-file-review)
-[![npm downloads](https://img.shields.io/npm/dm/dsh-file-review.svg)](https://www.npmjs.com/package/dsh-file-review)
-[![GitHub repository](https://img.shields.io/badge/GitHub-Repository-181717?logo=github)](https://github.com/left0ver/dsh-file-review)
-[![MIT License](https://img.shields.io/badge/license-MIT-22c55e)](LICENSE)
+[![Adapted DSH CLI version](https://img.shields.io/badge/DSH_CLI-0.1.5--rc.1-4f46e5?style=flat-square)](package.json)
+![Web profile](https://img.shields.io/badge/profile-Web-0ea5e9?style=flat-square)
+[![npm version](https://img.shields.io/npm/v/dsh-file-review?style=flat-square&logo=npm)](https://www.npmjs.com/package/dsh-file-review)
+[![npm downloads](https://img.shields.io/npm/dm/dsh-file-review?style=flat-square&logo=npm)](https://www.npmjs.com/package/dsh-file-review)
+[![GitHub repository](https://img.shields.io/badge/GitHub-Repository-181717?style=flat-square&logo=github)](https://github.com/left0ver/dsh-file-review)
+[![MIT License](https://img.shields.io/badge/license-MIT-22c55e?style=flat-square)](LICENSE)
 
 English · [简体中文](README.zh.md)
 
@@ -24,49 +23,34 @@ English · [简体中文](README.zh.md)
 
 ## Preview
 
-Standalone usage:
 ![preview](./assets/preview.png)
-
-Used with dsh-better-sidebar:
-![preview_with_better_sidebar](./assets/preview_with_better_sidebar.png)
 
 ## Features
 
-1. Supports [DSH Better Sidebar](https://github.com/omdsh-dev/DSH-better-sidebar). You can use this plugin on its own or together with DSH Better Sidebar.
-2. This plugin supports standard, PTC, and Creator modes, but **does not currently support Minimal mode**.
-3. Review every file the agent just changed in the `Diff` panel.
-4. Undo edited and newly created files. **Undoing deleted files is not currently supported.**
+1. This plugin supports standard, PTC, and Creator modes, but **does not currently support Minimal mode**.
+2. Review every file the agent just changed in the `Diff` panel.
+3. Undo edited and newly created files. **Undoing deleted files is not currently supported.**
    > DSH does not currently provide a file-deletion tool, so this plugin cannot yet undo deleted files. Support will be added once DSH provides such a tool.
-5. Add comments to changed lines and ask the agent to continue making updates based on the feedback, or ask questions about the changes.
-6. Automatically wrap long text while reviewing. Enable it under Settings → Plugins → Plugin configuration → File review; it is disabled by default.
-7. Multilingual support, including Chinese and English.
+4. Add comments to changed lines and ask the agent to continue making updates based on the feedback, or ask questions about the changes.
+5. Automatically wrap long text while reviewing. Enable it under Settings → Plugins → Plugin configuration → File review; it is disabled by default.
+6. Multilingual support, including Chinese and English.
 
 ## Compatibility
 
-See the badges above for the currently adapted versions.
+See the badge above for the currently supported DSH CLI version.
 
 ## Quick start
 
-### 0. Add dsh-file-review and dsh-better-sidebar to pnpm's minimum release age allowlist
+### 0. Add dsh-file-review to pnpm's minimum release age allowlist
 
 Open `~/.dsh/profiles/web/pnpm-workspace.yaml` and add:
 
 ```yaml
 minimumReleaseAgeExclude:
   - dsh-file-review
-  - dsh-better-sidebar
 ```
 
-Recent versions of `pnpm` enforce a minimum release age, so newly published packages are not installed until that waiting period has passed. To install the latest versions, add both `dsh-file-review` and `dsh-better-sidebar` to the exclusion list.
-
-### Install dsh-better-sidebar (optional)
-
-> Skip this step if you do not need dsh-better-sidebar or already have it installed. This plugin works without dsh-better-sidebar.
-> For details, see the [DSH Better Sidebar installation instructions](https://github.com/omdsh-dev/DSH-better-sidebar#installation).
-
-```sh
-dsh plugin --profile web add --allow-build=node-pty dsh-better-sidebar@0.18.1
-```
+Recent versions of `pnpm` enforce a minimum release age, so newly published packages are not installed until that waiting period has passed. To install the latest versions, add `dsh-file-review` to the exclusion list.
 
 ### 1. Install this plugin
 
