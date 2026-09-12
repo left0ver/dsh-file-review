@@ -10,6 +10,7 @@
 [![npm downloads](https://img.shields.io/npm/dm/dsh-file-review?style=flat-square&logo=npm)](https://www.npmjs.com/package/dsh-file-review)
 [![GitHub repository](https://img.shields.io/badge/GitHub-Repository-181717?style=flat-square&logo=github)](https://github.com/left0ver/dsh-file-review)
 [![MIT License](https://img.shields.io/badge/license-MIT-22c55e?style=flat-square)](LICENSE)
+[![dsh.so install](https://www.dsh.so/badge/install/dsh-file-review.svg)](https://www.dsh.so/artifact/dsh-file-review/)
 
 [English](README.md) · 简体中文
 
