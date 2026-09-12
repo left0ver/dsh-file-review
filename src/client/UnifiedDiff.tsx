@@ -4,11 +4,14 @@ import type { ProducedFileDiff as DiffHunk } from './turn-deliverables.ts'
 import { diffContentLines } from './diff-text.ts'
 import type { DiffLineAnchor } from './review-comments.ts'
 import css from './UnifiedDiff.module.css'
+import { DEFAULT_DIFF_LAYOUT, type DiffLayout } from '../settings-contract.ts'
 
 export type { DiffLineAnchor } from './review-comments.ts'
 
 /** Locale labels required by the review diff. */
 export interface UnifiedDiffLabels {
+  readonly before?: string
+  readonly after?: string
   readonly copy: string
   readonly copied: string
   readonly showUnchanged: (count: number) => string
@@ -45,6 +48,39 @@ interface UnifiedGap {
 }
 
 type UnifiedRow = UnifiedLine | UnifiedGap
+
+interface SplitRow {
+  readonly left?: UnifiedLine | undefined
+  readonly right?: UnifiedLine | undefined
+  readonly gap?: UnifiedGap
+}
+
+/** Pair each contiguous change block, preserving original line identities for comments. */
+function splitRows(rows: readonly UnifiedRow[]): SplitRow[] {
+  const result: SplitRow[] = []
+  let index = 0
+  while (index < rows.length) {
+    const row = rows[index]!
+    if (row.kind === 'gap' || row.kind === 'context') {
+      result.push(row.kind === 'gap' ? { gap: row } : { left: row, right: row })
+      index++
+      continue
+    }
+    const left: UnifiedLine[] = []
+    const right: UnifiedLine[] = []
+    // ponytail: pair replacements in order; similarity matching can refine alignment later.
+    while (index < rows.length) {
+      const line = rows[index]!
+      if (line.kind !== 'del' && line.kind !== 'add') break
+      ;(line.kind === 'del' ? left : right).push(line)
+      index++
+    }
+    for (let i = 0; i < Math.max(left.length, right.length); i++) {
+      result.push({ left: left[i], right: right[i] })
+    }
+  }
+  return result
+}
 
 interface UnifiedHunk {
   readonly lines: readonly UnifiedLine[]
@@ -112,6 +148,9 @@ function CommentEditor({
 }
 
 export interface UnifiedDiffProps {
+  readonly layout?: DiffLayout | undefined
+  readonly commentsActive?: boolean | undefined
+  readonly onCommentStart?: (() => void) | undefined
   readonly diffs: readonly DiffHunk[]
   readonly contextLines: number
   readonly labels: UnifiedDiffLabels
@@ -253,12 +292,6 @@ export function summarizeDiffs(diffs: readonly DiffHunk[]): UnifiedDiffStats {
   return { added, removed }
 }
 
-function lineNumbers(line: UnifiedLine): string {
-  const oldNumber = line.oldNumber === null ? '' : String(line.oldNumber)
-  const newNumber = line.newNumber === null ? '' : String(line.newNumber)
-  return `${oldNumber}, ${newNumber}`
-}
-
 function lineNumber(line: UnifiedLine): number | null {
   return line.kind === 'del' ? line.oldNumber : line.newNumber
 }
@@ -294,11 +327,14 @@ function anchorFor(
 }
 
 /**
- * Render line-aligned hunks with a single gutter and expandable context gaps.
+ * Render unified or side-by-side hunks with stable comments and expandable context gaps.
  * @param props - Unified diff data, locale labels, and presentation options.
  * @returns The line-numbered unified diff surface.
  */
 export function UnifiedDiff({
+  layout = DEFAULT_DIFF_LAYOUT,
+  commentsActive = true,
+  onCommentStart,
   diffs,
   contextLines,
   labels,
@@ -315,6 +351,18 @@ export function UnifiedDiff({
   const [copied, setCopied] = useState(false)
   const [editing, setEditing] = useState<string | null>(null)
   const [commentDraft, setCommentDraft] = useState('')
+  const syncedScroll = useRef(new WeakMap<HTMLElement, number>())
+
+  useLayoutEffect(() => {
+    setEditing(null)
+    setCommentDraft('')
+  }, [layout])
+  useLayoutEffect(() => {
+    if (!commentsActive) {
+      setEditing(null)
+      setCommentDraft('')
+    }
+  }, [commentsActive])
 
   const onCopy = useCallback(() => {
     if (copied) return
@@ -339,13 +387,14 @@ export function UnifiedDiff({
     hunkIndex: number,
     line: UnifiedLine,
     key: string,
+    side?: 'left' | 'right',
   ) => {
     const sign = line.kind === 'del' ? '-' : line.kind === 'add' ? '+' : ' '
     const anchor = anchorFor(diff, hunk, hunkIndex, line)
     const anchorKey = `${hunkIndex}:${line.rowIndex}`
-    const comment = commentFor?.(anchor)
-    const isEditing = editing === anchorKey
-    const displayLine = lineNumber(line) ?? 0
+    const comment = side === 'left' && line.kind === 'context' ? undefined : commentFor?.(anchor)
+    const isEditing = editing === anchorKey && !(side === 'left' && line.kind === 'context')
+    const displayLine = (side === 'left' ? line.oldNumber : lineNumber(line)) ?? 0
     const commit = (): void => {
       const body = commentDraft.trim()
       if (body === '') return
@@ -366,7 +415,7 @@ export function UnifiedDiff({
           data-new-line={line.newNumber ?? undefined}
         >
           <span className={css.unifiedLineNumber}>
-            {commentsEnabled && displayLine > 0 && (
+            {commentsEnabled && line.kind !== 'context' && displayLine > 0 && (
               <button
                 type="button"
                 className={css.commentTrigger}
@@ -375,6 +424,7 @@ export function UnifiedDiff({
                   `${comment === undefined ? 'Add' : 'Edit'} comment on line ${displayLine}`
                 }
                 onClick={() => {
+                  onCommentStart?.()
                   setEditing(anchorKey)
                   setCommentDraft(comment ?? '')
                 }}
@@ -382,7 +432,7 @@ export function UnifiedDiff({
                 +
               </button>
             )}
-            <span>{lineNumber(line)}</span>
+            <span>{side === 'left' ? line.oldNumber : lineNumber(line)}</span>
           </span>
           <span className={css.unifiedSign}>{sign}</span>
           <span className={css.unifiedText}>{line.text}</span>
@@ -424,6 +474,7 @@ export function UnifiedDiff({
                   type="button"
                   className={css.commentBody}
                   onClick={() => {
+                    onCommentStart?.()
                     setEditing(anchorKey)
                     setCommentDraft(comment ?? '')
                   }}
@@ -462,11 +513,31 @@ export function UnifiedDiff({
   }
 
   let previousPath: string | undefined
+
+  const renderGap = (row: UnifiedGap) => (
+    <button
+      key={row.id}
+      type="button"
+      className={css.unifiedGap}
+      aria-expanded={expandedGaps.has(row.id)}
+      onClick={() => {
+        setExpandedGaps((current) => {
+          const next = new Set(current)
+          if (!next.delete(row.id)) next.add(row.id)
+          return next
+        })
+      }}
+    >
+      {expandedGaps.has(row.id)
+        ? labels.hideUnchanged(row.lines.length)
+        : labels.showUnchanged(row.lines.length)}
+    </button>
+  )
   return (
     <div
       className={`${css.unifiedBlock} ${showFileHeaders ? '' : css.unifiedEmbedded} ${className ?? ''}`}
       data-diff=""
-      data-diff-layout="unified"
+      data-diff-layout={layout}
       data-word-wrap={wordWrap ? 'true' : 'false'}
     >
       {showCopyButton && (
@@ -479,6 +550,10 @@ export function UnifiedDiff({
         previousPath = diff.path
         const total = totals.get(diff.path) ?? { added: 0, removed: 0 }
         const hunk = hunks[hunkIndex]
+        const rows = (hunk?.rows ?? []).flatMap<UnifiedRow>((row) =>
+          row.kind === 'gap' && expandedGaps.has(row.id) ? [row, ...row.lines] : [row],
+        )
+        const pairs = layout === 'split' ? splitRows(rows) : []
         return (
           <section key={`${diff.path}:${hunkIndex}`} className={css.unifiedFile}>
             {showFileHeaders && firstForPath ? (
@@ -500,66 +575,65 @@ export function UnifiedDiff({
                   {labels.showUnchanged(hunk?.unchangedBefore ?? 0)}
                 </div>
               )}
-              {(hunk?.rows ?? []).flatMap((row) => {
-                if (row.kind !== 'gap') {
-                  return hunk === undefined
-                    ? []
-                    : [
-                        renderLine(
-                          diff,
-                          hunk,
-                          hunkIndex,
-                          row,
-                          `${row.kind}:${row.oldNumber ?? ''}:${row.newNumber ?? ''}:${row.rowIndex}`,
-                        ),
-                      ]
-                }
-
-                const expanded = expandedGaps.has(row.id)
-                if (expanded) {
-                  return [
-                    <button
-                      key={`${row.id}:control`}
-                      type="button"
-                      className={css.unifiedGap}
-                      aria-expanded="true"
-                      onClick={() => {
-                        setExpandedGaps((current) => {
-                          const next = new Set(current)
-                          next.delete(row.id)
-                          return next
-                        })
+              {layout === 'split' ? (
+                <div className={css.splitGrid}>
+                  {(['left', 'right'] as const).map((side) => (
+                    <div
+                      key={side}
+                      className={css.splitPane}
+                      role="group"
+                      aria-label={
+                        side === 'left'
+                          ? (labels.before ?? 'Before changes')
+                          : (labels.after ?? 'After changes')
+                      }
+                      data-diff-side={side}
+                      onScroll={(event) => {
+                        const pane = event.currentTarget
+                        const expected = syncedScroll.current.get(pane)
+                        syncedScroll.current.delete(pane)
+                        if (expected === pane.scrollLeft) return
+                        const peer = pane.previousElementSibling ?? pane.nextElementSibling
+                        if (peer instanceof HTMLElement && peer.scrollLeft !== pane.scrollLeft) {
+                          peer.scrollLeft = pane.scrollLeft
+                          // Ignore the resulting event, including clamping at a shorter pane's edge.
+                          syncedScroll.current.set(peer, peer.scrollLeft)
+                        }
                       }}
+                      style={{ gridRow: `1 / span ${Math.max(1, pairs.length)}` }}
                     >
-                      {labels.hideUnchanged(row.lines.length)}
-                    </button>,
-                    ...(hunk === undefined
-                      ? []
-                      : row.lines.map((line) =>
-                          renderLine(
-                            diff,
-                            hunk,
-                            hunkIndex,
-                            line,
-                            `${row.id}:${lineNumbers(line)}:${line.rowIndex}`,
-                          ),
-                        )),
-                  ]
-                }
-                return [
-                  <button
-                    key={row.id}
-                    type="button"
-                    className={css.unifiedGap}
-                    aria-expanded="false"
-                    onClick={() => {
-                      setExpandedGaps((current) => new Set([...current, row.id]))
-                    }}
-                  >
-                    {labels.showUnchanged(row.lines.length)}
-                  </button>,
-                ]
-              })}
+                      {pairs.map((pair, index) => {
+                        const line = pair[side]
+                        return (
+                          <div
+                            key={pair.gap?.id ?? index}
+                            className={`${css.splitCell} ${line === undefined && pair.gap === undefined ? css.splitEmpty : ''}`}
+                            data-split-row={index}
+                          >
+                            {pair.gap !== undefined ? (
+                              side === 'left' ? (
+                                renderGap(pair.gap)
+                              ) : (
+                                <div className={css.unifiedGap} aria-hidden="true" />
+                              )
+                            ) : line !== undefined && hunk !== undefined ? (
+                              renderLine(diff, hunk, hunkIndex, line, String(line.rowIndex), side)
+                            ) : null}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                rows.map((row) =>
+                  row.kind === 'gap'
+                    ? renderGap(row)
+                    : hunk !== undefined
+                      ? renderLine(diff, hunk, hunkIndex, row, String(row.rowIndex))
+                      : null,
+                )
+              )}
             </div>
           </section>
         )

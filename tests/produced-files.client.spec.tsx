@@ -996,14 +996,14 @@ describe('ProducedFiles review card', () => {
     ).toEqual(['Copy diff'])
     expect(within(panel).getByText('deep/a.html')).toBeTruthy()
     expect(within(panel).getByText('styles/b.css')).toBeTruthy()
-    expect(panel.querySelectorAll('[data-diff-layout="unified"]')).toHaveLength(2)
-    const firstDiff = panel.querySelectorAll('[data-diff-layout="unified"]')[0]
+    expect(panel.querySelectorAll('[data-diff-layout="split"]')).toHaveLength(2)
+    const firstDiff = panel.querySelectorAll('[data-diff-layout="split"]')[0]
     expect(firstDiff?.getAttribute('data-word-wrap')).toBe('false')
     const firstDiffLines = firstDiff?.querySelectorAll('[data-line-kind]') ?? []
-    expect([...firstDiffLines].map((line) => line.childElementCount)).toEqual([3, 3, 3])
+    expect([...firstDiffLines].map((line) => line.childElementCount)).toEqual([3, 3, 3, 3])
     expect(
       [...firstDiffLines].map((line) => line.firstElementChild?.lastElementChild?.textContent),
-    ).toEqual(['7', '7', '8'])
+    ).toEqual(['7', '8', '7', '8'])
 
     fireEvent.click(within(panel).getByRole('button', { name: 'Copy diff' }))
     await vi.waitFor(() => {
@@ -1078,7 +1078,7 @@ describe('ProducedFiles review card', () => {
     fireEvent.click(view.getByRole('button', { name: 'Review threshold.txt' }))
     const panel = view.getByRole('tabpanel', { name: 'Review' })
     for (let line = 1; line <= 5; line++) {
-      expect(within(panel).getByText(`keep-${line}`)).toBeTruthy()
+      expect(within(panel).getAllByText(`keep-${line}`)).toHaveLength(2)
     }
     expect(within(panel).queryByText('5 unchanged lines')).toBeNull()
     expect(within(panel).getByText('6 unchanged lines')).toBeTruthy()
@@ -1101,7 +1101,7 @@ describe('ProducedFiles review card', () => {
 
     fireEvent.click(view.getByRole('button', { name: 'Review src/long-line.ts' }))
     const panel = view.getByRole('tabpanel', { name: 'Review' })
-    const diff = panel.querySelector('[data-diff-layout="unified"]')
+    const diff = panel.querySelector('[data-diff-layout="split"]')
     expect(diff?.getAttribute('data-word-wrap')).toBe('true')
     const added = diff?.querySelector('[data-line-kind="add"]')
     expect(added?.lastElementChild?.textContent).toBe(longText)
@@ -1115,8 +1115,8 @@ describe('ProducedFiles review card', () => {
     expect(wrapTextRule).toContain('overflow-wrap: anywhere')
   })
 
-  // 验证新增行、删除行及展开的上下文行可添加评论，重新打开审查后评论仍在，并安全转义内容。
-  it('comments added, deleted, and expanded context lines while retaining comments on reopen', () => {
+  // 验证变更行可评论、上下文不可新增评论，重新打开后保留评论并安全转义。
+  it('comments changed lines, rejects context comments, and retains comments on reopen', () => {
     const commented = fileReview('src/example.ts', [
       {
         path: 'src/example.ts',
@@ -1191,22 +1191,14 @@ describe('ProducedFiles review card', () => {
     expect(reviewComments('session-comments')[0]?.body).toBe('Keep the previous behavior <safe>.')
 
     fireEvent.click(within(panel).getAllByRole('button', { name: /unchanged lines/ })[0]!)
-    fireEvent.click(within(panel).getByRole('button', { name: 'Add comment on line 1' }))
-    const contextEditor = within(panel).getByRole('textbox', { name: 'Edit comment on line 1' })
-    fireEvent.change(contextEditor, { target: { value: 'This context also matters.' } })
-    fireEvent.click(within(panel).getByRole('button', { name: 'Save' }))
-    expect(reviewComments('session-comments')).toHaveLength(2)
-    expect(serializeReviewComments('session-comments')).toContain(
-      '<comment kind="context" old_line="1" new_line="1">',
-    )
+    expect(within(panel).queryByRole('button', { name: 'Add comment on line 1' })).toBeNull()
+    expect(reviewComments('session-comments')).toHaveLength(1)
 
     fireEvent.click(within(panel).getByRole('button', { name: 'Close' }))
     fireEvent.click(view.getByRole('button', { name: 'Review src/example.ts' }))
     const reopened = view.getByRole('tabpanel', { name: 'Review' })
     expect(within(reopened).getByText('Keep the previous behavior <safe>.')).toBeTruthy()
     fireEvent.click(within(reopened).getAllByRole('button', { name: /unchanged lines/ })[0]!)
-    expect(within(reopened).getByText('This context also matters.')).toBeTruthy()
-    fireEvent.click(within(reopened).getAllByRole('button', { name: 'Delete' })[0]!)
     fireEvent.click(within(reopened).getByRole('button', { name: 'Delete' }))
     expect(reviewComments('session-comments')).toHaveLength(0)
   })

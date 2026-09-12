@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import type { ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
+import type { SettingsScope } from '@deepseek-ai/dsh-client-ui-settings/client'
+import { DEFAULT_DIFF_LAYOUT, type Config, type DiffLayout } from '../settings-contract.ts'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import { displayProjectPath } from './project-path.ts'
 import {
@@ -64,6 +66,7 @@ export interface ReviewContentProps extends PropsLocale<typeof NS> {
   readonly openFile: (path: string) => void
   readonly syncComments?: (() => void) | undefined
   readonly wordWrap?: ObservableSnapshot<boolean> | undefined
+  readonly settings?: SettingsScope<Config> | undefined
   readonly visible?: boolean | undefined
 }
 
@@ -77,12 +80,35 @@ export function ReviewContent({
   openFile,
   syncComments,
   wordWrap: wordWrapSource = DEFAULT_WORD_WRAP_SOURCE,
+  settings,
   visible = true,
   t,
 }: ReviewContentProps) {
   const [commentVersion, setCommentVersion] = useState(0)
   const [copied, setCopied] = useState(false)
   const copyResetRef = useRef<number | null>(null)
+  const [savingLayout, setSavingLayout] = useState(false)
+  const [layoutError, setLayoutError] = useState(false)
+  const [commentPath, setCommentPath] = useState<string | null>(null)
+  const subscribeSettings = useCallback(
+    (listener: () => void) => (visible ? (settings?.subscribe(listener) ?? (() => {})) : () => {}),
+    [settings, visible],
+  )
+  const getSettings = useCallback(() => settings?.getSnapshot(), [settings])
+  const snapshot = useSyncExternalStore(subscribeSettings, getSettings, getSettings)
+  const layout = snapshot?.value?.diffLayout ?? DEFAULT_DIFF_LAYOUT
+  const changeLayout = async (value: DiffLayout): Promise<void> => {
+    if (settings === undefined) return
+    setSavingLayout(true)
+    setLayoutError(false)
+    try {
+      await settings.set('diffLayout', value)
+    } catch {
+      setLayoutError(true)
+    } finally {
+      setSavingLayout(false)
+    }
+  }
 
   const subscribeWordWrap = useCallback(
     (listener: () => void) => (visible ? wordWrapSource.subscribe(listener) : () => {}),
@@ -189,6 +215,19 @@ export function ReviewContent({
           })}
         />
         <div className={css.reviewToolbar}>
+          <select
+            className={css.toolbarButton}
+            aria-label={t('review.layout')}
+            aria-busy={savingLayout}
+            value={layout}
+            disabled={!snapshot?.writable || snapshot.status !== 'ready' || savingLayout}
+            onChange={(event) => {
+              void changeLayout(event.target.value === 'unified' ? 'unified' : 'split')
+            }}
+          >
+            <option value="split">{t('review.layoutSplit')}</option>
+            <option value="unified">{t('review.layoutUnified')}</option>
+          </select>
           <button
             type="button"
             className={css.toolbarButton}
@@ -200,6 +239,7 @@ export function ReviewContent({
           </button>
         </div>
       </header>
+      {layoutError && <p role="alert">{t('settings.saveError')}</p>}
       <div className={css.reviewBody}>
         {reviews.map((review) => {
           const fileStats = summarizeDiffs(review.diffs)
@@ -232,12 +272,17 @@ export function ReviewContent({
                 <p className={css.reviewUnavailable}>{t('review.unavailable')}</p>
               ) : (
                 <UnifiedDiff
+                  layout={layout}
+                  commentsActive={commentPath === review.path}
+                  onCommentStart={() => setCommentPath(review.path)}
                   diffs={review.diffs}
                   contextLines={3}
                   showCopyButton={false}
                   showFileHeaders={false}
                   wordWrap={wordWrap}
                   labels={{
+                    before: t('review.before'),
+                    after: t('review.after'),
                     copy: t('review.copy'),
                     copied: t('review.copied'),
                     showUnchanged: (count) => t('review.showUnchanged', { count: String(count) }),

@@ -3,6 +3,8 @@
 import { useCallback, useMemo, useSyncExternalStore } from 'react'
 import type { ISessions } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
+import type { SettingsScope } from '@deepseek-ai/dsh-client-ui-settings/client'
+import type { Config } from '../settings-contract.ts'
 import type { UiConversation } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
@@ -36,6 +38,7 @@ export interface FileReviewTabProps extends PropsLocale<typeof NS> {
   readonly visible: boolean
   readonly syncComments?: (() => void) | undefined
   readonly wordWrap: ObservableSnapshot<boolean>
+  readonly settings?: SettingsScope<Config> | undefined
   readonly openFile: (path: string) => void
 }
 
@@ -67,6 +70,7 @@ export function FileReviewTab({
   visible,
   syncComments,
   wordWrap,
+  settings,
   openFile,
   t,
 }: FileReviewTabProps) {
@@ -129,6 +133,7 @@ export function FileReviewTab({
         openFile={openFile}
         syncComments={syncComments}
         wordWrap={wordWrap}
+        settings={settings}
         visible={visible}
         t={t}
       />

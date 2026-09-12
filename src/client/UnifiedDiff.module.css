@@ -175,6 +175,41 @@
   color: var(--dsw-alias-label-primary);
 }
 
+.splitGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+/* Both panes share row tracks, including wrapped code and inline comments. */
+.splitPane {
+  display: grid;
+  grid-template-rows: subgrid;
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.splitPane + .splitPane {
+  border-left: 1px solid var(--dsw-alias-border-l2);
+}
+
+.splitCell {
+  min-width: 0;
+}
+
+.splitEmpty {
+  background: repeating-linear-gradient(
+    -45deg,
+    transparent,
+    transparent 4px,
+    var(--dsw-alias-border-l2) 4px,
+    var(--dsw-alias-border-l2) 5px
+  );
+}
+
+.unifiedBodyWrap .splitPane {
+  overflow-x: hidden;
+}
+
 .commentRow {
   box-sizing: border-box;
   display: flex;
@@ -192,6 +227,17 @@
   background: var(--dsw-alias-bg-container, Canvas);
   box-shadow: 0 2px 8px color-mix(in srgb, black 7%, transparent);
   white-space: normal;
+}
+
+.splitPane .commentRow {
+  min-width: 0;
+  width: calc(100% - 16px);
+  margin-left: 8px;
+  margin-right: 8px;
+}
+
+.splitPane .commentActions {
+  flex-wrap: wrap;
 }
 
 .commentBody,

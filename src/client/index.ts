@@ -22,6 +22,7 @@ import {
   DEFAULT_WORD_WRAP,
   FILE_REVIEW_SETTINGS_NAMESPACE,
   type Config,
+  type DiffLayout,
 } from '../settings-contract.ts'
 import { ProducedFiles } from './ProducedFiles.tsx'
 import { installNativeSidebarIntegration } from './native-sidebar-adapter.tsx'
@@ -130,6 +131,7 @@ export async function apply(ctx: ClientContext): Promise<() => Promise<void>> {
     sessions,
     uiConversation: ctx.uiConversation,
     wordWrap,
+    settings,
     t,
     runtimeFor: reviewRemoteFor,
   })
@@ -145,6 +147,7 @@ export async function apply(ctx: ClientContext): Promise<() => Promise<void>> {
         inject: () => ({
           hooks: { fileReviewSettings: settings },
           setWordWrap: (value: boolean) => settings.set('wordWrap', value),
+          setDiffLayout: (value: DiffLayout) => settings.set('diffLayout', value),
         }),
       },
       FileReviewSettingsCard,

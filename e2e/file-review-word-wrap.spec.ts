@@ -84,10 +84,7 @@ test('关闭自动换行时长行 Diff 保持单行布局', async ({ page, agent
   const card = await waitForProducedCard(page, agent, target)
   await expectCardSummary(card, target, 1, 1)
   const review = await openReview(card, page)
-  await expect(review.locator('[data-diff-layout="unified"]')).toHaveAttribute(
-    'data-word-wrap',
-    'false',
-  )
+  await expect(review.locator('[data-diff]')).toHaveAttribute('data-word-wrap', 'false')
   await expectDiffLine(review, 'del', 1, beforeLine)
   await expectDiffLine(review, 'add', 1, afterLine)
 })
@@ -106,10 +103,7 @@ test('开启自动换行后长行 Diff 立即生效并在刷新后保持', async
   )
   const card = await waitForProducedCard(page, agent, target)
   let review = await openReview(card, page)
-  await expect(review.locator('[data-diff-layout="unified"]')).toHaveAttribute(
-    'data-word-wrap',
-    'true',
-  )
+  await expect(review.locator('[data-diff]')).toHaveAttribute('data-word-wrap', 'true')
   await expectDiffLine(review, 'add', 1, afterLine)
   await closeReview(review)
 
@@ -117,8 +111,5 @@ test('开启自动换行后长行 Diff 立即生效并在刷新后保持', async
   const restoredCard = page.getByRole('region', { name: names.producedCard }).last()
   await expect(restoredCard).toBeVisible({ timeout: 60_000 })
   review = await openReview(restoredCard, page)
-  await expect(review.locator('[data-diff-layout="unified"]')).toHaveAttribute(
-    'data-word-wrap',
-    'true',
-  )
+  await expect(review.locator('[data-diff]')).toHaveAttribute('data-word-wrap', 'true')
 })

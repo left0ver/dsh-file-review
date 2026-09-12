@@ -3,6 +3,8 @@
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import type { ISessions } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
+import type { SettingsScope } from '@deepseek-ai/dsh-client-ui-settings/client'
+import type { Config } from '../settings-contract.ts'
 import type { UiConversation } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar-right/client'
 import type { PropsLocale, PropsRuntime, TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
@@ -23,6 +25,7 @@ interface NativeSidebarIntegrationOptions {
   readonly sessions: ISessions
   readonly uiConversation: UiConversation
   readonly wordWrap: ObservableSnapshot<boolean>
+  readonly settings?: SettingsScope<Config> | undefined
   readonly t: TranslateNS<typeof NS>
   readonly runtimeFor: (sessionId: SessionId) => FileReviewTabRuntime
 }
@@ -34,7 +37,7 @@ function ReviewTabTitle({ t }: PropsLocale<typeof NS>) {
 /** Register the native tab and return its session-targeted opener. */
 export function installNativeSidebarIntegration(
   ctx: ClientContext,
-  { sessions, uiConversation, wordWrap, t, runtimeFor }: NativeSidebarIntegrationOptions,
+  { sessions, uiConversation, wordWrap, settings, t, runtimeFor }: NativeSidebarIntegrationOptions,
 ): (sessionId: SessionId, target: ReviewTarget) => void {
   ctx.effect(
     () =>
@@ -68,6 +71,7 @@ export function installNativeSidebarIntegration(
                 visible={tab.visible}
                 syncComments={runtimeFor(sessionId).syncComments}
                 wordWrap={wordWrap}
+                settings={settings}
                 openFile={(path) => tab.actions.openResource(fileAddressFor(sessionId, cwd, path))}
                 t={t}
               />

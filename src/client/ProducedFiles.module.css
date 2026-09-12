@@ -184,6 +184,7 @@
 
 .reviewHeader {
   display: flex;
+  flex-wrap: wrap;
   flex: 0 0 auto;
   min-height: 64px;
   align-items: center;
@@ -862,12 +863,14 @@
     padding-left: 12px;
   }
 
-  .toolbarButton {
+  .toolbarButton:not(select) {
     width: 32px;
     padding: 0;
     justify-content: center;
     overflow: hidden;
     color: transparent;
+    font-size: 0;
+    gap: 0;
   }
 
   .toolbarButton .buttonIcon {

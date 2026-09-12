@@ -1,13 +1,19 @@
 import { useState } from 'react'
 import type { SettingsScope } from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
-import { DEFAULT_WORD_WRAP, type Config } from '../settings-contract.ts'
+import {
+  DEFAULT_WORD_WRAP,
+  DEFAULT_DIFF_LAYOUT,
+  type Config,
+  type DiffLayout,
+} from '../settings-contract.ts'
 import css from './FileReviewSettingsCard.module.css'
 import { NS } from './locales.ts'
 
 export type FileReviewSettingsCardInjected = {
   hooks: { fileReviewSettings: SettingsScope<Config> }
   setWordWrap(value: boolean): Promise<void>
+  setDiffLayout(value: DiffLayout): Promise<void>
 }
 
 export type FileReviewSettingsCardProps = PropsRuntime<'settings.plugin.item'> &
@@ -17,17 +23,30 @@ export type FileReviewSettingsCardProps = PropsRuntime<'settings.plugin.item'> &
 /** Minimal settings card owned by the file-review plugin. */
 export function FileReviewSettingsCard({
   setWordWrap,
+  setDiffLayout,
   t,
   useFileReviewSettings,
 }: FileReviewSettingsCardProps) {
   const settings = useFileReviewSettings((snapshot) => snapshot)
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState(false)
   if (settings.status !== 'ready') return null
 
   const title = t('settings.title')
   const wordWrap = settings.value?.wordWrap ?? DEFAULT_WORD_WRAP
   const writable = settings.writable && !saving
+  const changeLayout = async (value: DiffLayout): Promise<void> => {
+    setSaving(true)
+    setSaveError(false)
+    try {
+      await setDiffLayout(value)
+    } catch {
+      setSaveError(true)
+    } finally {
+      setSaving(false)
+    }
+  }
 
   const toggleWordWrap = async (): Promise<void> => {
     setSaving(true)
@@ -103,6 +122,24 @@ export function FileReviewSettingsCard({
       </a>
       {open ? (
         <div className={css.body}>
+          <label className={css.row}>
+            <span className={css.field}>
+              <span className={css.label}>{t('review.layout')}</span>
+            </span>
+            <select
+              className={css.select}
+              aria-label={t('review.layout')}
+              aria-busy={saving}
+              value={settings.value?.diffLayout ?? DEFAULT_DIFF_LAYOUT}
+              disabled={!writable}
+              onChange={(event) => {
+                void changeLayout(event.target.value === 'unified' ? 'unified' : 'split')
+              }}
+            >
+              <option value="split">{t('review.layoutSplit')}</option>
+              <option value="unified">{t('review.layoutUnified')}</option>
+            </select>
+          </label>
           <div className={css.row}>
             <span className={css.field}>
               <span className={css.label}>{t('settings.wordWrap.title')}</span>
@@ -125,6 +162,7 @@ export function FileReviewSettingsCard({
             </button>
           </div>
           {!settings.writable ? <p className={css.readOnly}>{t('settings.readOnly')}</p> : null}
+          {saveError && <p role="alert">{t('settings.saveError')}</p>}
         </div>
       ) : null}
     </li>
