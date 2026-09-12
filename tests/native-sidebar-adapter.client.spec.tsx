@@ -27,7 +27,7 @@ vi.mock('../src/client/FileReviewTab.tsx', () => ({
 
 afterEach(cleanup)
 
-function fixture(withBetterSidebar: boolean) {
+function fixture() {
   const disposers: Array<() => void> = []
   const slots = new Map<string, ComponentType<any>>()
   const definitions: unknown[] = []
@@ -57,10 +57,6 @@ function fixture(withBetterSidebar: boolean) {
         }
       },
     },
-    get betterSidebar() {
-      if (withBetterSidebar) throw new Error('Native integration must not access betterSidebar')
-      return undefined
-    },
   }
   const t = (key: keyof typeof en) => en[key]
   const open = installNativeSidebarIntegration(ctx as never, {
@@ -85,29 +81,26 @@ function fixture(withBetterSidebar: boolean) {
 }
 
 describe('native sidebar review registration', () => {
-  it.each([false, true])(
-    'registers and opens independently of betterSidebar (installed: %s)',
-    (installed) => {
-      const f = fixture(installed)
-      const first = { turn: 1, closingSeq: 10, focusPaths: ['a.md'] }
-      const second = { turn: 2, closingSeq: 20, focusPaths: ['b.md'] }
-      f.open('session-a' as never, first)
-      f.open('session-a' as never, second)
-      f.open('session-b' as never, first)
-      expect(f.definitions).toHaveLength(1)
-      expect(f.openTabIn.mock.calls).toEqual([
-        ['session-a', 'dsh-file-review:review', { params: first }],
-        ['session-a', 'dsh-file-review:review', { params: second }],
-        ['session-b', 'dsh-file-review:review', { params: first }],
-      ])
-      f.dispose()
-      expect(f.definitions).toHaveLength(0)
-      expect(f.slots.size).toBe(0)
-    },
-  )
+  it('registers and opens the native review tab', () => {
+    const f = fixture()
+    const first = { turn: 1, closingSeq: 10, focusPaths: ['a.md'] }
+    const second = { turn: 2, closingSeq: 20, focusPaths: ['b.md'] }
+    f.open('session-a' as never, first)
+    f.open('session-a' as never, second)
+    f.open('session-b' as never, first)
+    expect(f.definitions).toHaveLength(1)
+    expect(f.openTabIn.mock.calls).toEqual([
+      ['session-a', 'dsh-file-review:review', { params: first }],
+      ['session-a', 'dsh-file-review:review', { params: second }],
+      ['session-b', 'dsh-file-review:review', { params: first }],
+    ])
+    f.dispose()
+    expect(f.definitions).toHaveLength(0)
+    expect(f.slots.size).toBe(0)
+  })
 
   it('reads current navigation and visibility, routes files in the tab session, and localizes its title', () => {
-    const f = fixture(false)
+    const f = fixture()
     const Body = f.slots.get('sidebar.right.pane.tab')!
     const Title = f.slots.get('sidebar.right.pane.tab.title')!
     const openResource = vi.fn()

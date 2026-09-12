@@ -1,4 +1,4 @@
-/** 验证安装与未安装 dsh-better-sidebar 时均使用 DSH 原生标签页。 */
+/** 验证 DSH 原生审查标签页。 */
 
 import { expect, type Locator } from '@playwright/test'
 import { test } from './fixture.ts'
@@ -22,7 +22,6 @@ import {
 
 const files = {
   standalone: targetFile('review-host-standalone.txt'),
-  'better-sidebar': targetFile('review-host-better-sidebar.txt'),
   sidebarMultiFirst: targetFile('review-host-sidebar-multi-first.txt'),
   sidebarMultiSecond: targetFile('review-host-sidebar-multi-second.txt'),
   sidebarComment: targetFile('review-host-sidebar-comment.txt'),
@@ -45,16 +44,8 @@ async function addComment(review: Locator, line: Locator, body: string): Promise
   await expect(review.getByRole('button', { name: body, exact: true })).toBeVisible()
 }
 
-test('安装与未安装 better-sidebar 均使用原生 Review Tab', async ({
-  page,
-  agentForPage,
-}, testInfo) => {
-  const reviewHost = testInfo.project.metadata.reviewHost
-  if (reviewHost !== 'standalone' && reviewHost !== 'better-sidebar') {
-    throw new Error(`Unknown review host: ${JSON.stringify(reviewHost)}`)
-  }
-
-  const target = files[reviewHost]
+test('使用原生 Review Tab 审查文件并在编辑器中打开', async ({ page, agentForPage }) => {
+  const target = files.standalone
   await prepareExistingTarget(target)
   const composer = await openNewSession(page, 'standard')
   const agent = await agentForPage(page)

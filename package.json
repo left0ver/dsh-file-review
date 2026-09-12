@@ -22,8 +22,7 @@
     "cordis.patch.yml",
     "README.md",
     "README.zh.md",
-    "assets/preview.png",
-    "assets/preview_with_better_sidebar.png"
+    "assets/preview.png"
   ],
   "type": "module",
   "main": "lib/index.js",
@@ -65,8 +64,6 @@
     "typecheck": "tsc --noEmit",
     "test:smoke": "vitest run tests/smoke.spec.ts",
     "test:e2e": "npm run build && playwright test",
-    "test:e2e:standalone": "npm run build && E2E_VARIANT=standalone playwright test --project=standalone",
-    "test:e2e:better-sidebar": "npm run build && E2E_VARIANT=better-sidebar playwright test --project=better-sidebar",
     "adapter:e2e": "sh adapter_script/run-e2e.sh",
     "adapter:start-dsh": "sh adapter_script/start-dsh.sh",
     "test": "npm run build && vitest run && npm run test:pack",
@@ -162,8 +159,7 @@
   },
   "dsh": {
     "adapter": {
-      "cliVersion": "0.1.5-rc.1",
-      "betterSidebarVersion": "0.19.0"
+      "cliVersion": "0.1.5-rc.1"
     },
     "bundle": {
       "patch": "./cordis.patch.yml"

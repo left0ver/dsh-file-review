@@ -75,8 +75,7 @@ jobs:
         shell: bash
         run: |
           DSH_VERSION="$(node -p 'require("./package.json").dsh.adapter.cliVersion')"
-          BETTER_SIDEBAR_VERSION="$(node -p 'require("./package.json").dsh.adapter.betterSidebarVersion')"
-          npm run adapter:e2e -- "$DSH_VERSION" "$BETTER_SIDEBAR_VERSION"
+          npm run adapter:e2e -- "$DSH_VERSION"
 
       - name: Upload E2E diagnostics
         if: failure()

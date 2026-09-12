@@ -6,20 +6,16 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { dshInvocation, seedRuntimeState } from './dsh-runtime.mjs'
 
-const variants = new Set(['standalone', 'better-sidebar'])
-const [variant, rawPort] = process.argv.slice(2)
+const [rawPort] = process.argv.slice(2)
 const port = Number.parseInt(rawPort ?? '', 10)
 
-if (variant === undefined || !variants.has(variant) || !Number.isInteger(port)) {
-  console.error('Usage: node e2e/start-dsh.mjs <standalone|better-sidebar> <port>')
+if (!Number.isInteger(port)) {
+  console.error('Usage: node e2e/start-dsh.mjs <port>')
   process.exit(2)
 }
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const dshHome =
-  variant === 'standalone'
-    ? path.join(root, '.e2e/dsh-home-standalone')
-    : path.join(root, '.e2e/dsh-home-better-sidebar')
+const dshHome = path.join(root, '.e2e/dsh-home-standalone')
 const profileDir = path.join(dshHome, 'profiles/web')
 const profileManifest = path.join(profileDir, 'package.json')
 const pluginEnvironment = { ...process.env, DSH_HOME: dshHome }
@@ -50,25 +46,13 @@ function runPlugin(...args) {
   }
 }
 
-function allowNodePtyBuild() {
-  const workspaceFile = path.join(profileDir, 'pnpm-workspace.yaml')
-  const source = readFileSync(workspaceFile, 'utf8')
-  if (/^\s+node-pty:\s*true\s*$/m.test(source)) return
-
-  const allowBuilds = /^allowBuilds:\s*$/m
-  const next = allowBuilds.test(source)
-    ? source.replace(allowBuilds, 'allowBuilds:\n  node-pty: true')
-    : `${source.trimEnd()}\n\nallowBuilds:\n  node-pty: true\n`
-  writeFileSync(workspaceFile, next)
-}
-
 seedRuntimeState({ dshHome, root })
 
 const launchUrlFile = path.join(root, `.e2e/dsh-web-${port}.url`)
 writeFileSync(launchUrlFile, '', { mode: 0o600 })
 chmodSync(launchUrlFile, 0o600)
 
-let manifest = readManifest()
+const manifest = readManifest()
 const expectedFileReviewLink = `link:${root}`
 if (
   manifest?.dependencies?.['dsh-file-review'] !== expectedFileReviewLink ||
@@ -76,20 +60,6 @@ if (
   !installed('dsh-file-review')
 ) {
   runPlugin('add', root)
-  manifest = readManifest()
-}
-
-if (variant === 'standalone') {
-  if (
-    manifest?.dependencies?.['dsh-better-sidebar'] !== undefined ||
-    isBundle(manifest, 'dsh-better-sidebar')
-  ) {
-    runPlugin('remove', 'dsh-better-sidebar')
-  }
-} else {
-  allowNodePtyBuild()
-  const sidebarSpec = process.env.E2E_BETTER_SIDEBAR_SPEC ?? 'dsh-better-sidebar@0.19.0'
-  runPlugin('add', sidebarSpec)
 }
 
 const webInvocation = dshInvocation([

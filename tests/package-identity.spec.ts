@@ -27,10 +27,8 @@ describe('package identity', () => {
     expect(JSON.stringify(FILE_REVIEW_INVOCATIONS)).not.toContain('@deepseek-ai/dsh-file-review')
   })
 
-  it('publishes both README preview images from the correctly named assets directory', () => {
-    expect(manifest.files).toEqual(
-      expect.arrayContaining(['assets/preview.png', 'assets/preview_with_better_sidebar.png']),
-    )
+  it('publishes the README preview image from the correctly named assets directory', () => {
+    expect(manifest.files).toContain('assets/preview.png')
     expect(manifest.files.some((file) => file.startsWith('assests/'))).toBe(false)
   })
 })

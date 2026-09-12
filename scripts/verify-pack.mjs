@@ -41,7 +41,6 @@ try {
   const files = new Set(pack.files.map((entry) => entry.path))
   for (const required of [
     'assets/preview.png',
-    'assets/preview_with_better_sidebar.png',
     'cordis.patch.yml',
     'lib/index.js',
     'lib/client.js',

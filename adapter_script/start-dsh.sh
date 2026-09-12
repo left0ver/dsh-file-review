@@ -4,13 +4,12 @@ set -eu
 
 dsh_version=${1:-}
 plugin_branch=${2:-}
-sidebar_version=${3:-}
 
-if [ -z "$dsh_version" ] || [ -z "$plugin_branch" ] || [ -z "$sidebar_version" ]; then
-  echo 'Usage: ./adapter_script/start-dsh.sh <dsh-version> <plugin-branch> <better-sidebar-version> [dsh web options]' >&2
+if [ -z "$dsh_version" ] || [ -z "$plugin_branch" ]; then
+  echo 'Usage: ./adapter_script/start-dsh.sh <dsh-version> <plugin-branch> [dsh web options]' >&2
   exit 2
 fi
-shift 3
+shift 2
 
 repository=https://github.com/left0ver/dsh-file-review.git
 github_mirror=${GITHUB_MIRROR-https://gh-proxy.org/}
@@ -18,7 +17,7 @@ download_repository=${github_mirror%/}/$repository
 
 script_dir=$(CDPATH= cd "$(dirname "$0")" && pwd)
 root=$(dirname "$script_dir")
-home_key=$(printf '%s-%s-%s' "$dsh_version" "$plugin_branch" "$sidebar_version" | tr -c 'a-zA-Z0-9._-' '-')
+home_key=$(printf '%s-%s' "$dsh_version" "$plugin_branch" | tr -c 'a-zA-Z0-9._-' '-')
 DSH_HOME=${DSH_HOME:-"$root/.e2e/dsh-home-$home_key"}
 export DSH_HOME
 profile_modules=$DSH_HOME/profiles/web/node_modules
@@ -45,15 +44,11 @@ allow_build() {
 }
 
 cd "$root"
-echo "DSH $dsh_version; dsh-file-review $plugin_branch; dsh-better-sidebar $sidebar_version"
+echo "DSH $dsh_version; dsh-file-review $plugin_branch"
 echo "DSH_HOME=$DSH_HOME"
 
-if [ -f "$profile_modules/dsh-better-sidebar/package.json" ]; then
-  echo 'dsh-better-sidebar is already installed; skipping.'
-else
-  npx --yes --package="@deepseek-ai/dsh@$dsh_version" dsh plugin --profile web add \
-    --allow-build=node-pty "dsh-better-sidebar@$sidebar_version"
-fi
+mkdir -p "$(dirname "$workspace_file")"
+touch "$workspace_file"
 
 allow_build node-pty
 allow_build "dsh-file-review@git+$download_repository"
