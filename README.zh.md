@@ -4,13 +4,12 @@
 
 **无需离开 DeepSeek Harness Web，即可立即审查 Agent 刚刚修改的每个文件。**
 
-![Adapted DSH CLI version](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fleft0ver%2Fdsh-file-review%2Fdev%2Fpackage.json&query=%24.dsh.adapter.cliVersion&label=DSH%20CLI&color=4f46e5)
-![Adapted dsh-better-sidebar version](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fleft0ver%2Fdsh-file-review%2Fdev%2Fpackage.json&query=%24.dsh.adapter.betterSidebarVersion&label=dsh-better-sidebar&color=8b5cf6)
-![Web profile](https://img.shields.io/badge/profile-Web-0ea5e9)
-[![npm version](https://img.shields.io/npm/v/dsh-file-review.svg)](https://www.npmjs.com/package/dsh-file-review)
-[![npm downloads](https://img.shields.io/npm/dm/dsh-file-review.svg)](https://www.npmjs.com/package/dsh-file-review)
-[![GitHub repository](https://img.shields.io/badge/GitHub-Repository-181717?logo=github)](https://github.com/left0ver/dsh-file-review)
-[![MIT License](https://img.shields.io/badge/license-MIT-22c55e)](LICENSE)
+[![Adapted DSH CLI version](https://img.shields.io/badge/DSH_CLI-0.1.5--rc.1-4f46e5?style=flat-square)](package.json)
+![Web profile](https://img.shields.io/badge/profile-Web-0ea5e9?style=flat-square)
+[![npm version](https://img.shields.io/npm/v/dsh-file-review?style=flat-square&logo=npm)](https://www.npmjs.com/package/dsh-file-review)
+[![npm downloads](https://img.shields.io/npm/dm/dsh-file-review?style=flat-square&logo=npm)](https://www.npmjs.com/package/dsh-file-review)
+[![GitHub repository](https://img.shields.io/badge/GitHub-Repository-181717?style=flat-square&logo=github)](https://github.com/left0ver/dsh-file-review)
+[![MIT License](https://img.shields.io/badge/license-MIT-22c55e?style=flat-square)](LICENSE)
 
 [English](README.md) · 简体中文
 
@@ -24,22 +23,17 @@
 
 ## 效果预览
 
-单独使用本插件:
 ![preview](./assets/preview.png)
-
-与 dsh-better-sidebar 结合使用:
-![preview_with_better_sidebar](./assets/preview_with_better_sidebar.png)
 
 ## 功能
 
-1. 支持 [DSH-better-sidebar](https://github.com/omdsh-dev/DSH-better-sidebar)，你可以单独使用该插件，也可以配合 DSH-better-sidebar 一起使用。
-2. 本插件支持标准模式、PTC模式、创造模式、**暂时不支持极简模式**。
-3. 可以通过`Diff`面板审查 Agent 刚刚修改的每个文件。
-4. 支持撤销操作，目前支持对编辑文件、新增文件等操作进行撤销。**暂不支持对删除的文件进行撤销操作。**
+1. 本插件支持标准模式、PTC模式、创造模式、**暂时不支持极简模式**。
+2. 可以通过`Diff`面板审查 Agent 刚刚修改的每个文件。
+3. 支持撤销操作，目前支持对编辑文件、新增文件等操作进行撤销。**暂不支持对删除的文件进行撤销操作。**
    > 因为目前dsh暂时没有提供删除文件的相关tool，因此本插件暂时不支持对删除的文件进行撤销操作。后续若dsh提供了删除文件的tool，本插件会进一步地支持。
-5. 可对变更行添加评论，并让 Agent 根据评论内容继续修改，或者对该变更进行询问。
-6. 审查时支持长文本自动换行，可在“设置 → 插件 → 插件配置 → 文件审查”中开启，默认关闭。
-7. 多语言支持，包括中文和英文。
+4. 可对变更行添加评论，并让 Agent 根据评论内容继续修改，或者对该变更进行询问。
+5. 审查时支持长文本自动换行，可在“设置 → 插件 → 插件配置 → 文件审查”中开启，默认关闭。
+6. 多语言支持，包括中文和英文。
 
 ## 兼容性声明
 
@@ -47,26 +41,16 @@
 
 ## 快速开始
 
-### 0. 将dsh-file-review和dsh-better-sidebar添加到pnpm冷静期白名单
+### 0. 将dsh-file-review添加到pnpm冷静期白名单
 
 找到`~/.dsh/profiles/web/pnpm-workspace.yaml`,加上
 
 ```yaml
 minimumReleaseAgeExclude:
   - dsh-file-review
-  - dsh-better-sidebar
 ```
 
-这是因为较新版的`pnpm`有冷静期，默认情况下，新发布的包得过了冷静期之后才会被安装。因此要安装最新版本，需要将`dsh-file-review`、`dsh-better-sidebar`加入到名单中。
-
-### 安装dsh-better-sidebar（可选步骤）
-
-> 如果你不需要安装dsh-better-sidebar，或者你已经安装了dsh-better-sidebar，可跳过本步骤。不安装dsh-better-sidebar不影响使用本插件。
-> 安装步骤具体可看[DSH-better-sidebar的安装说明](https://github.com/omdsh-dev/DSH-better-sidebar#installation)
-
-```sh
-dsh plugin --profile web add --allow-build=node-pty dsh-better-sidebar@0.18.1
-```
+这是因为较新版的`pnpm`有冷静期，默认情况下，新发布的包得过了冷静期之后才会被安装。因此要安装最新版本，需要将`dsh-file-review`加入到名单中。
 
 ### 1. 安装本插件
 

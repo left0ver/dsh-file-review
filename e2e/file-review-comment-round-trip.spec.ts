@@ -49,6 +49,7 @@ async function addComment(review: Locator, line: Locator, body: string): Promise
   await expect(review.getByRole('button', { name: body, exact: true })).toBeVisible()
 }
 
+// 验证行评论随消息发送后驱动 Agent 再次修改文件，待发送入口清空且历史消息保留评论预览。
 test('审查评论会发送给 Agent 并形成下一轮修改', async ({ page, agentForPage }) => {
   const target = files.roundTrip
   const composer = await openNewSession(page, 'standard')
@@ -98,6 +99,7 @@ test('审查评论会发送给 Agent 并形成下一轮修改', async ({ page, a
   await expectDiffLine(secondReview, 'add', 1, 'final')
 })
 
+// 验证编辑已保存评论后预览同步更新，通过评论汇总入口清空时行评论一并移除。
 test('已保存评论可以编辑并通过 dock 一次清空', async ({ page, agentForPage }) => {
   const target = files.editedComment
   const firstBody = '请检查这个用词'
@@ -135,6 +137,7 @@ test('已保存评论可以编辑并通过 dock 一次清空', async ({ page, ag
   await expect(review.getByRole('button', { name: revisedBody, exact: true })).toHaveCount(0)
 })
 
+// 验证删除一条评论只移除对应条目，其余评论、行号和汇总数量保持正确。
 test('同一 Diff 的多条评论可以独立删除', async ({ page, agentForPage }) => {
   const target = files.multipleComments
   const deletedBody = '不要删除 before'

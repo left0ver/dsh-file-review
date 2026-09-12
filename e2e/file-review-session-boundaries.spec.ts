@@ -41,6 +41,7 @@ async function addComment(review: Locator, body: string): Promise<void> {
   await expect(review.getByRole('button', { name: body, exact: true })).toBeVisible()
 }
 
+// 验证尚未提交给 Agent 的评论仅保存在内存中，刷新后汇总入口及行评论均清空。
 test('未提交的审查评论在页面刷新后不会残留', async ({ page, agentForPage }) => {
   const target = files.reload
   const body = '刷新后应清理的评论'
@@ -66,6 +67,7 @@ test('未提交的审查评论在页面刷新后不会残留', async ({ page, ag
   await expect(restoredReview.getByText(body, { exact: true })).toHaveCount(0)
 })
 
+// 验证新建会话后不显示上一会话的评论汇总或文件卡片。
 test('当前会话的评论不会泄漏到新会话', async ({ page, agentForPage }) => {
   const target = files.isolation
   const composer = await openNewSession(page, 'standard')
@@ -91,6 +93,7 @@ test('当前会话的评论不会泄漏到新会话', async ({ page, agentForPag
   await expect(page.getByRole('region', { name: names.producedCard })).toHaveCount(0)
 })
 
+// 验证提交评论后的消息隐藏模型专用封装，正常显示用户文字并保留历史评论预览。
 test('提交评论时隐藏模型引用并保留用户文字和历史评论', async ({ page, agentForPage }) => {
   const target = files.projection
   const comment = '请将这一行改成 final'

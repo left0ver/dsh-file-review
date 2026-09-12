@@ -22,9 +22,10 @@ import {
   DEFAULT_WORD_WRAP,
   FILE_REVIEW_SETTINGS_NAMESPACE,
   type Config,
+  type DiffLayout,
 } from '../settings-contract.ts'
 import { ProducedFiles } from './ProducedFiles.tsx'
-import { installBetterSidebarIntegration } from './better-sidebar-adapter.tsx'
+import { installNativeSidebarIntegration } from './native-sidebar-adapter.tsx'
 import type { FileReviewTabRuntime } from './FileReviewTab.tsx'
 import { FileReviewSettingsCard } from './FileReviewSettingsCard.tsx'
 import { ReviewCommentsDock } from './ReviewCommentsDock.tsx'
@@ -56,6 +57,8 @@ export const inject = [
   'sessions',
   'conversation',
   'inputTriggers',
+  'sidebarRight',
+  'sidebarRightTabs',
 ]
 
 /**
@@ -115,7 +118,7 @@ export async function apply(ctx: ClientContext): Promise<() => Promise<void>> {
       inspectChanges: (request) => invoke('status', request),
       applyChanges: (request) => invoke('apply', request),
       // Creating a review binding subscribes to composer-reference state. Keep
-      // that work out of the optional Tab component's render path and only do
+      // that work out of the Tab component's render path and only do
       // it when comments actually need reconciliation.
       syncComments: () => {
         reviewBindingFor(sessionId)?.sync()
@@ -124,16 +127,13 @@ export async function apply(ctx: ClientContext): Promise<() => Promise<void>> {
     reviewRemotes.set(sessionId, remote)
     return remote
   }
-  const reviewRuntimeFor = (sessionId: string): FileReviewTabRuntime =>
-    reviewRemoteFor(sessionId as SessionId)
-
-  installBetterSidebarIntegration(ctx, {
+  const openReview = installNativeSidebarIntegration(ctx, {
     sessions,
     uiConversation: ctx.uiConversation,
     wordWrap,
-    locale: ctx.locale,
+    settings,
     t,
-    runtimeFor: reviewRuntimeFor,
+    runtimeFor: reviewRemoteFor,
   })
   ctx.uiConversation.events.register(deliverablesDefinition)
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'file-review: dictionaries')
@@ -147,6 +147,7 @@ export async function apply(ctx: ClientContext): Promise<() => Promise<void>> {
         inject: () => ({
           hooks: { fileReviewSettings: settings },
           setWordWrap: (value: boolean) => settings.set('wordWrap', value),
+          setDiffLayout: (value: DiffLayout) => settings.set('diffLayout', value),
         }),
       },
       FileReviewSettingsCard,
@@ -189,15 +190,11 @@ export async function apply(ctx: ClientContext): Promise<() => Promise<void>> {
         registrant: 'dsh-file-review',
         locale: NS,
         inject: (sessionId) => {
-          const projectRoot = sessions.list.getSnapshot().byId[sessionId]?.cwd
-          const reviewBinding = reviewBindingFor(sessionId)
           const remote = reviewRemoteFor(sessionId)
           return {
-            projectRoot,
-            sessionId,
-            wordWrap,
-            ...remote,
-            syncComments: reviewBinding?.sync,
+            openReview: (target: Parameters<typeof openReview>[1]) => openReview(sessionId, target),
+            inspectChanges: remote.inspectChanges,
+            applyChanges: remote.applyChanges,
           }
         },
       },

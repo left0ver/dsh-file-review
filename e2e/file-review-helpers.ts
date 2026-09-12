@@ -24,11 +24,11 @@ export const names = {
   commentHistory: /^(?:1 comment|1 个评论)$/,
   commentPreview: /^(?:Review comment preview|审查评论预览)$/,
   composer:
-    /Describe what you want to build|描述你想(?:要)?构建的内容|Message the agent|给智能体发消息|Message or run a task|发送消息或运行任务/,
+    /Describe what you want to build|描述你想(?:要)?构建的内容|Message the agent|给智能体发消息|Message or run a task|发送消息或运行任务|发送消息或创建任务|Message or create a task/,
   producedCard: /^(?:Edited files|已编辑文件)$/,
   reapply: /^(?:Reapply|重新应用)$/,
   reviewAll: /^(?:Review all produced files|审查所有产出文件)$/,
-  reviewDialog: /^(?:Review|审查)$/,
+  reviewTitle: /^(?:Review|审查)$/,
   send: /^(?:Send message|发送消息)$/,
   undo: /^(?:Undo|撤销)$/,
 } as const
@@ -108,15 +108,6 @@ export async function openNewSession(page: Page, preset: AgentPreset): Promise<L
   await page.goto('/')
 
   const composer = page.getByRole('textbox', { name: names.composer })
-  const welcomeDialog = page.getByRole('dialog', {
-    name: /^(?:Internal Testing Notice|内测声明)$/,
-  })
-  const continueWelcome = welcomeDialog.getByRole('button', {
-    name: /^(?:Continue|继续)$/,
-  })
-
-  await expect(composer.or(continueWelcome).first()).toBeVisible()
-  if (await continueWelcome.isVisible()) await continueWelcome.click()
   await expect(composer).toBeVisible()
 
   const picker = presetButton(page)
@@ -135,7 +126,7 @@ export async function openNewSession(page: Page, preset: AgentPreset): Promise<L
 
 export async function sendTask(page: Page, composer: Locator, prompt: string): Promise<void> {
   await composer.press('End')
-  await page.keyboard.insertText(prompt)
+  await composer.pressSequentially(prompt)
   await page.getByRole('button', { name: names.send }).click()
 }
 
@@ -207,9 +198,11 @@ export async function expectMultiFileCardSummary(
 
 export async function openReview(card: Locator, page: Page): Promise<Locator> {
   await card.getByRole('button', { name: names.reviewAll }).click()
-  const dialog = page.getByRole('dialog', { name: names.reviewDialog })
-  await expect(dialog).toBeVisible()
-  return dialog
+  const review = page.locator('[data-file-review-sidebar-tab]')
+  await expect(review).toBeVisible()
+  await expect(nativeReviewTab(page)).toHaveAttribute('aria-selected', 'true')
+  await expect(page.locator('[data-review-drawer]')).toHaveCount(0)
+  return review
 }
 
 function escapeRegExp(value: string): string {
@@ -228,48 +221,54 @@ export async function openFileReview(
   expectedFile: TargetFile,
 ): Promise<Locator> {
   await card.getByRole('button', { name: reviewFileName(expectedFile) }).click()
-  const dialog = page.getByRole('dialog', { name: names.reviewDialog })
-  await expect(dialog).toBeVisible()
-  return dialog
+  const review = page.locator('[data-file-review-sidebar-tab]')
+  await expect(review).toBeVisible()
+  await expect(nativeReviewTab(page)).toHaveAttribute('aria-selected', 'true')
+  await expect(page.locator('[data-review-drawer]')).toHaveCount(0)
+  return review
 }
 
-export async function closeReview(dialog: Locator): Promise<void> {
-  await dialog.getByRole('button', { name: names.close }).click()
-  await expect(dialog).toBeHidden()
+export function nativeReviewTab(page: Page): Locator {
+  return page.locator('[data-dockkit-tab]').filter({ hasText: names.reviewTitle })
+}
+
+export async function closeReview(review: Locator): Promise<void> {
+  await nativeReviewTab(review.page()).locator('[data-dockkit-tab-close]').click()
+  await expect(review).toBeHidden()
 }
 
 export async function expectReviewSummary(
-  dialog: Locator,
+  review: Locator,
   expectedFile: TargetFile,
   added: number,
   removed: number,
 ): Promise<void> {
-  await expect(dialog.getByText(reviewFileCountName(1))).toBeVisible()
-  await expect(dialog.getByText(expectedFile.relativePath, { exact: true })).toBeVisible()
-  await expect(dialog.getByLabel(statsName(added, removed))).toHaveCount(2)
+  await expect(review.getByText(reviewFileCountName(1))).toBeVisible()
+  await expect(review.getByText(expectedFile.relativePath, { exact: true })).toBeVisible()
+  await expect(review.getByLabel(statsName(added, removed))).toHaveCount(2)
 }
 
 export async function expectMultiFileReviewSummary(
-  dialog: Locator,
+  review: Locator,
   expectedFiles: readonly TargetFile[],
   added: number,
   removed: number,
 ): Promise<void> {
-  await expect(dialog.getByText(reviewFileCountName(expectedFiles.length))).toBeVisible()
+  await expect(review.getByText(reviewFileCountName(expectedFiles.length))).toBeVisible()
   for (const expectedFile of expectedFiles) {
-    await expect(dialog.getByText(expectedFile.relativePath, { exact: true })).toBeVisible()
+    await expect(review.getByText(expectedFile.relativePath, { exact: true })).toBeVisible()
   }
-  await expect(dialog.getByLabel(statsName(added, removed))).toHaveCount(1)
+  await expect(review.getByLabel(statsName(added, removed))).toHaveCount(1)
 }
 
 export async function expectDiffLine(
-  dialog: Locator,
+  review: Locator,
   kind: 'del' | 'add',
   line: number,
   text: string,
 ): Promise<void> {
   const lineAttribute = kind === 'del' ? 'data-old-line' : 'data-new-line'
-  const diffLine = dialog
+  const diffLine = review
     .locator(`[data-line-kind="${kind}"][${lineAttribute}="${line}"]`)
     .filter({ hasText: text })
   await expect(diffLine).toBeVisible()

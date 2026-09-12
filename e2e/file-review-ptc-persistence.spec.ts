@@ -36,6 +36,7 @@ test.beforeEach(async () => {
   ])
 })
 
+// 验证 PTC 模式修改已有文件后生成文件卡片，并展示修改前后的内容及行号。
 test('PTC 模式产生可审查的已有文件 Diff', async ({ page, agentForPage }) => {
   const target = files.review
   const composer = await openNewSession(page, 'code')
@@ -56,6 +57,7 @@ test('PTC 模式产生可审查的已有文件 Diff', async ({ page, agentForPag
   await expectDiffLine(review, 'add', 1, 'after')
 })
 
+// 验证 PTC 历史审查数据在刷新后仍可读取，点击撤销能恢复原文件内容。
 test('PTC 模式的审查数据在刷新后仍可查看和撤销', async ({ page, agentForPage }) => {
   const target = files.persistence
   const composer = await openNewSession(page, 'code')
@@ -93,6 +95,7 @@ test('PTC 模式的审查数据在刷新后仍可查看和撤销', async ({ page
   await expect(restoredCard.getByRole('button', { name: names.reapply })).toBeEnabled()
 })
 
+// 验证 PTC 新建文件仅显示新增差异，撤销后文件消失，重新应用后内容恢复。
 test('PTC 模式创建的新文件可以审查、撤销并重新应用', async ({ page, agentForPage }) => {
   const target = files.created
   const composer = await openNewSession(page, 'code')

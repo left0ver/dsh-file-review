@@ -15,12 +15,15 @@ import type {
   TurnLocation,
 } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { ChatFileMentions, TurnTailOwnerProps } from '@deepseek-ai/dsh-client-ui-chat/client'
-import { ProducedFiles } from '../src/client/ProducedFiles.tsx'
+import { useMemo, useState } from 'react'
+import type { ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import { ProducedFiles, type ProducedFilesProps } from '../src/client/ProducedFiles.tsx'
 import {
   FileReviewSettingsCard,
   type FileReviewSettingsCardProps,
 } from '../src/client/FileReviewSettingsCard.tsx'
-import { FileReviewTab } from '../src/client/FileReviewTab.tsx'
+import { FileReviewTab, type ReviewTarget } from '../src/client/FileReviewTab.tsx'
 import {
   ReviewCommentsDock,
   type ReviewCommentsDockProps,
@@ -47,6 +50,81 @@ import {
 import { boundedPtcFileReviewMarker, markerBlock } from '../src/ptc-marker.ts'
 import { apply, inject } from '../src/client/index.ts'
 import { en, NS, zh } from '../src/client/locales.ts'
+
+/** Supply the host-owned tab lifecycle while exercising the real card and tab content. */
+function ReviewFixture({
+  sessionId = 'session-test',
+  projectRoot,
+  syncComments,
+  wordWrap,
+  ...props
+}: Omit<ProducedFilesProps, 'openReview'> & {
+  sessionId?: string
+  projectRoot?: string
+  syncComments?: () => void
+  wordWrap?: ObservableSnapshot<boolean>
+}) {
+  const [params, setParams] = useState<ReviewTarget>()
+  const sessionSnapshot = useMemo(
+    () => ({ byId: { [sessionId]: { cwd: projectRoot } } }),
+    [sessionId, projectRoot],
+  )
+  const snapshot = useMemo(
+    () => ({
+      timeline: {
+        turns: new Map([
+          [
+            props.turn?.turn ?? 0,
+            turnLocation(
+              props.turn?.turn ?? 0,
+              produced(
+                ...props.matched.map(
+                  (review) => [props.seq ?? 0, review.path, review.diffs] as const,
+                ),
+              ),
+            ),
+          ],
+        ]),
+      },
+    }),
+    [props.matched, props.turn, props.seq],
+  )
+  return (
+    <>
+      <ProducedFiles {...props} openReview={setParams} />
+      {params !== undefined && (
+        <section role="tabpanel" aria-label={props.t('review.title')}>
+          <button onClick={() => setParams(undefined)}>
+            {props.t('review.title') === '审查' ? '关闭' : 'Close'}
+          </button>
+          <FileReviewTab
+            sessions={
+              {
+                binding: () => ({}),
+                list: { getSnapshot: () => sessionSnapshot, subscribe: () => () => {} },
+              } as never
+            }
+            uiConversation={
+              {
+                binding: () => ({
+                  target: () => ({ getSnapshot: () => snapshot, subscribe: () => () => {} }),
+                }),
+              } as never
+            }
+            sessionId={sessionId as SessionId}
+            projectRoot={projectRoot}
+            params={params}
+            visible
+            syncComments={syncComments}
+            wordWrap={wordWrap ?? { getSnapshot: () => false, subscribe: () => () => {} }}
+            openFile={props.openFile}
+            t={props.t}
+          />
+        </section>
+      )}
+    </>
+  )
+}
 
 const unifiedDiffCss = readFileSync('src/client/UnifiedDiff.module.css', 'utf8')
 
@@ -215,7 +293,7 @@ function ptc(
     })),
   })
   if (marker === null) throw new Error('fixture marker exceeded its budget')
-  return at(seq, 'tool/code-dispatch', {
+  return at(seq, 'tool/ptc-dispatch', {
     rootCallId,
     parentCallId: rootCallId,
     subCallId,
@@ -265,6 +343,7 @@ function makeTranslate(...dicts: readonly Record<string, string>[]) {
 }
 
 describe('produced-file Turn data', () => {
+  // 验证产出文件按首次出现顺序去重，只汇总结束回复之前的结果，无产出时不挂载卡片。
   it('deduplicates paths in first-seen order and stops at the closing Assistant seq', () => {
     const data = produced(
       [3, 'out/index.html'],
@@ -285,6 +364,7 @@ describe('produced-file Turn data', () => {
     expect(selectProducedFiles(tailOwner(undefined, 9, () => {}, 2))).toBeNull()
   })
 
+  // 验证仅汇总成功且带审查标记的原生工具结果，忽略读取或失败结果，并标记不完整数据。
   it('folds successful native markers while ignoring markerless and failed results', () => {
     const value = fold([
       at(1, 'turn/start', { turn: 1 }),
@@ -317,6 +397,7 @@ describe('produced-file Turn data', () => {
     ])
   })
 
+  // 验证同一文件多次修改的差异块按顺序追加，无审查标记的结果不会产生额外差异。
   it('appends same-file marker hunks and ignores markerless results', () => {
     const value = fold([
       at(1, 'turn/start', { turn: 1 }),
@@ -351,6 +432,7 @@ describe('produced-file Turn data', () => {
     ])
   })
 
+  // 验证部分捕获的标记只生成已记录文件的审查数据，不补充未捕获的文件。
   it('uses a partial marker without adding uncaptured files', () => {
     const value = fold([
       at(1, 'turn/start', { turn: 1 }),
@@ -368,6 +450,7 @@ describe('produced-file Turn data', () => {
     ])
   })
 
+  // 验证 PTC 的执行结果与调用意图合并到同一轮产出，并保留缺少完整差异的状态。
   it('folds PTC result and intent markers into the same Turn deliverables', () => {
     const value = fold([
       at(1, 'turn/start', { turn: 1 }),
@@ -408,6 +491,7 @@ describe('produced-file Turn data', () => {
     ])
   })
 
+  // 验证汇总原生创建标记时保留明确的生命周期和权限信息，不丢失创建语义。
   it('folds a native lifecycle marker instead of its ambiguous presentation diff', () => {
     const callId = 'native-create'
     const captured = boundedPtcFileReviewMarker({
@@ -442,6 +526,7 @@ describe('produced-file Turn data', () => {
     expect(reviewsForClosing(value)).toEqual([fileReview('created.txt', captured.files[0]?.diffs)])
   })
 
+  // 验证 PTC 重复结果只计入一次，失败、步骤不符、调用标识错配或缺失的结果被忽略。
   it('deduplicates PTC settlements and rejects failures or mismatched marker correlations', () => {
     const accepted = ptc(3, 'run-code:code:0', [{ path: 'one.txt' }])
     const duplicate = ptc(4, 'run-code:code:0', [{ path: 'duplicate.txt' }])
@@ -472,6 +557,7 @@ describe('produced-file Turn data', () => {
     expect(producedForClosing(value)).toEqual(['one.txt'])
   })
 
+  // 验证 PTC 会话事件经过 JSON 序列化和恢复后，仍能还原文件路径及差异预览。
   it('restores PTC previews after a JSON history round trip', () => {
     const entries = [
       at(1, 'turn/start', { turn: 1 }),
@@ -490,6 +576,7 @@ describe('produced-file Turn data', () => {
     ])
   })
 
+  // 验证没有标记、没有对应调用、步骤错配或替换历史内容的结果不会生成产出文件。
   it('ignores markerless, orphan, mismatched, and replacement results', () => {
     const replacement = result(8, 'replacement', [
       {
@@ -522,6 +609,7 @@ describe('produced-file Turn data', () => {
     expect(producedForClosing(value)).toEqual([])
   })
 
+  // 验证产出状态必须由 turn/start 初始化，无关更新事件不会改变已有状态。
   it('rejects an invalid start match and preserves state for an unrelated update', () => {
     const startMatch = matched(at(1, 'turn/start', { turn: 1 }), 'start')
     const emptyContext: Parameters<typeof deliverablesDefinition.start>[0] = {
@@ -550,8 +638,9 @@ describe('produced-file Turn data', () => {
   })
 })
 
-describe('better-sidebar review tab', () => {
-  it('reads the alpha.3 chat target and unsubscribes while hidden', () => {
+describe('native review tab', () => {
+  // 验证原生 Tab 通过 rc.1 的 chat 数据接口读取指定文件，隐藏后取消聊天数据订阅。
+  it('reads the rc.1 chat target and unsubscribes while hidden', () => {
     const sessionBinding = {}
     const unsubscribeChat = vi.fn()
     const chatSnapshot = {
@@ -575,13 +664,10 @@ describe('better-sidebar review tab', () => {
         },
       },
       uiConversation: { binding: bindConversation },
-      scope: { sessionId: 'session-1', cwd: '/workspace' },
-      tab: { meta: { turn: 1, closingSeq: 9, focusPaths: ['src/a.ts'] } },
+      sessionId: 'session-1',
+      projectRoot: '/workspace',
+      params: { turn: 1, closingSeq: 9, focusPaths: ['src/a.ts'] },
       visible: true,
-      runtime: {
-        inspectChanges: async () => ({ files: [] }),
-        applyChanges: async () => ({ files: [] }),
-      },
       wordWrap: { getSnapshot: () => false, subscribe: () => () => {} },
       openFile: vi.fn(),
       t: makeTranslate(en),
@@ -623,6 +709,7 @@ describe('ProducedFiles review card', () => {
     ]),
   ]
 
+  // 验证替换、新增、多差异块和空列表的新增行数与删除行数计算准确。
   it('derives exact totals for replacements, additions, multiple hunks, and empty reviews', () => {
     expect(summarizeDiffs(changedReviews[0]?.diffs ?? [])).toEqual({ added: 1, removed: 1 })
     expect(summarizeDiffs(changedReviews[1]?.diffs ?? [])).toEqual({ added: 2, removed: 0 })
@@ -638,9 +725,10 @@ describe('ProducedFiles review card', () => {
     )
   })
 
+  // 验证卡片同时展示总计和逐文件统计，默认仅显示六个文件，展开后显示剩余项。
   it('renders aggregate and per-file totals and expands the six-file preview', () => {
     const paths = ['deep/a.html', 'b.css', 'c.ts', 'd.ts', 'e.ts', 'f.ts', 'g.ts']
-    const view = render(<ProducedFiles matched={reviews(paths)} openFile={() => {}} t={t} />)
+    const view = render(<ReviewFixture matched={reviews(paths)} openFile={() => {}} t={t} />)
     const card = view.getByRole('region', { name: 'Edited files' })
     expect(within(card).getByText('Edited 7 files')).toBeTruthy()
     const expand = within(card).getByRole('button', { name: '1 more file' })
@@ -656,33 +744,34 @@ describe('ProducedFiles review card', () => {
     expect(first.getAttribute('title')).toBe('deep/a.html')
   })
 
+  // 验证运行时切换语言后，文件卡片、行数统计、审查按钮和面板文案同步更新。
   it('renders the active Web UI language after the locale changes', () => {
     let active = en
     const translate = (key: string, params?: Record<string, unknown>): string =>
       makeTranslate(active)(key, params)
     const view = render(
-      <ProducedFiles matched={changedReviews} openFile={() => {}} t={translate} />,
+      <ReviewFixture matched={changedReviews} openFile={() => {}} t={translate} />,
     )
 
     expect(view.getByRole('region', { name: 'Edited files' })).toBeTruthy()
     expect(view.getByRole('button', { name: 'Review all produced files' })).toBeTruthy()
 
     active = zh
-    view.rerender(<ProducedFiles matched={changedReviews} openFile={() => {}} t={translate} />)
+    view.rerender(<ReviewFixture matched={changedReviews} openFile={() => {}} t={translate} />)
 
     const card = view.getByRole('region', { name: '已编辑文件' })
     expect(within(card).getByText('已编辑 2 个文件')).toBeTruthy()
     expect(within(card).getByLabelText('新增 3 行，删除 1 行')).toBeTruthy()
     fireEvent.click(within(card).getByRole('button', { name: '审查所有产出文件' }))
 
-    const drawer = view.getByRole('dialog', { name: '审查' })
-    expect(within(drawer).getByText('2 个文件')).toBeTruthy()
-    expect(within(drawer).getByRole('button', { name: '复制差异' })).toBeTruthy()
-    expect(within(drawer).getByRole('button', { name: '关闭' })).toBeTruthy()
-    expect(within(drawer).getByRole('separator', { name: '调整审查面板大小' })).toBeTruthy()
-    expect(within(drawer).getAllByRole('button', { name: '在编辑器中打开' })).toHaveLength(2)
+    const panel = view.getByRole('tabpanel', { name: '审查' })
+    expect(within(panel).getByText('2 个文件')).toBeTruthy()
+    expect(within(panel).getByRole('button', { name: '复制差异' })).toBeTruthy()
+    expect(within(panel).getByRole('button', { name: '关闭' })).toBeTruthy()
+    expect(within(panel).getAllByRole('button', { name: '在编辑器中打开' })).toHaveLength(2)
   })
 
+  // 验证所有可逆文件撤销完成后按钮才切换为重新应用，操作成功时显示对应反馈。
   it('switches to reapply only after every reversible file is undone', async () => {
     const inspectChanges = vi.fn(async () => ({
       files: [{ path: 'deep/a.html', state: 'applied' as const, changed: false }],
@@ -692,7 +781,7 @@ describe('ProducedFiles review card', () => {
       .mockResolvedValueOnce({ files: [{ path: 'deep/a.html', state: 'undone', changed: true }] })
       .mockResolvedValueOnce({ files: [{ path: 'deep/a.html', state: 'applied', changed: true }] })
     const view = render(
-      <ProducedFiles
+      <ReviewFixture
         matched={[changedReviews[0]!]}
         openFile={() => {}}
         inspectChanges={inspectChanges}
@@ -721,6 +810,7 @@ describe('ProducedFiles review card', () => {
     expect(applyChanges.mock.calls[1]?.[0].action).toBe('redo')
   })
 
+  // 验证明确的创建和删除标记允许撤销，旧格式中语义不明的空快照不会启用撤销。
   it('enables Undo for explicit create/delete lifecycles but not legacy null snapshots', async () => {
     const lifecycleReviews = [
       fileReview('created.txt', [
@@ -759,7 +849,7 @@ describe('ProducedFiles review card', () => {
       })),
     }))
     const view = render(
-      <ProducedFiles
+      <ReviewFixture
         matched={[lifecycleReviews[0]!]}
         openFile={() => {}}
         inspectChanges={inspectChanges}
@@ -773,7 +863,7 @@ describe('ProducedFiles review card', () => {
     })
 
     view.rerender(
-      <ProducedFiles
+      <ReviewFixture
         matched={[lifecycleReviews[1]!]}
         openFile={() => {}}
         inspectChanges={inspectChanges}
@@ -786,7 +876,7 @@ describe('ProducedFiles review card', () => {
     })
 
     view.rerender(
-      <ProducedFiles
+      <ReviewFixture
         matched={[
           fileReview('legacy.txt', [
             {
@@ -805,7 +895,7 @@ describe('ProducedFiles review card', () => {
     })
 
     view.rerender(
-      <ProducedFiles
+      <ReviewFixture
         matched={[
           {
             path: 'truncated.txt',
@@ -822,6 +912,7 @@ describe('ProducedFiles review card', () => {
     })
   })
 
+  // 验证部分文件冲突时保留撤销按钮并提示失败文件；没有可逆文件时禁用操作。
   it('keeps Undo in a mixed state and disables it when no file is reversible', async () => {
     const twoReversible = [
       fileReview('deep/a.txt', [{ path: 'deep/a.txt', oldText: 'a', newText: 'A' }]),
@@ -841,7 +932,7 @@ describe('ProducedFiles review card', () => {
     }))
     const openFile = vi.fn<(path: string) => void>()
     const view = render(
-      <ProducedFiles
+      <ReviewFixture
         matched={twoReversible}
         openFile={openFile}
         inspectChanges={inspectChanges}
@@ -879,7 +970,7 @@ describe('ProducedFiles review card', () => {
       expect(applyChanges).toHaveBeenCalledTimes(2)
     })
 
-    view.rerender(<ProducedFiles matched={[fileReview('notes.md')]} openFile={() => {}} t={t} />)
+    view.rerender(<ReviewFixture matched={[fileReview('notes.md')]} openFile={() => {}} t={t} />)
     await vi.waitFor(() => {
       const button = view.getByRole('button', { name: 'Undo' }) as HTMLButtonElement
       expect(button.disabled).toBe(true)
@@ -887,43 +978,43 @@ describe('ProducedFiles review card', () => {
     })
   })
 
+  // 验证卡片总览打开全部文件的统一差异，复制内容包含各文件路径和差异，并显示成功反馈。
   it('reviews every file from the header and copies the visible unified diff', async () => {
     const writeText = vi.fn(() => Promise.resolve())
     vi.stubGlobal('navigator', { clipboard: { writeText } })
-    const view = render(<ProducedFiles matched={changedReviews} openFile={() => {}} t={t} />)
+    const view = render(<ReviewFixture matched={changedReviews} openFile={() => {}} t={t} />)
 
     fireEvent.click(view.getByRole('button', { name: 'Review all produced files' }))
-    const drawer = view.getByRole('dialog', { name: 'Review' })
-    const drawerHeader = drawer.querySelector('[data-review-content] > header') as HTMLElement
-    expect(within(drawer).getByText('2 files')).toBeTruthy()
-    expect(within(drawerHeader).queryByRole('button', { name: 'Undo' })).toBeNull()
+    const panel = view.getByRole('tabpanel', { name: 'Review' })
+    const reviewHeader = panel.querySelector('[data-review-content] > header') as HTMLElement
+    expect(within(panel).getByText('2 files')).toBeTruthy()
+    expect(within(reviewHeader).queryByRole('button', { name: 'Undo' })).toBeNull()
     expect(
-      within(drawerHeader)
+      within(reviewHeader)
         .getAllByRole('button')
         .map((button) => button.getAttribute('aria-label') ?? button.textContent?.trim()),
-    ).toEqual(['Copy diff', 'Close'])
-    expect(within(drawer).getByText('deep/a.html')).toBeTruthy()
-    expect(within(drawer).getByText('styles/b.css')).toBeTruthy()
-    expect(drawer.querySelectorAll('[data-diff-layout="unified"]')).toHaveLength(2)
-    const firstDiff = drawer.querySelectorAll('[data-diff-layout="unified"]')[0]
+    ).toEqual(['Copy diff'])
+    expect(within(panel).getByText('deep/a.html')).toBeTruthy()
+    expect(within(panel).getByText('styles/b.css')).toBeTruthy()
+    expect(panel.querySelectorAll('[data-diff-layout="split"]')).toHaveLength(2)
+    const firstDiff = panel.querySelectorAll('[data-diff-layout="split"]')[0]
     expect(firstDiff?.getAttribute('data-word-wrap')).toBe('false')
     const firstDiffLines = firstDiff?.querySelectorAll('[data-line-kind]') ?? []
-    expect([...firstDiffLines].map((line) => line.childElementCount)).toEqual([3, 3, 3])
-    expect([...firstDiffLines].map((line) => line.firstElementChild?.textContent)).toEqual([
-      '7',
-      '7',
-      '8',
-    ])
+    expect([...firstDiffLines].map((line) => line.childElementCount)).toEqual([3, 3, 3, 3])
+    expect(
+      [...firstDiffLines].map((line) => line.firstElementChild?.lastElementChild?.textContent),
+    ).toEqual(['7', '8', '7', '8'])
 
-    fireEvent.click(within(drawer).getByRole('button', { name: 'Copy diff' }))
+    fireEvent.click(within(panel).getByRole('button', { name: 'Copy diff' }))
     await vi.waitFor(() => {
       expect(writeText).toHaveBeenCalledOnce()
     })
     expect(writeText.mock.calls[0]?.[0]).toContain('deep/a.html')
     expect(writeText.mock.calls[0]?.[0]).toContain('styles/b.css')
-    expect(within(drawer).getByRole('button', { name: 'Copied' })).toBeTruthy()
+    expect(within(panel).getByRole('button', { name: 'Copied' })).toBeTruthy()
   })
 
+  // 验证旧差异缺少行号时显示未知坐标，保留已知一侧行号，不生成虚假的评论位置。
   it('does not invent missing legacy coordinates and preserves a known side', () => {
     const review = fileReview('legacy.txt', [
       { path: 'legacy.txt', oldText: 'before', newText: 'after' },
@@ -931,7 +1022,7 @@ describe('ProducedFiles review card', () => {
       { path: 'legacy.txt', oldText: 'third before', newText: 'third after', newStart: 9 },
     ])
     const view = render(
-      <ProducedFiles
+      <ReviewFixture
         matched={[review]}
         openFile={() => {}}
         sessionId="legacy-session"
@@ -942,8 +1033,8 @@ describe('ProducedFiles review card', () => {
     )
 
     fireEvent.click(view.getByRole('button', { name: 'Review legacy.txt' }))
-    const drawer = view.getByRole('dialog', { name: 'Review' })
-    const lines = drawer.querySelectorAll('[data-line-kind]')
+    const panel = view.getByRole('tabpanel', { name: 'Review' })
+    const lines = panel.querySelectorAll('[data-line-kind]')
     expect([...lines].map((line) => line.firstElementChild?.lastElementChild?.textContent)).toEqual(
       ['', '', '', '', '', '9'],
     )
@@ -955,14 +1046,15 @@ describe('ProducedFiles review card', () => {
         ),
     ).toBe(true)
     expect(lines[5]?.getAttribute('data-new-line')).toBe('9')
-    expect(within(drawer).getByText('@@ -? +? @@')).toBeTruthy()
-    expect(within(drawer).getByText('@@ -? +9 @@')).toBeTruthy()
-    expect(within(drawer).getByRole('button', { name: 'Add comment on line 9' })).toBeTruthy()
-    expect(within(drawer).queryByRole('button', { name: 'Add comment on line 0' })).toBeNull()
+    expect(within(panel).getByText('@@ -? +? @@')).toBeTruthy()
+    expect(within(panel).getByText('@@ -? +9 @@')).toBeTruthy()
+    expect(within(panel).getByRole('button', { name: 'Add comment on line 9' })).toBeTruthy()
+    expect(within(panel).queryByRole('button', { name: 'Add comment on line 0' })).toBeNull()
     expect(unifiedDiffText(review.diffs)).toContain('@@ -? +? @@')
     expect(unifiedDiffText(review.diffs)).toContain('@@ -? +9 @@')
   })
 
+  // 验证最多五行未修改内容直接展示，差异块之间更长的间隔显示折叠提示。
   it('shows up to five unchanged lines inline and collapses a larger hunk gap', () => {
     const inline = ['old-a', 'keep-1', 'keep-2', 'keep-3', 'keep-4', 'keep-5', 'old-b']
     const review = fileReview('threshold.txt', [
@@ -981,17 +1073,18 @@ describe('ProducedFiles review card', () => {
         newStart: 14,
       },
     ])
-    const view = render(<ProducedFiles matched={[review]} openFile={() => {}} t={t} />)
+    const view = render(<ReviewFixture matched={[review]} openFile={() => {}} t={t} />)
 
     fireEvent.click(view.getByRole('button', { name: 'Review threshold.txt' }))
-    const drawer = view.getByRole('dialog', { name: 'Review' })
+    const panel = view.getByRole('tabpanel', { name: 'Review' })
     for (let line = 1; line <= 5; line++) {
-      expect(within(drawer).getByText(`keep-${line}`)).toBeTruthy()
+      expect(within(panel).getAllByText(`keep-${line}`)).toHaveLength(2)
     }
-    expect(within(drawer).queryByText('5 unchanged lines')).toBeNull()
-    expect(within(drawer).getByText('6 unchanged lines')).toBeTruthy()
+    expect(within(panel).queryByText('5 unchanged lines')).toBeNull()
+    expect(within(panel).getByText('6 unchanged lines')).toBeTruthy()
   })
 
+  // 验证自动换行只改变视觉布局，不改变长行原文或复制出的差异文本。
   it('visually wraps long lines without changing their logical text', () => {
     const longText = `const message = '${'long content '.repeat(24)}'`
     const review = fileReview('src/long-line.ts', [
@@ -1003,12 +1096,12 @@ describe('ProducedFiles review card', () => {
     ])
     const wordWrap = { getSnapshot: () => true, subscribe: () => () => {} }
     const view = render(
-      <ProducedFiles matched={[review]} openFile={() => {}} wordWrap={wordWrap} t={t} />,
+      <ReviewFixture matched={[review]} openFile={() => {}} wordWrap={wordWrap} t={t} />,
     )
 
     fireEvent.click(view.getByRole('button', { name: 'Review src/long-line.ts' }))
-    const drawer = view.getByRole('dialog', { name: 'Review' })
-    const diff = drawer.querySelector('[data-diff-layout="unified"]')
+    const panel = view.getByRole('tabpanel', { name: 'Review' })
+    const diff = panel.querySelector('[data-diff-layout="split"]')
     expect(diff?.getAttribute('data-word-wrap')).toBe('true')
     const added = diff?.querySelector('[data-line-kind="add"]')
     expect(added?.lastElementChild?.textContent).toBe(longText)
@@ -1022,7 +1115,8 @@ describe('ProducedFiles review card', () => {
     expect(wrapTextRule).toContain('overflow-wrap: anywhere')
   })
 
-  it('comments added, deleted, and expanded context lines while retaining comments on reopen', () => {
+  // 验证变更行可评论、上下文不可新增评论，重新打开后保留评论并安全转义。
+  it('comments changed lines, rejects context comments, and retains comments on reopen', () => {
     const commented = fileReview('src/example.ts', [
       {
         path: 'src/example.ts',
@@ -1034,7 +1128,7 @@ describe('ProducedFiles review card', () => {
     ])
     const ownerTurn = turnLocation(4)
     const view = render(
-      <ProducedFiles
+      <ReviewFixture
         matched={[commented]}
         openFile={() => {}}
         sessionId="session-comments"
@@ -1044,25 +1138,25 @@ describe('ProducedFiles review card', () => {
       />,
     )
     fireEvent.click(view.getByRole('button', { name: 'Review src/example.ts' }))
-    const drawer = view.getByRole('dialog', { name: 'Review' })
+    const panel = view.getByRole('tabpanel', { name: 'Review' })
 
-    const changedLineButtons = within(drawer).getAllByRole('button', {
+    const changedLineButtons = within(panel).getAllByRole('button', {
       name: 'Add comment on line 5',
     })
     fireEvent.click(changedLineButtons[0]!)
-    let editor = within(drawer).getByRole('textbox', { name: 'Edit comment on line 5' })
+    let editor = within(panel).getByRole('textbox', { name: 'Edit comment on line 5' })
     expect(
-      (within(drawer).getByRole('button', { name: 'Save' }) as HTMLButtonElement).disabled,
+      (within(panel).getByRole('button', { name: 'Save' }) as HTMLButtonElement).disabled,
     ).toBe(true)
     fireEvent.change(editor, { target: { value: 'Discard me.' } })
-    fireEvent.click(within(drawer).getByRole('button', { name: 'Cancel' }))
+    fireEvent.click(within(panel).getByRole('button', { name: 'Cancel' }))
     expect(reviewComments('session-comments')).toHaveLength(0)
 
-    fireEvent.click(within(drawer).getAllByRole('button', { name: 'Add comment on line 5' })[0]!)
-    editor = within(drawer).getByRole('textbox', { name: 'Edit comment on line 5' })
+    fireEvent.click(within(panel).getAllByRole('button', { name: 'Add comment on line 5' })[0]!)
+    editor = within(panel).getByRole('textbox', { name: 'Edit comment on line 5' })
     fireEvent.change(editor, { target: { value: 'Keep the previous behavior <safe>.' } })
-    fireEvent.click(within(drawer).getByRole('button', { name: 'Save' }))
-    const savedComment = within(drawer).getByRole('button', {
+    fireEvent.click(within(panel).getByRole('button', { name: 'Save' }))
+    const savedComment = within(panel).getByRole('button', {
       name: 'Keep the previous behavior <safe>.',
     })
     expect(savedComment.textContent).toBe('Keep the previous behavior <safe>.')
@@ -1088,35 +1182,28 @@ describe('ProducedFiles review card', () => {
     expect(serializeReviewComments('session-comments')).toContain('&lt;safe&gt;')
 
     fireEvent.click(
-      within(drawer).getByRole('button', { name: 'Keep the previous behavior <safe>.' }),
+      within(panel).getByRole('button', { name: 'Keep the previous behavior <safe>.' }),
     )
-    const existingEditor = within(drawer).getByRole('textbox', { name: 'Edit comment on line 5' })
+    const existingEditor = within(panel).getByRole('textbox', { name: 'Edit comment on line 5' })
     fireEvent.change(existingEditor, { target: { value: 'Do not keep this edit.' } })
-    fireEvent.click(within(drawer).getByRole('button', { name: 'Cancel' }))
-    expect(within(drawer).getByText('Keep the previous behavior <safe>.')).toBeTruthy()
+    fireEvent.click(within(panel).getByRole('button', { name: 'Cancel' }))
+    expect(within(panel).getByText('Keep the previous behavior <safe>.')).toBeTruthy()
     expect(reviewComments('session-comments')[0]?.body).toBe('Keep the previous behavior <safe>.')
 
-    fireEvent.click(within(drawer).getAllByRole('button', { name: /unchanged lines/ })[0]!)
-    fireEvent.click(within(drawer).getByRole('button', { name: 'Add comment on line 1' }))
-    const contextEditor = within(drawer).getByRole('textbox', { name: 'Edit comment on line 1' })
-    fireEvent.change(contextEditor, { target: { value: 'This context also matters.' } })
-    fireEvent.click(within(drawer).getByRole('button', { name: 'Save' }))
-    expect(reviewComments('session-comments')).toHaveLength(2)
-    expect(serializeReviewComments('session-comments')).toContain(
-      '<comment kind="context" old_line="1" new_line="1">',
-    )
+    fireEvent.click(within(panel).getAllByRole('button', { name: /unchanged lines/ })[0]!)
+    expect(within(panel).queryByRole('button', { name: 'Add comment on line 1' })).toBeNull()
+    expect(reviewComments('session-comments')).toHaveLength(1)
 
-    fireEvent.click(within(drawer).getByRole('button', { name: 'Close' }))
+    fireEvent.click(within(panel).getByRole('button', { name: 'Close' }))
     fireEvent.click(view.getByRole('button', { name: 'Review src/example.ts' }))
-    const reopened = view.getByRole('dialog', { name: 'Review' })
+    const reopened = view.getByRole('tabpanel', { name: 'Review' })
     expect(within(reopened).getByText('Keep the previous behavior <safe>.')).toBeTruthy()
     fireEvent.click(within(reopened).getAllByRole('button', { name: /unchanged lines/ })[0]!)
-    expect(within(reopened).getByText('This context also matters.')).toBeTruthy()
-    fireEvent.click(within(reopened).getAllByRole('button', { name: 'Delete' })[0]!)
     fireEvent.click(within(reopened).getByRole('button', { name: 'Delete' }))
     expect(reviewComments('session-comments')).toHaveLength(0)
   })
 
+  // 验证评论输入框随内容增高至上限后滚动，输入法组合和 Shift+Enter 不保存，普通 Enter 保存。
   it('keeps comment height stable while auto-growing until the scroll limit', () => {
     vi.spyOn(HTMLTextAreaElement.prototype, 'scrollHeight', 'get').mockImplementation(function () {
       return Math.max(52, this.value.split('\n').length * 22)
@@ -1131,7 +1218,7 @@ describe('ProducedFiles review card', () => {
       },
     ])
     const view = render(
-      <ProducedFiles
+      <ReviewFixture
         matched={[review]}
         openFile={() => {}}
         sessionId="comment-height"
@@ -1141,17 +1228,17 @@ describe('ProducedFiles review card', () => {
       />,
     )
     fireEvent.click(view.getByRole('button', { name: 'Review src/height.ts' }))
-    const drawer = view.getByRole('dialog', { name: 'Review' })
-    fireEvent.click(within(drawer).getAllByRole('button', { name: 'Add comment on line 1' })[0]!)
-    let editor = within(drawer).getByRole('textbox', { name: 'Edit comment on line 1' })
-    expect(within(drawer).getByText('Shift+Enter for a new line')).toBeTruthy()
+    const panel = view.getByRole('tabpanel', { name: 'Review' })
+    fireEvent.click(within(panel).getAllByRole('button', { name: 'Add comment on line 1' })[0]!)
+    let editor = within(panel).getByRole('textbox', { name: 'Edit comment on line 1' })
+    expect(within(panel).getByText('Shift+Enter for a new line')).toBeTruthy()
     expect(editor.style.height).toBe('52px')
     expect(editor.style.overflowY).toBe('hidden')
 
     fireEvent.change(editor, { target: { value: 'IME composition' } })
     expect(fireEvent.keyDown(editor, { key: 'Enter', isComposing: true })).toBe(true)
     expect(reviewComments('comment-height')).toHaveLength(0)
-    expect(within(drawer).queryByRole('textbox', { name: 'Edit comment on line 1' })).not.toBeNull()
+    expect(within(panel).queryByRole('textbox', { name: 'Edit comment on line 1' })).not.toBeNull()
     expect(fireEvent.keyDown(editor, { key: 'Enter', shiftKey: true })).toBe(true)
     expect(reviewComments('comment-height')).toHaveLength(0)
 
@@ -1167,33 +1254,33 @@ describe('ProducedFiles review card', () => {
     expect(fireEvent.keyDown(editor, { key: 'Enter' })).toBe(false)
     expect(reviewComments('comment-height')[0]?.body).toBe(longComment)
 
-    fireEvent.click(within(drawer).getByRole('button', { name: longComment }))
-    editor = within(drawer).getByRole('textbox', { name: 'Edit comment on line 1' })
+    fireEvent.click(within(panel).getByRole('button', { name: longComment }))
+    editor = within(panel).getByRole('textbox', { name: 'Edit comment on line 1' })
     expect(editor.style.height).toBe('176px')
     expect(editor.style.overflowY).toBe('auto')
   })
 
-  it('focuses one file from its row, opens it in the editor, and restores focus on close', () => {
+  // 验证点击文件行只审查该文件，可在编辑器中打开，关闭后移除审查面板。
+  it('focuses one file from its row, opens it in the editor, and closes the tab', () => {
     const openFile = vi.fn<(path: string) => void>()
-    const view = render(<ProducedFiles matched={changedReviews} openFile={openFile} t={t} />)
+    const view = render(<ReviewFixture matched={changedReviews} openFile={openFile} t={t} />)
     const trigger = view.getByRole('button', { name: 'Review deep/a.html' })
 
     fireEvent.click(trigger)
-    const drawer = view.getByRole('dialog', { name: 'Review' })
-    expect(within(drawer).getByText('1 file')).toBeTruthy()
-    expect(within(drawer).queryByText('styles/b.css')).toBeNull()
-    expect(document.activeElement).toBe(view.getByRole('button', { name: 'Close' }))
-    fireEvent.click(within(drawer).getByRole('button', { name: 'Open in editor' }))
+    const panel = view.getByRole('tabpanel', { name: 'Review' })
+    expect(within(panel).getByText('1 file')).toBeTruthy()
+    expect(within(panel).queryByText('styles/b.css')).toBeNull()
+    fireEvent.click(within(panel).getByRole('button', { name: 'Open in editor' }))
     expect(openFile).toHaveBeenCalledExactlyOnceWith('deep/a.html')
-    fireEvent.keyDown(document, { key: 'Escape' })
-    expect(view.queryByRole('dialog')).toBeNull()
-    expect(document.activeElement).toBe(trigger)
+    fireEvent.click(view.getByRole('button', { name: 'Close' }))
+    expect(view.queryByRole('tabpanel')).toBeNull()
 
     fireEvent.click(trigger)
     fireEvent.click(view.getByRole('button', { name: 'Close' }))
-    expect(view.queryByRole('dialog')).toBeNull()
+    expect(view.queryByRole('tabpanel')).toBeNull()
   })
 
+  // 验证界面显示相对会话工作区的路径，但打开编辑器时仍传递完整绝对路径。
   it('shows review paths relative to the Session project while opening the absolute path', () => {
     const absolutePath = '/Users/test/projects/example/docs/guide.md'
     const absoluteReview = fileReview(absolutePath, [
@@ -1207,7 +1294,7 @@ describe('ProducedFiles review card', () => {
     ])
     const openFile = vi.fn<(path: string) => void>()
     const view = render(
-      <ProducedFiles
+      <ReviewFixture
         matched={[absoluteReview]}
         openFile={openFile}
         projectRoot="/Users/test/projects/example"
@@ -1216,214 +1303,30 @@ describe('ProducedFiles review card', () => {
     )
 
     fireEvent.click(view.getByRole('button', { name: `Review ${absolutePath}` }))
-    const drawer = view.getByRole('dialog', { name: 'Review' })
-    expect(within(drawer).getByText('docs/guide.md')).toBeTruthy()
-    expect(within(drawer).queryByText(absolutePath)).toBeNull()
-    fireEvent.click(within(drawer).getByRole('button', { name: 'Open in editor' }))
+    const panel = view.getByRole('tabpanel', { name: 'Review' })
+    expect(within(panel).getByText('docs/guide.md')).toBeTruthy()
+    expect(within(panel).queryByText(absolutePath)).toBeNull()
+    fireEvent.click(within(panel).getByRole('button', { name: 'Open in editor' }))
     expect(openFile).toHaveBeenCalledExactlyOnceWith(absolutePath)
   })
 
-  it('transfers the review drawer between produced-file cards from file and review buttons', () => {
-    const view = render(
-      <main data-testid="session-scroll-container">
-        <ProducedFiles
-          matched={[fileReview('first.md'), fileReview('first-extra.md')]}
-          openFile={() => {}}
-          t={t}
-        />
-        <ProducedFiles
-          matched={[fileReview('second.md'), fileReview('second-extra.md')]}
-          openFile={() => {}}
-          t={t}
-        />
-      </main>,
-    )
-
-    const session = view.getByTestId('session-scroll-container')
-    const firstTrigger = view.getByRole('button', { name: 'Review first.md' })
-    vi.spyOn(firstTrigger, 'focus').mockImplementation((options) => {
-      if (options?.preventScroll !== true) session.scrollTop = 0
-    })
-    fireEvent.click(firstTrigger)
-    session.scrollTop = 1050
-    expect(view.getAllByRole('dialog', { name: 'Review' })).toHaveLength(1)
-    let drawer = view.getByRole('dialog', { name: 'Review' })
-    expect(within(drawer).getByText('first.md')).toBeTruthy()
-    expect(within(drawer).queryByText('first-extra.md')).toBeNull()
-
-    fireEvent.click(view.getAllByRole('button', { name: 'Review all produced files' })[1]!)
-    expect(session.scrollTop).toBe(1050)
-    expect(view.getAllByRole('dialog', { name: 'Review' })).toHaveLength(1)
-    drawer = view.getByRole('dialog', { name: 'Review' })
-    expect(within(drawer).getByText('second.md')).toBeTruthy()
-    expect(within(drawer).getByText('second-extra.md')).toBeTruthy()
-    expect(within(drawer).queryByText('first.md')).toBeNull()
-
-    fireEvent.click(view.getAllByRole('button', { name: 'Review all produced files' })[0]!)
-    expect(view.getAllByRole('dialog', { name: 'Review' })).toHaveLength(1)
-    drawer = view.getByRole('dialog', { name: 'Review' })
-    expect(within(drawer).getByText('first.md')).toBeTruthy()
-    expect(within(drawer).getByText('first-extra.md')).toBeTruthy()
-    expect(within(drawer).queryByText('second.md')).toBeNull()
-
-    fireEvent.click(view.getByRole('button', { name: 'Review second.md' }))
-    expect(view.getAllByRole('dialog', { name: 'Review' })).toHaveLength(1)
-    drawer = view.getByRole('dialog', { name: 'Review' })
-    expect(within(drawer).getByText('second.md')).toBeTruthy()
-    expect(within(drawer).queryByText('second-extra.md')).toBeNull()
-  })
-
-  it('resizes the drawer by dragging or keyboard and persists the chosen width', () => {
-    const innerWidth = vi.spyOn(window, 'innerWidth', 'get').mockReturnValue(1024)
-    const view = render(<ProducedFiles matched={changedReviews} openFile={() => {}} t={t} />)
-    fireEvent.click(view.getByRole('button', { name: 'Review all produced files' }))
-    const drawer = view.getByRole('dialog', { name: 'Review' })
-    const handle = within(drawer).getByRole('separator', { name: 'Resize review panel' })
-
-    expect(handle.getAttribute('aria-valuenow')).toBe('369')
-    fireEvent.pointerDown(handle, { button: 0, pointerId: 7, clientX: 500 })
-    fireEvent.pointerMove(handle, { pointerId: 7, clientX: 400 })
-    fireEvent.pointerUp(handle, { pointerId: 7, clientX: 400 })
-    expect(drawer.style.getPropertyValue('--review-drawer-width')).toBe('45.77vw')
-    expect(window.localStorage.getItem('dsh-file-review:drawer-ratio')).toBe('0.4577')
-
-    fireEvent.keyDown(handle, { key: 'ArrowRight' })
-    expect(drawer.style.getPropertyValue('--review-drawer-width')).toBe('43.77vw')
-    fireEvent.keyDown(handle, { key: 'Home' })
-    expect(drawer.style.getPropertyValue('--review-drawer-width')).toBe('24vw')
-
-    fireEvent.keyDown(handle, { key: 'ArrowLeft' })
-    innerWidth.mockReturnValue(1440)
-    fireEvent(window, new Event('resize'))
-    expect(drawer.style.getPropertyValue('--review-drawer-width')).toBe('26vw')
-    expect(handle.getAttribute('aria-valuenow')).toBe('374')
-
-    fireEvent.doubleClick(handle)
-    expect(drawer.style.getPropertyValue('--review-drawer-width')).toBe('')
-    expect(window.localStorage.getItem('dsh-file-review:drawer-ratio')).toBeNull()
-  })
-
-  it('uses the host details track instead of covering the conversation', () => {
-    const view = render(
-      <div
-        data-testid="host-frame"
-        style={{ display: 'grid', gridTemplateColumns: '280px minmax(0, 1fr) 0px' }}
-      >
-        <aside style={{ width: 280 }} />
-        <main>
-          <ProducedFiles matched={changedReviews} openFile={() => {}} t={t} />
-        </main>
-        <aside data-testid="host-details">Native details</aside>
-      </div>,
-    )
-    const frame = view.getByTestId('host-frame')
-    const details = view.getByTestId('host-details')
-
-    fireEvent.click(view.getByRole('button', { name: 'Review all produced files' }))
-    expect(frame.style.gridTemplateColumns).toBe(
-      '280px minmax(0, 1fr) var(--dsh-file-review-drawer-width)',
-    )
-    expect(frame.style.getPropertyValue('--dsh-file-review-drawer-width')).toBe('36vw')
-    expect(details.style.visibility).toBe('hidden')
-    expect(details.style.pointerEvents).toBe('none')
-    expect(details.getAttribute('aria-hidden')).toBe('true')
-    const drawer = view.getByRole('dialog', { name: 'Review' })
-    expect(drawer.className).toContain('drawerSplit')
-
-    const handle = within(drawer).getByRole('separator', { name: 'Resize review panel' })
-    fireEvent.keyDown(handle, { key: 'ArrowLeft' })
-    expect(frame.style.getPropertyValue('--dsh-file-review-drawer-width')).toBe('38vw')
-
-    fireEvent.click(within(drawer).getByRole('button', { name: 'Close' }))
-    expect(frame.style.gridTemplateColumns).toBe('280px minmax(0, 1fr) 0px')
-    expect(frame.style.getPropertyValue('--dsh-file-review-drawer-width')).toBe('')
-    expect(details.style.visibility).toBe('')
-    expect(details.style.pointerEvents).toBe('')
-    expect(details.getAttribute('aria-hidden')).toBeNull()
-  })
-
-  it('keeps the host split owned by the new drawer after a cross-turn takeover', () => {
-    const host = (showFirst: boolean) => (
-      <div
-        data-testid="host-frame"
-        style={{ display: 'grid', gridTemplateColumns: '280px minmax(0, 1fr) 0px' }}
-      >
-        <aside style={{ width: 280 }} />
-        <main>
-          {showFirst && (
-            <ProducedFiles
-              key="first"
-              matched={[fileReview('first.md')]}
-              openFile={() => {}}
-              t={t}
-            />
-          )}
-          <ProducedFiles
-            key="second"
-            matched={[fileReview('second.md')]}
-            openFile={() => {}}
-            t={t}
-          />
-        </main>
-        <aside data-testid="host-details">Native details</aside>
-      </div>
-    )
-    const view = render(host(true))
-    const frame = view.getByTestId('host-frame')
-    const details = view.getByTestId('host-details')
-    let detailsWidth = 0
-    vi.spyOn(details, 'getBoundingClientRect').mockImplementation(
-      () => ({ width: detailsWidth }) as DOMRect,
-    )
-
-    fireEvent.click(view.getByRole('button', { name: 'Review first.md' }))
-    expect(frame.style.gridTemplateColumns).toBe(
-      '280px minmax(0, 1fr) var(--dsh-file-review-drawer-width)',
-    )
-
-    // The host animates the released details track, so it can still report a visible width
-    // while the next turn takes ownership of the shared review drawer.
-    detailsWidth = 320
-    fireEvent.click(view.getByRole('button', { name: 'Review second.md' }))
-    expect(view.getAllByRole('dialog', { name: 'Review' })).toHaveLength(1)
-    expect(within(view.getByRole('dialog', { name: 'Review' })).getByText('second.md')).toBeTruthy()
-    expect(frame.style.gridTemplateColumns).toBe(
-      '280px minmax(0, 1fr) var(--dsh-file-review-drawer-width)',
-    )
-    expect(details.style.visibility).toBe('hidden')
-    expect(details.getAttribute('aria-hidden')).toBe('true')
-
-    view.rerender(host(false))
-    expect(within(view.getByRole('dialog', { name: 'Review' })).getByText('second.md')).toBeTruthy()
-    expect(frame.style.gridTemplateColumns).toBe(
-      '280px minmax(0, 1fr) var(--dsh-file-review-drawer-width)',
-    )
-    expect(details.style.visibility).toBe('hidden')
-
-    fireEvent.click(
-      within(view.getByRole('dialog', { name: 'Review' })).getByRole('button', { name: 'Close' }),
-    )
-    expect(frame.style.gridTemplateColumns).toBe('280px minmax(0, 1fr) 0px')
-    expect(details.style.visibility).toBe('')
-    expect(details.getAttribute('aria-hidden')).toBeNull()
-  })
-
+  // 验证差异不可用时显示原因并禁用复制，同时保留在编辑器中打开文件的能力。
   it('explains unavailable diffs and disables copying while keeping editor access', () => {
     const openFile = vi.fn<(path: string) => void>()
     const view = render(
-      <ProducedFiles matched={[fileReview('notes.md')]} openFile={openFile} t={t} />,
+      <ReviewFixture matched={[fileReview('notes.md')]} openFile={openFile} t={t} />,
     )
     fireEvent.click(view.getByRole('button', { name: 'Review notes.md' }))
-    const drawer = view.getByRole('dialog', { name: 'Review' })
+    const panel = view.getByRole('tabpanel', { name: 'Review' })
     expect(
-      within(drawer).getByText(
+      within(panel).getByText(
         'No reconstructable diff is available for this change. You can still open the current file.',
       ),
     ).toBeTruthy()
     expect(
-      (within(drawer).getByRole('button', { name: 'Copy diff' }) as HTMLButtonElement).disabled,
+      (within(panel).getByRole('button', { name: 'Copy diff' }) as HTMLButtonElement).disabled,
     ).toBe(true)
-    fireEvent.click(within(drawer).getByRole('button', { name: 'Open in editor' }))
+    fireEvent.click(within(panel).getByRole('button', { name: 'Open in editor' }))
     expect(openFile).toHaveBeenCalledExactlyOnceWith('notes.md')
   })
 })
@@ -1431,6 +1334,7 @@ describe('ProducedFiles review card', () => {
 describe('review comment composer chip', () => {
   const t = makeTranslate(en)
 
+  // 验证悬停评论汇总入口可预览相对路径、行号和正文，清除入口会删除本会话评论。
   it('previews comments on hover with project-relative paths and can remove the aggregate', () => {
     const absolutePath = '/Users/test/projects/example/src/client/index.ts'
     setReviewComment({
@@ -1474,6 +1378,7 @@ describe('review comment composer chip', () => {
 })
 
 describe('sent review comment projection', () => {
+  // 验证仅识别消息开头的审查评论封装，并保留后续用户文字，不误识别正文中的同类片段。
   it('recognizes the leading review envelope and preserves following user text', () => {
     setReviewComment({
       sessionId: 'sent-session',
@@ -1509,6 +1414,7 @@ describe('sent review comment projection', () => {
     expect(projectReviewMessageText(`Prefix\n${serialized}`)).toBeNull()
   })
 
+  // 验证模型专用评论封装显示为数量标签，隐藏原始标记，同时保留用户文字、图片及悬停预览。
   it('renders the model-only envelope as a compact comment count pill', () => {
     const absolutePath = '/Users/test/projects/example/src/client/index.ts'
     const attachment = { id: 'image-1' }
@@ -1580,6 +1486,7 @@ describe('sent review comment projection', () => {
 describe('producedFileMentions resolver', () => {
   const label = (path: string) => `Open ${path}`
 
+  // 验证精确路径和唯一文件名能解析为可点击引用，重名或未知文件保持未解析状态。
   it('resolves exact paths and unique basenames; ambiguity and unknowns stay unresolved', () => {
     const opened: string[] = []
     const resolver = producedFileMentions(
@@ -1607,6 +1514,7 @@ describe('producedFileMentions resolver', () => {
 })
 
 describe('FileReview settings card', () => {
+  // 验证展开插件设置后显示换行开关，切换时保存新值，并提供安全的新窗口项目链接。
   it('discloses the word-wrap switch and saves its next value', async () => {
     const snapshot = {
       status: 'ready' as const,
@@ -1642,6 +1550,7 @@ describe('FileReview settings card', () => {
 })
 
 describe('plugin registration', () => {
+  // 验证客户端入口注册远程服务、轮次数据、文件卡片、评论入口、语言和文件引用，并在卸载时释放资源。
   it('registers the Remote, turn definition, tail entry, dictionaries, and mention service', async () => {
     let definition: unknown
     let slot:
@@ -1778,6 +1687,8 @@ describe('plugin registration', () => {
         },
       },
       inputTriggers: { registerSource },
+      sidebarRight: { openTabIn: vi.fn() },
+      sidebarRightTabs: { register: vi.fn(() => () => {}) },
       effect: (setup: () => void) => {
         setup()
       },
@@ -1819,6 +1730,8 @@ describe('plugin registration', () => {
       'sessions',
       'conversation',
       'inputTriggers',
+      'sidebarRight',
+      'sidebarRightTabs',
     ])
     expect(bindSettings).toHaveBeenCalledWith({ namespace: 'file-review' })
     publishWordWrap(true)
@@ -1880,20 +1793,19 @@ describe('plugin registration', () => {
     expect(slot?.options.locale).toBe(NS)
     expect(slot?.options.inject).toBeTypeOf('function')
     const reviewActions = slot?.options.inject?.('session-1') as {
-      projectRoot?: string
-      sessionId?: string
-      wordWrap: { getSnapshot(): boolean }
-      syncComments?: () => void
+      openReview(target: ReviewTarget): void
       inspectChanges(request: {
         action: 'undo'
         files: readonly []
       }): Promise<{ files: readonly [] }>
       applyChanges(request: { action: 'undo'; files: readonly [] }): Promise<{ files: readonly [] }>
     }
-    expect(reviewActions.projectRoot).toBe('/workspace/project')
-    expect(reviewActions.sessionId).toBe('session-1')
-    expect(reviewActions.wordWrap.getSnapshot()).toBe(true)
-    expect(reviewActions.syncComments).toBeTypeOf('function')
+    expect(reviewActions.openReview).toBeTypeOf('function')
+    const target = { turn: 1, closingSeq: 2, focusPaths: ['a.txt'] }
+    reviewActions.openReview(target)
+    expect(ctx.sidebarRight.openTabIn).toHaveBeenCalledWith('session-1', 'dsh-file-review:review', {
+      params: target,
+    })
     await expect(reviewActions.inspectChanges({ action: 'undo', files: [] })).resolves.toEqual({
       files: [],
     })
@@ -1907,7 +1819,6 @@ describe('plugin registration', () => {
     expect(settingsActions.hooks.fileReviewSettings).toBe(settingsScope)
     await settingsActions.setWordWrap(false)
     expect(settingsScope.set).toHaveBeenCalledExactlyOnceWith('wordWrap', false)
-    expect(reviewActions.wordWrap.getSnapshot()).toBe(false)
 
     const opened: string[] = []
     const owner = tailOwner(produced([2, 'site/report.html']), 3, (path) => {

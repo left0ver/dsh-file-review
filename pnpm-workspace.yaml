@@ -7,4 +7,3 @@ allowBuilds:
 minimumReleaseAgeExclude:
   - '@deepseek-ai/dsh-*'
   - dsh-file-review
-  - dsh-better-sidebar

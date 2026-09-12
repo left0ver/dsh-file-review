@@ -85,6 +85,7 @@ exit 97
 }
 
 describe('release draft workflow', () => {
+  // 验证目标版本尚无 Release 时，脚本以已验证标签创建预发布草稿。
   it('creates a draft when no release exists', () => {
     const { calls, result } = runCreateStep('not-found')
 
@@ -92,6 +93,7 @@ describe('release draft workflow', () => {
     expect(calls).toContain('release create v0.5.3-rc.1 --verify-tag --draft --prerelease')
   })
 
+  // 验证目标版本已正式发布时，脚本报错退出且不创建或覆盖 Release。
   it('refuses to overwrite a published release', () => {
     const { calls, result } = runCreateStep('published')
 

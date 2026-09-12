@@ -41,6 +41,7 @@ function agent(cwd: string, callId: string, step = 1): Agent {
 }
 
 describe('tool lifecycle capture', () => {
+  // 验证根据工具执行前后的磁盘状态，记录新建文件的内容、权限和明确的创建标记。
   it('persists an explicit create diff from the execution before/after state', async () => {
     const root = await workspace()
     const filename = join(root, 'created.txt')
@@ -105,6 +106,7 @@ describe('tool lifecycle capture', () => {
     expect(await readFile(filename, 'utf8')).toBe('created')
   })
 
+  // 验证通用删除工具执行后仍能记录删除前的文件内容和权限，供后续恢复使用。
   it('persists the deleted file contents and permissions for a generic delete tool', async () => {
     const root = await workspace()
     const filename = join(root, 'deleted.txt')
@@ -166,6 +168,7 @@ describe('tool lifecycle capture', () => {
     ])
   })
 
+  // 验证插入和删除操作保留准确行号，差异块之间最多直接保留五行未修改内容。
   it('captures insert/delete coordinates and keeps at most five unchanged lines inline', async () => {
     const root = await workspace()
     const filename = join(root, 'edited.txt')
@@ -294,6 +297,7 @@ describe('tool lifecycle capture', () => {
     ])
   })
 
+  // 验证一次工具调用同时编辑和新建或删除文件时，普通编辑差异与生命周期快照都被保留。
   it('keeps ordinary edit diffs beside captured lifecycle diffs from the same call', async () => {
     const root = await workspace()
     await writeFile(join(root, 'edited.txt'), 'old')

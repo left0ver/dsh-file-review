@@ -50,6 +50,7 @@ async function applyChange(agent: Agent, request: FileReviewRequest) {
 }
 
 describe('Host file-review change engine', () => {
+  // 验证撤销会删除新建文件，重复撤销不再改动磁盘，重新应用会恢复原始 UTF-8 内容和权限。
   it('undoes and reapplies a created UTF-8 file', async () => {
     const root = await workspace()
     const filename = join(root, 'created.txt')
@@ -92,6 +93,7 @@ describe('Host file-review change engine', () => {
     expect((await lstat(filename)).mode & 0o777).toBe(0o640)
   })
 
+  // 验证空文件也能撤销和恢复；若实际权限与快照不一致，则报告冲突并保留文件。
   it('supports empty lifecycle files and treats permission drift as a conflict', async () => {
     const root = await workspace()
     const empty = join(root, 'empty.txt')
@@ -158,6 +160,7 @@ describe('Host file-review change engine', () => {
     expect((await lstat(join(root, 'empty-deleted.txt'))).mode & 0o777).toBe(0o666)
   })
 
+  // 验证撤销删除会恢复 UTF-8 文件及权限，重新应用删除会再次移除文件。
   it('undoes and reapplies a deleted UTF-8 file', async () => {
     const root = await workspace()
     const filename = join(root, 'deleted.txt')
@@ -193,6 +196,7 @@ describe('Host file-review change engine', () => {
     await expect(access(filename)).rejects.toThrow()
   })
 
+  // 验证同一文件的创建、删除和文本编辑差异能够组合为完整状态，并正确撤销和重新应用。
   it('transforms combined lifecycle and text changes as one file state', async () => {
     const root = await workspace()
     await writeFile(join(root, 'created-edited.txt'), 'B', { mode: 0o640 })
@@ -287,6 +291,7 @@ describe('Host file-review change engine', () => {
     expect((await lstat(join(root, 'replaced.txt'))).mode & 0o777).toBe(0o666)
   })
 
+  // 验证文件在记录操作后被外部修改或重新创建时，撤销和重新应用不会删除或覆盖这些内容。
   it('never removes or overwrites lifecycle paths changed after the recorded operation', async () => {
     const root = await workspace()
     await writeFile(join(root, 'created.txt'), 'user edit', { mode: 0o640 })
@@ -339,6 +344,7 @@ describe('Host file-review change engine', () => {
     expect(await readFile(join(root, 'deleted.txt'), 'utf8')).toBe('edited after restore')
   })
 
+  // 验证同一文件的多个差异块按正确顺序应用和撤销，最终内容与目标状态一致。
   it('applies multi-hunk files forward and backward in the required order', () => {
     const file: FileReviewChange = {
       path: 'notes.txt',
@@ -351,12 +357,14 @@ describe('Host file-review change engine', () => {
     expect(transformFile('a\nB\nC\n', file, 'undo')).toBe('a\nb\nc\n')
   })
 
+  // 验证缺少行号时只替换唯一的精确匹配；存在多个匹配位置时拒绝猜测。
   it('uses a unique exact occurrence without positions and rejects ambiguity', () => {
     const file = change('notes.txt', 'before', 'after')
     expect(transformFile('x before y', file, 'redo')).toBe('x after y')
     expect(transformFile('before before', file, 'redo')).toBeNull()
   })
 
+  // 验证批量操作独立处理各文件，跳过冲突及不支持的差异，同时完成安全文件的撤销和重新应用。
   it('changes safe files independently while skipping conflicts and unsupported diffs', async () => {
     const root = await workspace()
     await writeFile(join(root, 'a.txt'), 'A')
@@ -386,6 +394,7 @@ describe('Host file-review change engine', () => {
     expect(await readFile(join(root, 'a.txt'), 'utf8')).toBe('A')
   })
 
+  // 验证根据磁盘实际内容识别已应用、已撤销、冲突和不支持状态，并拒绝不完整的差异。
   it('derives applied, undone, conflict, and unsupported status from disk', async () => {
     const root = await workspace()
     await writeFile(join(root, 'applied.txt'), 'new')
@@ -412,6 +421,7 @@ describe('Host file-review change engine', () => {
     ])
   })
 
+  // 验证工作区外路径、符号链接、目录及缺少父目录的路径均报告错误。
   it('rejects paths outside the workspace and symbolic links', async () => {
     const root = await workspace()
     await writeFile(join(root, 'target.txt'), 'new')
@@ -445,6 +455,7 @@ describe('Host file-review change engine', () => {
     ])
   })
 
+  // 验证通过原子替换撤销文本修改时，文件内容恢复且原有权限保持不变。
   it('preserves file permissions across atomic replacement', async () => {
     const root = await workspace()
     const filename = join(root, 'script.sh')
@@ -458,6 +469,7 @@ describe('Host file-review change engine', () => {
     expect((await lstat(filename)).mode & 0o777).toBe(0o640)
   })
 
+  // 验证非 UTF-8 文件返回明确错误，会话没有工作区时拒绝执行状态查询。
   it('reports non-UTF-8 files and rejects sessions without a workspace', async () => {
     const root = await workspace()
     await writeFile(join(root, 'binary.txt'), new Uint8Array([0xff, 0xfe]))
@@ -479,6 +491,7 @@ describe('Host file-review change engine', () => {
     ).rejects.toThrow('session has no workspace directory')
   })
 
+  // 验证 Agent 忙碌导致维护操作被拒绝时，不会进入文件写入流程或改变磁盘内容。
   it('does not enter file mutation while the Agent is busy', async () => {
     const root = await workspace()
     await writeFile(join(root, 'a.txt'), 'new')
@@ -497,6 +510,7 @@ describe('Host file-review change engine', () => {
     expect(await readFile(join(root, 'a.txt'), 'utf8')).toBe('new')
   })
 
+  // 验证服务端与客户端发布一致的 status/apply 远程调用描述，并限定在 Agent 上下文。
   it('publishes matching strict Host and client Remote descriptors', () => {
     expect(TYPERT.invocations.map((item) => item.method)).toEqual(['status', 'apply'])
     expect(TYPERT_REMOTE.descriptors).toEqual(TYPERT.invocations)

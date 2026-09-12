@@ -42,6 +42,7 @@ async function startComment(review: Locator): Promise<Locator> {
   })
 }
 
+// 验证 Enter 保存行评论并关闭编辑框，同时显示已保存评论和评论汇总入口。
 test('评论编辑器按 Enter 直接保存', async ({ page, agentForPage }) => {
   const target = files.enter
   const body = 'Enter 保存的评论'
@@ -64,6 +65,7 @@ test('评论编辑器按 Enter 直接保存', async ({ page, agentForPage }) => 
   await expect(page.getByRole('button', { name: names.commentDock })).toBeVisible()
 })
 
+// 验证 Shift+Enter 只插入换行，不提前创建评论；手动保存后预览保留两行正文。
 test('Shift+Enter 在评论中保留换行且不会提前保存', async ({ page, agentForPage }) => {
   const target = files.multiline
   const composer = await openNewSession(page, 'standard')
@@ -92,7 +94,8 @@ test('Shift+Enter 在评论中保留换行且不会提前保存', async ({ page,
   await expect(preview).toContainText('第二行反馈')
 })
 
-test('Escape 取消评论并关闭 Review 且不会改变已保存内容', async ({ page, agentForPage }) => {
+// 验证 Escape 丢弃新评论或编辑草稿，原生 Tab 保持打开，已有评论不被覆盖。
+test('Escape 取消编辑并保留原生 Tab 和已保存评论', async ({ page, agentForPage }) => {
   const target = files.escape
   const savedBody = '保持这条已保存评论'
   const composer = await openNewSession(page, 'standard')
@@ -109,7 +112,8 @@ test('Escape 取消评论并关闭 Review 且不会改变已保存内容', async
   let editor = await startComment(review)
   await editor.fill('不应保存的新草稿')
   await editor.press('Escape')
-  await expect(review).toBeHidden()
+  await expect(editor).toBeHidden()
+  await expect(review).toBeVisible()
   await expect(page.getByRole('button', { name: names.commentDock })).toHaveCount(0)
 
   review = await openReview(card, page)
@@ -124,7 +128,8 @@ test('Escape 取消评论并关闭 Review 且不会改变已保存内容', async
   await editor.fill('不应覆盖的编辑草稿')
   await editor.press('Escape')
 
-  await expect(review).toBeHidden()
+  await expect(editor).toBeHidden()
+  await expect(review).toBeVisible()
   review = await openReview(card, page)
   await expect(review.getByRole('button', { name: savedBody, exact: true })).toBeVisible()
   await expect(review.getByText('不应覆盖的编辑草稿', { exact: true })).toHaveCount(0)

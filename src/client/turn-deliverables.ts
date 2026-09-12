@@ -49,7 +49,7 @@ interface DeliverablesState extends DeliverablesTurnData {
 type ConversationEvent = ConversationMatch['event']
 
 function dispatchMarker(event: ConversationEvent): PtcFileReviewMarker | null {
-  if (event.type !== 'tool/code-dispatch') return null
+  if (event.type !== 'tool/ptc-dispatch') return null
   const data = event.data as unknown as Record<string, unknown>
   if (
     data.isError !== false ||

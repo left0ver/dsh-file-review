@@ -62,6 +62,7 @@ test.afterEach(async ({ page }) => {
   await setWordWrap(page, false)
 })
 
+// 验证设置页的文件审查换行开关可操作，初始为关闭且不处于保存状态。
 test('设置页公开可写的文件审查自动换行开关', async ({ page }) => {
   const { toggle } = await openWordWrapSettings(page)
   await expect(toggle).toBeEnabled()
@@ -69,6 +70,7 @@ test('设置页公开可写的文件审查自动换行开关', async ({ page }) 
   await expect(toggle).toHaveAttribute('aria-busy', 'false')
 })
 
+// 验证关闭换行时长行差异保持单行显示，内容不因视觉布局被拆分。
 test('关闭自动换行时长行 Diff 保持单行布局', async ({ page, agentForPage }) => {
   const target = files.disabled
   const composer = await openNewSession(page, 'standard')
@@ -82,14 +84,12 @@ test('关闭自动换行时长行 Diff 保持单行布局', async ({ page, agent
   const card = await waitForProducedCard(page, agent, target)
   await expectCardSummary(card, target, 1, 1)
   const review = await openReview(card, page)
-  await expect(review.locator('[data-diff-layout="unified"]')).toHaveAttribute(
-    'data-word-wrap',
-    'false',
-  )
+  await expect(review.locator('[data-diff]')).toHaveAttribute('data-word-wrap', 'false')
   await expectDiffLine(review, 'del', 1, beforeLine)
   await expectDiffLine(review, 'add', 1, afterLine)
 })
 
+// 验证开启换行后审查面板使用换行设置，刷新并重新打开后设置仍然生效。
 test('开启自动换行后长行 Diff 立即生效并在刷新后保持', async ({ page, agentForPage }) => {
   const target = files.enabled
   await setWordWrap(page, true)
@@ -103,10 +103,7 @@ test('开启自动换行后长行 Diff 立即生效并在刷新后保持', async
   )
   const card = await waitForProducedCard(page, agent, target)
   let review = await openReview(card, page)
-  await expect(review.locator('[data-diff-layout="unified"]')).toHaveAttribute(
-    'data-word-wrap',
-    'true',
-  )
+  await expect(review.locator('[data-diff]')).toHaveAttribute('data-word-wrap', 'true')
   await expectDiffLine(review, 'add', 1, afterLine)
   await closeReview(review)
 
@@ -114,8 +111,5 @@ test('开启自动换行后长行 Diff 立即生效并在刷新后保持', async
   const restoredCard = page.getByRole('region', { name: names.producedCard }).last()
   await expect(restoredCard).toBeVisible({ timeout: 60_000 })
   review = await openReview(restoredCard, page)
-  await expect(review.locator('[data-diff-layout="unified"]')).toHaveAttribute(
-    'data-word-wrap',
-    'true',
-  )
+  await expect(review.locator('[data-diff]')).toHaveAttribute('data-word-wrap', 'true')
 })

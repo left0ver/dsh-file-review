@@ -1,4 +1,4 @@
-/** 验证多文件折叠、同文件多处修改统计以及跨轮次 Review 抽屉切换。 */
+/** 验证多文件折叠、同文件多处修改统计以及跨轮次 Review 标签页切换。 */
 
 import { expect } from '@playwright/test'
 import { test } from './fixture.ts'
@@ -39,6 +39,7 @@ test.beforeEach(async () => {
   ])
 })
 
+// 验证七文件卡片默认展示六项，展开后显示全部文件，逐文件统计与总计一致。
 test('七文件卡片先显示六项并可展开剩余文件', async ({ page, agentForPage }) => {
   const composer = await openNewSession(page, 'code')
   const agent = await agentForPage(page)
@@ -69,6 +70,7 @@ test('七文件卡片先显示六项并可展开剩余文件', async ({ page, ag
   await expect(card.getByLabel(statsName(1, 1))).toHaveCount(7)
 })
 
+// 验证同一文件两处修改合并为一份审查，统计正确且分别保留第一行和第三行的坐标。
 test('同一文件的两处修改会合并统计并保留各自行号', async ({ page, agentForPage }) => {
   const target = files.multiHunk
   const composer = await openNewSession(page, 'standard')
@@ -91,7 +93,8 @@ test('同一文件的两处修改会合并统计并保留各自行号', async ({
   await expectDiffLine(review, 'add', 3, 'bottom-after')
 })
 
-test('跨轮次打开 Review 时抽屉切换到最新卡片', async ({ page, agentForPage }) => {
+// 验证从下一轮卡片打开审查会更新当前 Tab 的文件范围，不残留上一轮文件。
+test('跨轮次打开 Review 时标签页切换到最新卡片', async ({ page, agentForPage }) => {
   const composer = await openNewSession(page, 'standard')
   const agent = await agentForPage(page)
 
@@ -113,7 +116,7 @@ test('跨轮次打开 Review 时抽屉切换到最新卡片', async ({ page, age
   await expectReviewSummary(firstReview, files.firstTurn, 1, 1)
 
   await cards.nth(1).getByRole('button', { name: names.reviewAll }).click()
-  const transferredReview = page.getByRole('dialog', { name: names.reviewDialog })
+  const transferredReview = page.locator('[data-file-review-sidebar-tab]')
   await expectReviewSummary(transferredReview, files.secondTurn, 1, 1)
   await expect(
     transferredReview.getByText(files.firstTurn.relativePath, { exact: true }),
@@ -121,5 +124,4 @@ test('跨轮次打开 Review 时抽屉切换到最新卡片', async ({ page, age
   await expectDiffLine(transferredReview, 'del', 1, 'second-before')
   await expectDiffLine(transferredReview, 'add', 1, 'second-after')
   await closeReview(transferredReview)
-  await expect(cards.nth(1).getByRole('button', { name: names.reviewAll })).toBeFocused()
 })

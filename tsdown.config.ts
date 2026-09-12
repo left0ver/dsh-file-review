@@ -74,8 +74,18 @@ const config: UserConfig[] = [
     clean: false,
     deps: {
       neverBundle: [...CLIENT_EXTERNALS],
-      alwaysBundle: ['@deepseek-ai/dsh-session/surface', 'diff', 'zod'],
-      onlyBundle: ['@deepseek-ai/dsh-session', 'diff', 'zod'],
+      alwaysBundle: [
+        '@deepseek-ai/dsh-session/surface',
+        '@deepseek-ai/dsh-util-workspace-path',
+        'diff',
+        'zod',
+      ],
+      onlyBundle: [
+        '@deepseek-ai/dsh-session',
+        '@deepseek-ai/dsh-util-workspace-path',
+        'diff',
+        'zod',
+      ],
     },
     plugins: [cssModulesPlugin()],
     outputOptions: {

@@ -1,27 +1,26 @@
-/** better-sidebar tab that resolves a lightweight target against the live Session timeline. */
+/** Review tab that resolves a lightweight target against the live Session timeline. */
 
 import { useCallback, useMemo, useSyncExternalStore } from 'react'
 import type { ISessions } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
+import type { SettingsScope } from '@deepseek-ai/dsh-client-ui-settings/client'
+import type { Config } from '../settings-contract.ts'
 import type { UiConversation } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { FileReviewRequest, FileReviewResult } from '../change-types.ts'
 import { ReviewContent } from './ReviewContent.tsx'
-import type { ReviewTarget } from './review-host.ts'
 import { reviewsForClosing } from './turn-deliverables.ts'
 import type { NS } from './locales.ts'
 import css from './ProducedFiles.module.css'
 
 const EMPTY_SNAPSHOT = Symbol('empty file-review snapshot')
 
-interface SidebarTabLike {
-  readonly meta?: unknown
-}
-
-interface SidebarScopeLike {
-  readonly sessionId: string
-  readonly cwd?: string | undefined
+/** Navigation parameters for one turn's review material. */
+export interface ReviewTarget {
+  readonly turn: number
+  readonly closingSeq: number
+  readonly focusPaths: readonly string[]
 }
 
 export interface FileReviewTabRuntime {
@@ -33,11 +32,13 @@ export interface FileReviewTabRuntime {
 export interface FileReviewTabProps extends PropsLocale<typeof NS> {
   readonly sessions: ISessions
   readonly uiConversation: UiConversation
-  readonly scope: SidebarScopeLike
-  readonly tab: SidebarTabLike
+  readonly sessionId: SessionId
+  readonly projectRoot?: string | undefined
+  readonly params: unknown
   readonly visible: boolean
-  readonly runtime: FileReviewTabRuntime
+  readonly syncComments?: (() => void) | undefined
   readonly wordWrap: ObservableSnapshot<boolean>
+  readonly settings?: SettingsScope<Config> | undefined
   readonly openFile: (path: string) => void
 }
 
@@ -63,11 +64,13 @@ function reviewTargetFrom(value: unknown): ReviewTarget | undefined {
 export function FileReviewTab({
   sessions,
   uiConversation,
-  scope,
-  tab,
+  sessionId,
+  projectRoot,
+  params,
   visible,
-  runtime,
+  syncComments,
   wordWrap,
+  settings,
   openFile,
   t,
 }: FileReviewTabProps) {
@@ -78,7 +81,7 @@ export function FileReviewTab({
   )
   useSyncExternalStore(subscribeSessions, getSessionsSnapshot, getSessionsSnapshot)
 
-  const binding = sessions.binding(scope.sessionId as SessionId)
+  const binding = sessions.binding(sessionId)
   const chat = binding === undefined ? undefined : uiConversation.binding(binding).target('chat')
   const getChatSnapshot = useCallback(() => chat?.getSnapshot() ?? EMPTY_SNAPSHOT, [chat])
   const subscribeChat = useCallback(
@@ -86,7 +89,7 @@ export function FileReviewTab({
     [chat, visible],
   )
   const snapshot = useSyncExternalStore(subscribeChat, getChatSnapshot, getChatSnapshot)
-  const target = useMemo(() => reviewTargetFrom(tab.meta), [tab.meta])
+  const target = useMemo(() => reviewTargetFrom(params), [params])
 
   const reviews = useMemo(() => {
     if (target === undefined || snapshot === EMPTY_SNAPSHOT) return []
@@ -123,15 +126,14 @@ export function FileReviewTab({
     <div className={css.sidebarTab} data-file-review-sidebar-tab="">
       <ReviewContent
         reviews={reviews}
-        projectRoot={scope.cwd}
-        sessionId={scope.sessionId}
+        projectRoot={projectRoot}
+        sessionId={sessionId}
         turn={target.turn}
         closingSeq={target.closingSeq}
         openFile={openFile}
-        inspectChanges={runtime.inspectChanges}
-        applyChanges={runtime.applyChanges}
-        syncComments={runtime.syncComments}
+        syncComments={syncComments}
         wordWrap={wordWrap}
+        settings={settings}
         visible={visible}
         t={t}
       />

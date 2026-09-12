@@ -1,40 +1,29 @@
-// ProducedFiles: compact turn-tail summary and automatic review-container selection.
+// ProducedFiles: compact turn-tail summary with native review-tab navigation.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
+import { useMemo, useState } from 'react'
 import type { TurnTailOwnerProps } from '@deepseek-ai/dsh-client-ui-chat/client'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type { FileReviewRequest, FileReviewResult } from '../change-types.ts'
 import type { NS } from './locales.ts'
 import { ReviewStats } from './ReviewContent.tsx'
 import { ReviewResultToast, unavailableChanges, useReviewActions } from './review-actions.tsx'
-import { reviewHost } from './review-host.ts'
-import { StandaloneReviewDrawer } from './StandaloneReviewDrawer.tsx'
+import type { ReviewTarget } from './FileReviewTab.tsx'
 import { basename, type ProducedFileReview } from './turn-deliverables.ts'
 import { summarizeDiffs, type UnifiedDiffStats } from './UnifiedDiff.tsx'
 import css from './ProducedFiles.module.css'
 
-/** Keep the turn-tail card compact; either review container still receives every file. */
+/** Keep the turn-tail card compact; the review tab still receives every file. */
 const SHOWN_LIMIT = 6
-
-type ReviewScope = { readonly kind: 'all' } | { readonly kind: 'file'; readonly path: string }
 
 /** Matched file reviews plus the opener and locale supplied by the turn-tail slot. */
 export type ProducedFilesProps = Pick<TurnTailOwnerProps, 'openFile'> & {
   matched: readonly ProducedFileReview[]
-  /** Session workspace root, used only to shorten paths shown in the review UI. */
-  projectRoot?: string | undefined
+  openReview: (target: ReviewTarget) => void
   inspectChanges?: (request: FileReviewRequest) => Promise<FileReviewResult>
   applyChanges?: (request: FileReviewRequest) => Promise<FileReviewResult>
-  /** Runtime-injected session identity; absent only in isolated render tests. */
-  sessionId?: string | undefined
   /** Turn-tail identity used to keep repeated file/line coordinates distinct. */
   turn?: TurnTailOwnerProps['turn'] | undefined
   seq?: number | undefined
-  /** Reconcile the aggregate review-comment reference in the session composer. */
-  syncComments?: (() => void) | undefined
-  /** Live display-only preference for visually wrapping logical diff lines. */
-  wordWrap?: ObservableSnapshot<boolean> | undefined
 } & PropsLocale<typeof NS>
 
 function FileIcon() {
@@ -59,23 +48,17 @@ function addStats(left: UnifiedDiffStats, right: UnifiedDiffStats): UnifiedDiffS
   return { added: left.added + right.added, removed: left.removed + right.removed }
 }
 
-/** Render one turn's produced files and delegate review opening through ReviewHost. */
+/** Render one turn's produced files and open their native review tab. */
 export function ProducedFiles({
   matched: reviews,
   openFile,
-  projectRoot,
+  openReview,
   inspectChanges = unavailableChanges,
   applyChanges = unavailableChanges,
-  sessionId,
   turn,
   seq = 0,
-  syncComments,
-  wordWrap,
   t,
 }: ProducedFilesProps) {
-  const cardRef = useRef<HTMLElement>(null)
-  const triggerRef = useRef<HTMLButtonElement | null>(null)
-  const [drawerScope, setDrawerScope] = useState<ReviewScope | null>(null)
   const [isPreviewExpanded, setIsPreviewExpanded] = useState(false)
   const turnNumber = turn?.turn ?? 0
 
@@ -97,47 +80,11 @@ export function ProducedFiles({
   )
   const shown = isPreviewExpanded ? reviewsWithStats : reviewsWithStats.slice(0, SHOWN_LIMIT)
   const hidden = reviewsWithStats.length - shown.length
-  const drawerReviews = useMemo(
-    () =>
-      drawerScope?.kind === 'file'
-        ? reviews.filter((review) => review.path === drawerScope.path)
-        : reviews,
-    [drawerScope, reviews],
-  )
   const actions = useReviewActions({ reviews, inspectChanges, applyChanges, t })
-
-  const closeDrawer = useCallback(() => {
-    setDrawerScope(null)
-  }, [])
-
-  const openReview = useCallback(
-    (scope: ReviewScope, trigger: HTMLButtonElement) => {
-      const focusPaths = scope.kind === 'file' ? [scope.path] : reviews.map((review) => review.path)
-      const handled =
-        sessionId !== undefined &&
-        reviewHost.open({
-          sessionId,
-          cwd: projectRoot,
-          target: { turn: turnNumber, closingSeq: seq, focusPaths },
-        })
-      if (handled) {
-        setDrawerScope(null)
-        return
-      }
-      triggerRef.current = trigger
-      setDrawerScope(scope)
-    },
-    [projectRoot, reviews, seq, sessionId, turnNumber],
-  )
-
-  useEffect(() => {
-    if (drawerScope?.kind !== 'file') return
-    if (!reviews.some((review) => review.path === drawerScope.path)) closeDrawer()
-  }, [closeDrawer, drawerScope, reviews])
 
   return (
     <>
-      <section ref={cardRef} className={css.card} aria-label={t('produced.summary')}>
+      <section className={css.card} aria-label={t('produced.summary')}>
         <header className={css.cardHeader}>
           <span className={css.fileIconWrap}>
             <FileIcon />
@@ -176,9 +123,13 @@ export function ProducedFiles({
             type="button"
             className={css.reviewButton}
             aria-label={t('produced.reviewAll')}
-            onClick={(event) => {
-              openReview({ kind: 'all' }, event.currentTarget)
-            }}
+            onClick={() =>
+              openReview({
+                turn: turnNumber,
+                closingSeq: seq,
+                focusPaths: reviews.map((review) => review.path),
+              })
+            }
           >
             <ReviewIcon />
             {t('review.title')}
@@ -192,9 +143,9 @@ export function ProducedFiles({
               className={css.fileRow}
               title={review.path}
               aria-label={t('produced.review', { name: review.path })}
-              onClick={(event) => {
-                openReview({ kind: 'file', path: review.path }, event.currentTarget)
-              }}
+              onClick={() =>
+                openReview({ turn: turnNumber, closingSeq: seq, focusPaths: [review.path] })
+              }
             >
               <span className={css.fileName}>{basename(review.path)}</span>
               <ReviewStats
@@ -221,24 +172,6 @@ export function ProducedFiles({
         </div>
       </section>
 
-      {drawerScope !== null && (
-        <StandaloneReviewDrawer
-          anchorRef={cardRef}
-          trigger={triggerRef.current}
-          onClose={closeDrawer}
-          reviews={drawerReviews}
-          projectRoot={projectRoot}
-          sessionId={sessionId}
-          turn={turnNumber}
-          closingSeq={seq}
-          openFile={openFile}
-          inspectChanges={inspectChanges}
-          applyChanges={applyChanges}
-          syncComments={syncComments}
-          wordWrap={wordWrap}
-          t={t}
-        />
-      )}
       {actions.notice !== null && (
         <ReviewResultToast
           key={actions.notice.seq}

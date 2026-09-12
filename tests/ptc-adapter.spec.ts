@@ -22,7 +22,7 @@ function fixture(
 ) {
   const events = options.events ?? [
     event(0, 'tool/call', { turn: 3, step: 2, callId: ROOT, name: 'run_code', arguments: '{}' }),
-    event(1, 'tool/code-dispatch-start', {
+    event(1, 'tool/ptc-dispatch-start', {
       rootCallId: ROOT,
       parentCallId: ROOT,
       subCallId: SUB,
@@ -52,12 +52,14 @@ function marker(content: readonly unknown[]) {
 }
 
 describe('PTC Host Adapter', () => {
-  it('registers on the alpha.3 PTC log seam', () => {
+  // 验证适配器监听 rc.1 提供的 PTC 日志处理事件，并注册处理函数。
+  it('registers on the rc.1 PTC log seam', () => {
     const on = vi.fn(() => () => true)
     registerPtcAdapter({ on } as unknown as Context)
     expect(on).toHaveBeenCalledWith('tools/ptc-dispatch-log', expect.any(Function))
   })
 
+  // 验证新版 v2 标记可序列化恢复创建或删除信息，同时仍兼容读取旧版 v1 标记。
   it('round-trips v2 lifecycle diffs while continuing to parse v1 markers', () => {
     const current = boundedPtcFileReviewMarker({
       turn: 3,
@@ -106,6 +108,7 @@ describe('PTC Host Adapter', () => {
     expect(marker([{ type: 'text', text: '', dshFileReview: legacy }])?.schema).toBe(1)
   })
 
+  // 验证处理嵌套 PTC 结果时优先保留实际捕获的文件生命周期快照，而非展示层推测。
   it('keeps captured lifecycle truth when shaping a nested PTC result', async () => {
     const { ctx, dispatch } = fixture({
       presentCall: () => ({
@@ -155,6 +158,7 @@ describe('PTC Host Adapter', () => {
     expect(marker(content)?.files).toEqual(captured.files)
   })
 
+  // 验证优先记录工具已应用的结果差异，并保持原有日志文本不变，不暴露额外标记文本。
   it('prefers applied result diffs and keeps existing shaped text invisible', async () => {
     const { ctx, dispatch } = fixture(
       {
@@ -202,6 +206,7 @@ describe('PTC Host Adapter', () => {
     })
   })
 
+  // 验证工具结果对整次调用具有优先权，不将仅出现在调用意图中的文件混入已应用结果。
   it('treats an applied result as authoritative for the whole call', async () => {
     const { ctx, dispatch } = fixture({
       presentCall: () => ({
@@ -229,6 +234,7 @@ describe('PTC Host Adapter', () => {
     ])
   })
 
+  // 验证缺少结果差异时回退到调用意图及通用编辑或删除路径，明确无变更时不生成标记。
   it('falls back to call intent and supports generic edit locations', async () => {
     const intent = fixture({
       presentCall: () => ({
@@ -311,6 +317,7 @@ describe('PTC Host Adapter', () => {
     expect(marker(noChangeContent)).toBeNull()
   })
 
+  // 验证工具失败、展示函数异常或缺少有效关联时保留原日志，不生成不可信的审查数据。
   it('fails closed without changing an existing clean log copy', async () => {
     const shaped = [{ type: 'text', text: 'kept' }] as ContentBlock[]
     const cases = [
@@ -356,6 +363,7 @@ describe('PTC Host Adapter', () => {
     }
   })
 
+  // 验证清除日志中预先存在的审查字段，保留原有文本，防止旧标记或伪造标记混入。
   it('removes pre-existing marker fields while preserving waterfall content', async () => {
     const forged = boundedPtcFileReviewMarker({
       turn: 3,
@@ -380,6 +388,7 @@ describe('PTC Host Adapter', () => {
     expect(content.some((block) => 'dshFileReview' in block)).toBe(false)
   })
 
+  // 验证持久化标记超过字节限制时移除差异正文，保留文件路径并标记为已截断。
   it('drops diff bodies when the durable marker exceeds its byte budget', () => {
     const marker = boundedPtcFileReviewMarker(
       {

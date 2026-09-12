@@ -11,6 +11,7 @@ afterEach(() => {
 })
 
 describe('E2E DSH runtime', () => {
+  // 验证全新测试数据目录能初始化当前仓库、默认换行设置和北京时间戳，且不会绕过欢迎声明。
   it('seeds the current checkout for a fresh DSH home', () => {
     const root = mkdtempSync(path.join(tmpdir(), 'dsh-file-review-e2e-'))
     temporaryRoots.push(root)
@@ -37,6 +38,7 @@ describe('E2E DSH runtime', () => {
     })
   })
 
+  // 验证 Windows 通过 cmd.exe 调用 dsh.cmd，并完整传递插件命令参数。
   it('runs npm command shims through cmd.exe on Windows', () => {
     expect(
       dshInvocation(['plugin', '--profile', 'web'], {
@@ -49,6 +51,7 @@ describe('E2E DSH runtime', () => {
     })
   })
 
+  // 验证 macOS 和 Linux 直接调用 dsh 可执行文件，并保留原始参数。
   it('runs the DSH executable directly on macOS and Linux', () => {
     expect(dshInvocation(['web'], { platform: 'darwin' })).toEqual({
       command: 'dsh',

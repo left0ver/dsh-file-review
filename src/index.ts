@@ -15,6 +15,7 @@ import { registerFileLifecycleCapture } from './file-lifecycle-capture.ts'
 import { registerPtcAdapter } from './ptc-adapter.ts'
 import {
   DEFAULT_WORD_WRAP,
+  DEFAULT_DIFF_LAYOUT,
   FILE_REVIEW_SETTINGS_NAMESPACE,
   type Config as ConfigShape,
 } from './settings-contract.ts'
@@ -28,6 +29,7 @@ export type Config = ConfigShape
 /** Plugin configuration and durable settings schema. */
 export const Config: z<ConfigShape> = z.object({
   wordWrap: z.boolean().default(DEFAULT_WORD_WRAP),
+  diffLayout: z.union([z.const('split'), z.const('unified')]).default(DEFAULT_DIFF_LAYOUT),
 })
 
 /** Services required for the model guidance paired with the browser renderer. */

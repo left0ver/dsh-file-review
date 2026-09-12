@@ -1,4 +1,4 @@
-/* Turn-tail review card and its non-modal, fixed review drawer. */
+/* Turn-tail card and native review-tab content. */
 
 .card {
   margin-top: 16px;
@@ -88,8 +88,7 @@
 .reviewButton,
 .toggleButton,
 .toolbarButton,
-.openButton,
-.closeButton {
+.openButton {
   border: 1px solid var(--dsw-alias-border-l2);
   background: var(--dsw-alias-bg-container, Canvas);
   color: var(--dsw-alias-label-primary);
@@ -112,8 +111,7 @@
 .reviewButton:hover,
 .toggleButton:hover:not(:disabled),
 .toolbarButton:hover:not(:disabled),
-.openButton:hover,
-.closeButton:hover {
+.openButton:hover {
   background: var(--dsw-alias-interactive-bg-hover);
 }
 
@@ -121,7 +119,6 @@
 .toggleButton:focus-visible,
 .toolbarButton:focus-visible,
 .openButton:focus-visible,
-.closeButton:focus-visible,
 .fileRow:focus-visible {
   outline: none;
   box-shadow: inset 0 0 0 2px var(--dsw-alias-border-l3);
@@ -185,65 +182,9 @@
   box-shadow: inset 0 0 0 2px var(--dsw-alias-border-l3);
 }
 
-.drawer {
-  position: fixed;
-  z-index: 1000;
-  inset: 0 0 0 auto;
+.reviewHeader {
   display: flex;
-  width: var(--review-drawer-width, 36vw);
-  max-width: 100vw;
-  flex-direction: column;
-  border-left: 1px solid var(--dsw-alias-border-l2);
-  background: var(--dsw-alias-bg-container, Canvas);
-  box-shadow: -12px 0 32px rgb(0 0 0 / 12%);
-  color: var(--dsw-alias-label-primary);
-}
-
-.drawerSplit {
-  z-index: 1;
-  box-shadow: none;
-}
-
-.drawerResizing,
-.drawerResizing * {
-  cursor: col-resize;
-  user-select: none;
-}
-
-.resizeHandle {
-  position: absolute;
-  z-index: 5;
-  inset: 0 auto 0 -6px;
-  width: 12px;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  cursor: col-resize;
-  touch-action: none;
-}
-
-.resizeHandle::after {
-  position: absolute;
-  inset: 0 auto 0 5px;
-  width: 2px;
-  background: transparent;
-  content: '';
-  transition: background 120ms ease;
-}
-
-.resizeHandle:hover::after,
-.resizeHandle:focus-visible::after,
-.drawerResizing .resizeHandle::after {
-  background: var(--dsw-alias-border-l3);
-}
-
-.resizeHandle:focus-visible {
-  outline: none;
-}
-
-.drawerHeader {
-  display: flex;
+  flex-wrap: wrap;
   flex: 0 0 auto;
   min-height: 64px;
   align-items: center;
@@ -272,7 +213,7 @@
   gap: 8px;
 }
 
-.drawerHeading {
+.reviewHeading {
   display: flex;
   flex: 1 1 auto;
   min-width: 0;
@@ -280,13 +221,13 @@
   gap: 2px;
 }
 
-.drawerTitle {
+.reviewTitle {
   font-size: 15px;
   font-weight: 600;
   line-height: 20px;
 }
 
-.drawerSubtitle {
+.reviewSubtitle {
   overflow: hidden;
   color: var(--dsw-alias-label-tertiary);
   font-size: 12px;
@@ -494,19 +435,7 @@
   outline-offset: 2px;
 }
 
-.closeButton {
-  display: grid;
-  flex: 0 0 auto;
-  width: 32px;
-  height: 32px;
-  padding: 0;
-  place-items: center;
-  border-color: transparent;
-  border-radius: 8px;
-  background: transparent;
-}
-
-.drawerBody {
+.reviewBody {
   min-height: 0;
   flex: 1 1 auto;
   overflow: auto;
@@ -794,6 +723,7 @@
   color: var(--dsw-alias-label-primary);
   font-size: 16px;
   line-height: 24px;
+  white-space: pre-wrap;
 }
 
 .reviewMessageCommentPill {
@@ -890,85 +820,6 @@
   stroke-width: 1.4;
 }
 
-.reviewMessageImages {
-  display: flex;
-  max-width: 100%;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
-.reviewMessageImageButton {
-  max-width: 280px;
-  max-height: 280px;
-  padding: 0;
-  overflow: hidden;
-  border: 0;
-  border-radius: 12px;
-  background: var(--dsw-alias-interactive-bg-hover);
-  cursor: zoom-in;
-}
-
-.reviewMessageImageTile {
-  width: 64px;
-  height: 64px;
-}
-
-.reviewMessageImage {
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.reviewMessageImageLoading,
-.reviewMessageImageRetry {
-  display: grid;
-  width: 96px;
-  height: 64px;
-  place-items: center;
-  border: 0;
-  border-radius: 12px;
-  background: var(--dsw-alias-interactive-bg-hover);
-  color: var(--dsw-alias-label-tertiary);
-  font: var(--dsw-font-xs-12);
-}
-
-.reviewMessageImageRetry {
-  cursor: pointer;
-}
-
-.reviewMessageLightbox {
-  position: fixed;
-  z-index: 2000;
-  inset: 0;
-  display: grid;
-  padding: 48px;
-  background: rgb(0 0 0 / 72%);
-  place-items: center;
-}
-
-.reviewMessageLightboxImage {
-  max-width: 100%;
-  max-height: 100%;
-  object-fit: contain;
-}
-
-.reviewMessageLightboxClose {
-  position: absolute;
-  top: 20px;
-  right: 24px;
-  width: 36px;
-  height: 36px;
-  border: 0;
-  border-radius: 50%;
-  background: rgb(255 255 255 / 16%);
-  color: white;
-  cursor: pointer;
-  font-size: 26px;
-  line-height: 1;
-}
-
 .reviewMessageExtraBlock {
   margin-top: 8px;
   font-size: 13px;
@@ -1007,26 +858,19 @@
     gap: 1px;
   }
 
-  .drawer {
-    width: 100vw;
-    border-left: 0;
-  }
-
-  .resizeHandle {
-    display: none;
-  }
-
-  .drawerHeader {
+  .reviewHeader {
     gap: 8px;
     padding-left: 12px;
   }
 
-  .toolbarButton {
+  .toolbarButton:not(select) {
     width: 32px;
     padding: 0;
     justify-content: center;
     overflow: hidden;
     color: transparent;
+    font-size: 0;
+    gap: 0;
   }
 
   .toolbarButton .buttonIcon {
@@ -1044,22 +888,5 @@
 
   .openButton {
     margin-left: auto;
-  }
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .drawer {
-    animation: drawer-enter 160ms ease-out;
-  }
-}
-
-@keyframes drawer-enter {
-  from {
-    transform: translateX(20px);
-    opacity: 0;
-  }
-  to {
-    transform: translateX(0);
-    opacity: 1;
   }
 }
