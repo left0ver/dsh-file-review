@@ -993,7 +993,7 @@ describe('ProducedFiles review card', () => {
       within(reviewHeader)
         .getAllByRole('button')
         .map((button) => button.getAttribute('aria-label') ?? button.textContent?.trim()),
-    ).toEqual(['Copy diff'])
+    ).toEqual(['Collapse all', 'Copy diff'])
     expect(within(panel).getByText('deep/a.html')).toBeTruthy()
     expect(within(panel).getByText('styles/b.css')).toBeTruthy()
     expect(panel.querySelectorAll('[data-diff-layout="split"]')).toHaveLength(2)

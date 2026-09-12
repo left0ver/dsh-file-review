@@ -261,3 +261,51 @@ it('synchronizes horizontal scrolling in both directions without clamped feedbac
   fireEvent.scroll(right)
   expect(left.scrollLeft).toBe(10)
 })
+
+// 验证单栏和双栏都能一键收起所有文件正文，保留摘要与已保存评论，并丢弃草稿。
+it.each<DiffLayout>(['split', 'unified'])('collapses and expands every file in %s', (layout) => {
+  const settings = settingsScope(layout)
+  const view = render(
+    <ReviewContent
+      reviews={[
+        ...reviews,
+        {
+          path: 'second.ts',
+          diffs: [{ path: 'second.ts', oldText: null, newText: 'new file', newStart: 1 }],
+        },
+      ]}
+      sessionId="split-test"
+      turn={1}
+      closingSeq={2}
+      settings={settings}
+      openFile={() => {}}
+      t={t}
+    />,
+  )
+  expect(view.container.querySelectorAll('[data-diff]')).toHaveLength(2)
+  fireEvent.click(view.getAllByRole('button', { name: 'Add comment on line 1' })[0]!)
+  fireEvent.change(view.getByRole('textbox'), { target: { value: 'saved comment' } })
+  fireEvent.click(view.getByRole('button', { name: 'Save' }))
+  fireEvent.click(view.getByRole('button', { name: 'saved comment' }))
+  fireEvent.change(view.getByRole('textbox'), { target: { value: 'unsaved edit' } })
+  fireEvent.click(view.getByRole('button', { name: 'Collapse all' }))
+  expect(view.container.querySelector('[data-diff]')).toBeNull()
+  expect(view.queryByRole('textbox')).toBeNull()
+  expect(view.queryByText('saved comment')).toBeNull()
+  expect(view.getByText('example.ts')).toBeTruthy()
+  expect(view.getByText('second.ts')).toBeTruthy()
+  expect(view.getAllByRole('button', { name: 'Open in editor' })).toHaveLength(2)
+  expect(view.getByLabelText('4 lines added, 2 lines removed')).toBeTruthy()
+  expect(view.getByRole('button', { name: 'Expand all' }).getAttribute('aria-expanded')).toBe(
+    'false',
+  )
+  expect(reviewComments('split-test')[0]?.body).toBe('saved comment')
+  fireEvent.click(view.getByRole('button', { name: 'Expand all' }))
+  expect(view.container.querySelectorAll(`[data-diff-layout="${layout}"]`)).toHaveLength(2)
+  expect(view.getByText('saved comment')).toBeTruthy()
+  expect(view.queryByRole('textbox')).toBeNull()
+  expect(view.getByRole('button', { name: 'Collapse all' }).getAttribute('aria-expanded')).toBe(
+    'true',
+  )
+  expect(settings.set).not.toHaveBeenCalled()
+})
