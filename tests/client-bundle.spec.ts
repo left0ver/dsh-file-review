@@ -40,7 +40,7 @@ describe('published browser artifact', () => {
       'uiConversation',
       'remote',
       'connection',
-      'settingsScope',
+      'configForms',
       'sessions',
       'conversation',
       'inputTriggers',

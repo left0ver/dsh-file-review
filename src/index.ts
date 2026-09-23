@@ -5,7 +5,7 @@
  * dsh.client declaration.
  */
 
-import type { Context } from '@deepseek-ai/cordis'
+import type { Context, Volatile } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import type {} from '@deepseek-ai/dsh-settings'
 import type {} from '@deepseek-ai/dsh-system-prompt'
@@ -13,23 +13,24 @@ import type {} from '@deepseek-ai/dsh-tools'
 import { FileReviewService } from './file-review-service.ts'
 import { registerFileLifecycleCapture } from './file-lifecycle-capture.ts'
 import { registerPtcAdapter } from './ptc-adapter.ts'
-import {
-  DEFAULT_WORD_WRAP,
-  DEFAULT_DIFF_LAYOUT,
-  FILE_REVIEW_SETTINGS_NAMESPACE,
-  type Config as ConfigShape,
-} from './settings-contract.ts'
+import { DEFAULT_WORD_WRAP, DEFAULT_DIFF_LAYOUT, type DiffLayout } from './settings-contract.ts'
 
 export type * from './change-types.ts'
 export { FileReviewService, transformFile } from './file-review-service.ts'
 export { DEFAULT_WORD_WRAP, FILE_REVIEW_SETTINGS_NAMESPACE } from './settings-contract.ts'
 
-export type Config = ConfigShape
+export interface Config {
+  wordWrap: Volatile<boolean>
+  diffLayout: Volatile<DiffLayout>
+}
 
-/** Plugin configuration and durable settings schema. */
-export const Config: z<ConfigShape> = z.object({
-  wordWrap: z.boolean().default(DEFAULT_WORD_WRAP),
-  diffLayout: z.union([z.const('split'), z.const('unified')]).default(DEFAULT_DIFF_LAYOUT),
+/** 可由当前 Profile 即时更新的显示设置。 */
+export const Config = z.object({
+  wordWrap: z.boolean().default(DEFAULT_WORD_WRAP).volatile(),
+  diffLayout: z
+    .union([z.const('split'), z.const('unified')])
+    .default(DEFAULT_DIFF_LAYOUT)
+    .volatile(),
 })
 
 /** Services required for the model guidance paired with the browser renderer. */
@@ -44,14 +45,9 @@ const FILE_REFERENCE_PROMPT =
  * Register model guidance for the file-reference renderer shipped by this package.
  * @param ctx - host context carrying the system-prompt registry.
  */
-export function apply(ctx: Context, config: ConfigShape = {}): void {
-  ctx.inject(['settings'], (settingsCtx) => {
-    settingsCtx.settings.installSection(ctx, FILE_REVIEW_SETTINGS_NAMESPACE, Config, config, {
-      // The Host owns persistence; the browser mirrors this section through
-      // settingsScope, so no Host-side projection needs rebuilding on change.
-      setSource: () => {},
-      onChange: () => {},
-    })
+export function apply(ctx: Context): void {
+  ctx.inject(['settings'], (child) => {
+    child.effect(() => child.settings.configure({ auto: false }, ctx.fiber))
   })
   new FileReviewService(ctx)
   registerFileLifecycleCapture(ctx)

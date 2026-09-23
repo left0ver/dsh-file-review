@@ -14,8 +14,6 @@ export function seedRuntimeState({ dshHome, root, now = new Date() }) {
   const stateTimestamp = beijingTimestamp(now)
   mkdirSync(storageDir, { recursive: true })
 
-  writeFileSync(path.join(dshHome, 'settings.yaml'), 'file-review:\n  wordWrap: false\n')
-
   const workspace = {
     unit: { name: 'workspace', version: 2 },
     global: {

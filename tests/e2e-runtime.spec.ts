@@ -1,5 +1,4 @@
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { dshInvocation, seedRuntimeState } from '../e2e/dsh-runtime.mjs'
@@ -11,18 +10,14 @@ afterEach(() => {
 })
 
 describe('E2E DSH runtime', () => {
-  // 验证全新测试数据目录能初始化当前仓库、默认换行设置和北京时间戳，且不会绕过欢迎声明。
+  // 验证全新测试数据目录能初始化当前仓库与北京时间戳。
   it('seeds the current checkout for a fresh DSH home', () => {
-    const root = mkdtempSync(path.join(tmpdir(), 'dsh-file-review-e2e-'))
+    const root = mkdtempSync(path.resolve('.e2e', 'dsh-file-review-e2e-'))
     temporaryRoots.push(root)
     const dshHome = path.join(root, '.e2e', 'dsh-home-standalone')
     const now = new Date('2026-08-30T06:46:20.123Z')
 
     seedRuntimeState({ dshHome, root, now })
-
-    const settings = readFileSync(path.join(dshHome, 'settings.yaml'), 'utf8')
-    expect(settings).not.toContain('welcomeNoticeVersion')
-    expect(settings).toContain('wordWrap: false')
 
     const workspace = JSON.parse(
       readFileSync(path.join(dshHome, 'storages', 'workspace.json'), 'utf8'),

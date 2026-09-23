@@ -4,7 +4,7 @@
 
 **Review every file an agent just changed—without leaving DeepSeek Harness Web.**
 
-[![Adapted DSH CLI version](https://img.shields.io/badge/DSH_CLI-0.1.5--rc.1-4f46e5?style=flat-square)](package.json)
+[![Adapted DSH CLI version](https://img.shields.io/badge/DSH_CLI-0.1.7--rc.1-4f46e5?style=flat-square)](package.json)
 ![Web profile](https://img.shields.io/badge/profile-Web-0ea5e9?style=flat-square)
 [![npm version](https://img.shields.io/npm/v/dsh-file-review?style=flat-square&logo=npm)](https://www.npmjs.com/package/dsh-file-review)
 [![npm downloads](https://img.shields.io/npm/dm/dsh-file-review?style=flat-square&logo=npm)](https://www.npmjs.com/package/dsh-file-review)

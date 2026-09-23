@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import type { SettingsScope } from '@deepseek-ai/dsh-client-ui-settings/client'
+import type {} from '@deepseek-ai/dsh-client-ui-plugin-manager/client'
+import type { ConfigForm } from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import {
   DEFAULT_WORD_WRAP,
@@ -11,17 +12,18 @@ import css from './FileReviewSettingsCard.module.css'
 import { NS } from './locales.ts'
 
 export type FileReviewSettingsCardInjected = {
-  hooks: { fileReviewSettings: SettingsScope<Config> }
-  setWordWrap(value: boolean): Promise<void>
-  setDiffLayout(value: DiffLayout): Promise<void>
+  hooks: { fileReviewSettings: ConfigForm<Config> }
+  setWordWrap(value: boolean): Promise<boolean>
+  setDiffLayout(value: DiffLayout): Promise<boolean>
 }
 
-export type FileReviewSettingsCardProps = PropsRuntime<'settings.plugin.item'> &
+export type FileReviewSettingsCardProps = PropsRuntime<'plugins.row.config'> &
   PropsLocale<typeof NS> &
   InjectFace<FileReviewSettingsCardInjected>
 
 /** Minimal settings card owned by the file-review plugin. */
 export function FileReviewSettingsCard({
+  view,
   setWordWrap,
   setDiffLayout,
   t,
@@ -31,6 +33,7 @@ export function FileReviewSettingsCard({
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState(false)
+  if (view === 'summary') return t('settings.description')
   if (settings.status !== 'ready') return null
 
   const title = t('settings.title')
@@ -53,7 +56,7 @@ export function FileReviewSettingsCard({
     try {
       await setWordWrap(!wordWrap)
     } catch {
-      // SettingsScope refreshes the authoritative value after a rejected write.
+      // ConfigForm 会在写入被拒绝后刷新已接受的值。
     } finally {
       setSaving(false)
     }

@@ -1,10 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, within } from '@testing-library/react'
 import { useSyncExternalStore } from 'react'
-import type {
-  SettingsScope,
-  SettingsScopeSnapshot,
-} from '@deepseek-ai/dsh-client-ui-settings/client'
+import type { ConfigForm, ConfigFormSnapshot } from '@deepseek-ai/dsh-client-ui-settings/client'
 import { afterEach, expect, it, vi } from 'vitest'
 import type { Config, DiffLayout } from '../src/settings-contract.ts'
 import { ReviewContent } from '../src/client/ReviewContent.tsx'
@@ -32,8 +29,8 @@ const reviews = [
   },
 ]
 
-function settingsScope(diffLayout?: DiffLayout): SettingsScope<Config> {
-  let snapshot: SettingsScopeSnapshot<Config> = {
+function settingsForm(diffLayout?: DiffLayout): ConfigForm<Config> {
+  let snapshot: ConfigFormSnapshot<Config> = {
     status: 'ready',
     value: diffLayout === undefined ? {} : { diffLayout },
     base: {},
@@ -60,7 +57,7 @@ function settingsScope(diffLayout?: DiffLayout): SettingsScope<Config> {
   }
 }
 
-function Review({ settings }: { settings: SettingsScope<Config> }) {
+function Review({ settings }: { settings: ConfigForm<Config> }) {
   return (
     <ReviewContent
       reviews={reviews}
@@ -81,7 +78,7 @@ afterEach(() => {
 
 // 验证左右配对、纯新增/删除占位及原始行号；上下文不允许新增评论。
 it('defaults to split and aligns unequal change blocks without inventing lines', () => {
-  const view = render(<Review settings={settingsScope()} />)
+  const view = render(<Review settings={settingsForm()} />)
   expect(view.container.querySelector('[data-diff-layout="split"]')).not.toBeNull()
   const left = view.container.querySelector('[data-diff-side="left"]')!
   const right = view.container.querySelector('[data-diff-side="right"]')!
@@ -103,7 +100,7 @@ it('defaults to split and aligns unequal change blocks without inventing lines',
 it.each<DiffLayout>(['split', 'unified'])(
   'keeps changed-line comments stable from %s',
   async (layout) => {
-    const settings = settingsScope(layout)
+    const settings = settingsForm(layout)
     const view = render(<Review settings={settings} />)
     const button = (kind: string) =>
       within(view.container.querySelector(`[data-line-kind="${kind}"]`) as HTMLElement).getByRole(
@@ -151,11 +148,12 @@ it.each<DiffLayout>(['split', 'unified'])(
 
 // 验证设置页和审查页共享同一个设置，重开沿用设置；失败时保留原模式并显示错误。
 it('synchronizes settings and review controls and keeps the chosen layout on reopen', async () => {
-  const settings = settingsScope()
+  const settings = settingsForm()
   function Settings() {
     const props = {
       t,
-      useFileReviewSettings: (select: (snapshot: SettingsScopeSnapshot<Config>) => unknown) =>
+      view: 'page',
+      useFileReviewSettings: (select: (snapshot: ConfigFormSnapshot<Config>) => unknown) =>
         select(useSyncExternalStore(settings.subscribe, settings.getSnapshot)),
       setWordWrap: (value: boolean) => settings.set('wordWrap', value),
       setDiffLayout: (value: DiffLayout) => settings.set('diffLayout', value),
@@ -217,7 +215,7 @@ it('discards an unsaved draft when opening a comment in another file', () => {
       sessionId="split-test"
       turn={1}
       closingSeq={2}
-      settings={settingsScope()}
+      settings={settingsForm()}
       openFile={() => {}}
       t={t}
     />,
@@ -232,7 +230,7 @@ it('discards an unsaved draft when opening a comment in another file', () => {
 
 // 验证任一侧横向滚动都会同步另一侧；短侧到达边缘后不反向拉回长侧。
 it('synchronizes horizontal scrolling in both directions without clamped feedback', () => {
-  const view = render(<Review settings={settingsScope()} />)
+  const view = render(<Review settings={settingsForm()} />)
   const left = view.container.querySelector<HTMLElement>('[data-diff-side="left"]')!
   const right = view.container.querySelector<HTMLElement>('[data-diff-side="right"]')!
   left.scrollLeft = 80
@@ -264,7 +262,7 @@ it('synchronizes horizontal scrolling in both directions without clamped feedbac
 
 // 验证单栏和双栏都能一键收起所有文件正文，保留摘要与已保存评论，并丢弃草稿。
 it.each<DiffLayout>(['split', 'unified'])('collapses and expands every file in %s', (layout) => {
-  const settings = settingsScope(layout)
+  const settings = settingsForm(layout)
   const openFile = vi.fn()
   const view = render(
     <ReviewContent

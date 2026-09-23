@@ -2,13 +2,13 @@
 
 import { useMemo, useState } from 'react'
 import type { TurnTailOwnerProps } from '@deepseek-ai/dsh-client-ui-chat/client'
-import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
+import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { FileReviewRequest, FileReviewResult } from '../change-types.ts'
 import type { NS } from './locales.ts'
 import { ReviewStats } from './ReviewContent.tsx'
 import { ReviewResultToast, unavailableChanges, useReviewActions } from './review-actions.tsx'
 import type { ReviewTarget } from './FileReviewTab.tsx'
-import { basename, type ProducedFileReview } from './turn-deliverables.ts'
+import { basename, selectProducedFiles, type ProducedFileReview } from './turn-deliverables.ts'
 import { summarizeDiffs, type UnifiedDiffStats } from './UnifiedDiff.tsx'
 import css from './ProducedFiles.module.css'
 
@@ -25,6 +25,15 @@ export type ProducedFilesProps = Pick<TurnTailOwnerProps, 'openFile'> & {
   turn?: TurnTailOwnerProps['turn'] | undefined
   seq?: number | undefined
 } & PropsLocale<typeof NS>
+
+export type ProducedFilesTailProps = PropsRuntime<'conversation.chat.turnTail'> &
+  Omit<ProducedFilesProps, 'matched'>
+
+/** 仅在当前轮次包含文件变更时显示审查入口。 */
+export function ProducedFilesTail(props: ProducedFilesTailProps) {
+  const matched = selectProducedFiles(props)
+  return matched === null ? null : <ProducedFiles {...props} matched={matched} />
+}
 
 function FileIcon() {
   return (

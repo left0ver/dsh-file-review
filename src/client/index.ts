@@ -12,9 +12,9 @@ import type { ISessions } from '@deepseek-ai/dsh-api-session-controller/client'
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import type { ChatFileMentions } from '@deepseek-ai/dsh-client-ui-chat/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
+import type {} from '@deepseek-ai/dsh-client-ui-plugin-manager/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
-import type {} from '@deepseek-ai/dsh-client-ui-settings-plugins/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { FileReviewRequest, FileReviewResult } from '../change-types.ts'
 import { TYPERT_REMOTE } from '../remote.ts'
@@ -24,7 +24,7 @@ import {
   type Config,
   type DiffLayout,
 } from '../settings-contract.ts'
-import { ProducedFiles } from './ProducedFiles.tsx'
+import { ProducedFilesTail } from './ProducedFiles.tsx'
 import { installNativeSidebarIntegration } from './native-sidebar-adapter.tsx'
 import type { FileReviewTabRuntime } from './FileReviewTab.tsx'
 import { FileReviewSettingsCard } from './FileReviewSettingsCard.tsx'
@@ -53,7 +53,7 @@ export const inject = [
   'uiConversation',
   'remote',
   'connection',
-  'settingsScope',
+  'configForms',
   'sessions',
   'conversation',
   'inputTriggers',
@@ -68,9 +68,7 @@ export const inject = [
 export async function apply(ctx: ClientContext): Promise<() => Promise<void>> {
   const disposeRemote = await ctx.remote.$mount(TYPERT_REMOTE)
   const disposeReviewSource = ctx.inputTriggers.registerSource(reviewCommentSource())
-  const settings = ctx.settingsScope.bind<Config>({
-    namespace: FILE_REVIEW_SETTINGS_NAMESPACE,
-  })
+  const settings = ctx.configForms.get<Config>(FILE_REVIEW_SETTINGS_NAMESPACE)
   const wordWrap = {
     getSnapshot: () => settings.getSnapshot().value?.wordWrap ?? DEFAULT_WORD_WRAP,
     subscribe: (listener: () => void) => settings.subscribe(listener),
@@ -137,12 +135,11 @@ export async function apply(ctx: ClientContext): Promise<() => Promise<void>> {
   })
   ctx.uiConversation.events.register(deliverablesDefinition)
   ctx.effect(() => ctx.locale.register(NS, { zh, en }), 'file-review: dictionaries')
-  ctx.slots.inject('settings.plugin.item', () =>
+  ctx.slots.inject('plugins.row.config', () =>
     ctx.slots.register(
       {
-        name: 'settings.plugin.item',
-        key: FILE_REVIEW_SETTINGS_NAMESPACE,
-        priority: -100,
+        name: 'plugins.row.config',
+        key: 'dsh-file-review#file-review',
         locale: NS,
         inject: () => ({
           hooks: { fileReviewSettings: settings },
@@ -185,8 +182,8 @@ export async function apply(ctx: ClientContext): Promise<() => Promise<void>> {
     ctx.slots.register(
       {
         name: 'conversation.chat.turnTail',
-        select: selectProducedFiles,
-        priority: -2,
+        id: 'dsh-file-review',
+        order: -2,
         registrant: 'dsh-file-review',
         locale: NS,
         inject: (sessionId) => {
@@ -198,7 +195,7 @@ export async function apply(ctx: ClientContext): Promise<() => Promise<void>> {
           }
         },
       },
-      ProducedFiles,
+      ProducedFilesTail,
     ),
   )
   // The prose side of the same vocabulary: the chat view reaches this face

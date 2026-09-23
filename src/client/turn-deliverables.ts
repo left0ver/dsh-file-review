@@ -69,8 +69,8 @@ function dispatchMarker(event: ConversationEvent): PtcFileReviewMarker | null {
 function nativeResultMarker(event: ConversationEvent): PtcFileReviewMarker | null {
   if (event.type !== 'tool/result') return null
   const callId = event.data.message.source.callId
-  const result = event.data.message.content[0]
-  if (typeof callId !== 'string' || callId === '' || !Array.isArray(result?.content)) return null
+  const result = event.data.message
+  if (typeof callId !== 'string' || callId === '' || !Array.isArray(result.content)) return null
   return markerFromContent(result.content, { rootCallId: callId, subCallId: callId })
 }
 
@@ -180,7 +180,7 @@ export const deliverablesDefinition: ConversationNodeDefinition<DeliverablesStat
       return { ...context.state, calls }
     }
     if (match.event.type === 'tool/result') {
-      const result = match.event.data.message.content[0]
+      const result = match.event.data.message
       if (result.isError === true) return context.state
       const callId = match.event.data.message.source.callId
       if (typeof callId !== 'string' || callId === '') return context.state

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import type { ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
-import type { SettingsScope } from '@deepseek-ai/dsh-client-ui-settings/client'
+import type { ConfigForm } from '@deepseek-ai/dsh-client-ui-settings/client'
 import { DEFAULT_DIFF_LAYOUT, type Config, type DiffLayout } from '../settings-contract.ts'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import { displayProjectPath } from './project-path.ts'
@@ -66,7 +66,7 @@ export interface ReviewContentProps extends PropsLocale<typeof NS> {
   readonly openFile: (path: string) => void
   readonly syncComments?: (() => void) | undefined
   readonly wordWrap?: ObservableSnapshot<boolean> | undefined
-  readonly settings?: SettingsScope<Config> | undefined
+  readonly settings?: ConfigForm<Config> | undefined
   readonly visible?: boolean | undefined
 }
 

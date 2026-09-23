@@ -25,29 +25,30 @@ const afterLine = `after-${'segment-'.repeat(24)}end`
 
 test.setTimeout(e2eTimeout)
 
-async function openWordWrapSettings(
-  page: Page,
-): Promise<{ readonly dialog: Locator; readonly toggle: Locator }> {
+async function openWordWrapSettings(page: Page): Promise<{ readonly toggle: Locator }> {
   await page.goto('/')
-  await page.getByRole('button', { name: /^(?:Settings|设置)$/ }).click()
-  const dialog = page.getByRole('dialog', { name: /Settings|设置/ })
-  await dialog.getByRole('button', { name: /^(?:Plugins|插件)$/ }).click()
-  await dialog.getByRole('button', { name: /^(?:Expand|展开): (?:File review|文件审查)$/ }).click()
-  const toggle = dialog.getByRole('switch', {
+  await page.getByRole('button', { name: /^(?:Plugins|插件)$/ }).click()
+  await page.getByRole('button', { name: /^(?:View|查看) dsh-file-review$/ }).click()
+  await page.getByRole('button', { name: /^(?:Configure|配置) dsh-file-review$/ }).click()
+  await page
+    .getByRole('button', {
+      name: /^(?:Expand|展开): (?:File review|文件审查)$/,
+    })
+    .click()
+  const toggle = page.getByRole('switch', {
     name: /Automatically wrap long lines|是否自动换行显示/,
   })
   await expect(toggle).toBeVisible()
-  return { dialog, toggle }
+  return { toggle }
 }
 
 async function setWordWrap(page: Page, enabled: boolean): Promise<void> {
-  const { dialog, toggle } = await openWordWrapSettings(page)
+  const { toggle } = await openWordWrapSettings(page)
   if ((await toggle.getAttribute('aria-checked')) !== String(enabled)) {
     await toggle.click()
     await expect(toggle).toHaveAttribute('aria-checked', String(enabled))
   }
-  await dialog.getByRole('button', { name: /^(?:Close|关闭)$/ }).click()
-  await expect(dialog).toBeHidden()
+  await page.goto('/')
 }
 
 test.beforeEach(async ({ page }) => {
@@ -70,7 +71,7 @@ test('设置页公开可写的文件审查自动换行开关', async ({ page }) 
   await expect(toggle).toHaveAttribute('aria-busy', 'false')
 })
 
-// 验证关闭换行时长行差异保持单行显示，内容不因视觉布局被拆分。
+// 验证关闭换行时长行差异保持单行显示，内容不因视觉布局分成多行。
 test('关闭自动换行时长行 Diff 保持单行布局', async ({ page, agentForPage }) => {
   const target = files.disabled
   const composer = await openNewSession(page, 'standard')

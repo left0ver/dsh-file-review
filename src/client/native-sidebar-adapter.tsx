@@ -3,7 +3,7 @@
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import type { ISessions } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
-import type { SettingsScope } from '@deepseek-ai/dsh-client-ui-settings/client'
+import type { ConfigForm } from '@deepseek-ai/dsh-client-ui-settings/client'
 import type { Config } from '../settings-contract.ts'
 import type { UiConversation } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar-right/client'
@@ -25,7 +25,7 @@ interface NativeSidebarIntegrationOptions {
   readonly sessions: ISessions
   readonly uiConversation: UiConversation
   readonly wordWrap: ObservableSnapshot<boolean>
-  readonly settings?: SettingsScope<Config> | undefined
+  readonly settings?: ConfigForm<Config> | undefined
   readonly t: TranslateNS<typeof NS>
   readonly runtimeFor: (sessionId: SessionId) => FileReviewTabRuntime
 }

@@ -18,7 +18,11 @@ import type { ChatFileMentions, TurnTailOwnerProps } from '@deepseek-ai/dsh-clie
 import { useMemo, useState } from 'react'
 import type { ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
-import { ProducedFiles, type ProducedFilesProps } from '../src/client/ProducedFiles.tsx'
+import {
+  ProducedFiles,
+  ProducedFilesTail,
+  type ProducedFilesProps,
+} from '../src/client/ProducedFiles.tsx'
 import {
   FileReviewSettingsCard,
   type FileReviewSettingsCardProps,
@@ -253,14 +257,12 @@ function result(
     turn,
     step,
     message: {
-      source: { type: 'tool-result', callId },
-      content: [
-        {
-          type: 'tool-result',
-          content: marker === null ? [] : [markerBlock(marker)],
-          isError: options.isError ?? false,
-        },
-      ],
+      id: `result-${callId}`,
+      role: 'tool',
+      source: { kind: 'tool', callId },
+      toolCallId: callId,
+      content: marker === null ? [] : [markerBlock(marker)],
+      isError: options.isError ?? false,
     },
   })
 }
@@ -1528,6 +1530,7 @@ describe('FileReview settings card', () => {
     const setWordWrap = vi.fn(async () => {})
     const props = {
       t: makeTranslate(en),
+      view: 'page',
       useFileReviewSettings: <Selected,>(select: (value: typeof snapshot) => Selected) =>
         select(snapshot),
       setWordWrap,
@@ -1560,6 +1563,7 @@ describe('plugin registration', () => {
             inject?: (sessionId: string) => unknown
             locale?: string
             name?: string
+            order?: number
           }
           component: unknown
         }
@@ -1626,7 +1630,7 @@ describe('plugin registration', () => {
       settingsValue = { wordWrap: value }
       for (const listener of settingsListeners) listener()
     }
-    const settingsScope = {
+    const configForm = {
       getSnapshot: () => ({
         status: 'ready' as const,
         value: settingsValue,
@@ -1649,10 +1653,10 @@ describe('plugin registration', () => {
         publishWordWrap(false)
       }),
     }
-    const bindSettings = vi.fn(() => settingsScope)
+    const getConfigForm = vi.fn(() => configForm)
     const ctx = {
       remote: { $mount: mountRemote },
-      settingsScope: { bind: bindSettings },
+      configForms: { get: getConfigForm },
       sessions: {
         scope: vi.fn(() => sessionScope.ctx),
         binding: vi.fn(() => ({
@@ -1704,6 +1708,7 @@ describe('plugin registration', () => {
             key?: string
             locale?: string
             name?: string
+            order?: number
             priority?: number
           },
           component: unknown,
@@ -1726,27 +1731,26 @@ describe('plugin registration', () => {
       'uiConversation',
       'remote',
       'connection',
-      'settingsScope',
+      'configForms',
       'sessions',
       'conversation',
       'inputTriggers',
       'sidebarRight',
       'sidebarRightTabs',
     ])
-    expect(bindSettings).toHaveBeenCalledWith({ namespace: 'file-review' })
+    expect(getConfigForm).toHaveBeenCalledWith('file-review')
     publishWordWrap(true)
     expect(registerSource).toHaveBeenCalledOnce()
     expect(mountRemote).toHaveBeenCalledOnce()
     expect(definition).toBe(deliverablesDefinition)
     expect(registerLocale).toHaveBeenCalledWith('file-review', { zh, en })
     const settingsRegistration = registrations.find(
-      (registration) => registration.options.name === 'settings.plugin.item',
+      (registration) => registration.options.name === 'plugins.row.config',
     )
     expect(settingsRegistration).toEqual({
       options: expect.objectContaining({
-        name: 'settings.plugin.item',
-        key: 'file-review',
-        priority: -100,
+        name: 'plugins.row.config',
+        key: 'dsh-file-review#file-review',
         locale: NS,
         inject: expect.any(Function),
       }),
@@ -1789,7 +1793,9 @@ describe('plugin registration', () => {
         },
       ]),
     )
-    expect(slot?.component).toBe(ProducedFiles)
+    expect(slot?.component).toBe(ProducedFilesTail)
+    expect(slot?.options.id).toBe('dsh-file-review')
+    expect(slot?.options.order).toBe(-2)
     expect(slot?.options.locale).toBe(NS)
     expect(slot?.options.inject).toBeTypeOf('function')
     const reviewActions = slot?.options.inject?.('session-1') as {
@@ -1813,12 +1819,12 @@ describe('plugin registration', () => {
       files: [],
     })
     const settingsActions = settingsRegistration?.options.inject?.('') as {
-      hooks: { fileReviewSettings: typeof settingsScope }
+      hooks: { fileReviewSettings: typeof configForm }
       setWordWrap(value: boolean): Promise<void>
     }
-    expect(settingsActions.hooks.fileReviewSettings).toBe(settingsScope)
+    expect(settingsActions.hooks.fileReviewSettings).toBe(configForm)
     await settingsActions.setWordWrap(false)
-    expect(settingsScope.set).toHaveBeenCalledExactlyOnceWith('wordWrap', false)
+    expect(configForm.set).toHaveBeenCalledExactlyOnceWith('wordWrap', false)
 
     const opened: string[] = []
     const owner = tailOwner(produced([2, 'site/report.html']), 3, (path) => {
