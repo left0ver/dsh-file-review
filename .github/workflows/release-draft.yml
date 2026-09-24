@@ -5,9 +5,10 @@
 # - OPENCODE_VERSION: pinned OpenCode version accepted by https://opencode.ai/install
 # - RELEASE_NOTES_MODEL: full provider/model ID shown by `opencode models`
 #
-# Repository secret:
-# - OPENCODE_GO_API_KEY: API key used by the opencode-go provider in
-#   .opencode/release-notes.json
+# 仓库密钥：
+# - OPENCODE_GO_API_KEY：供 opencode-go provider 使用的 API key
+# - OPENROUTER_API_KEY：供 openrouter provider 使用的 API key
+# 根据 RELEASE_NOTES_MODEL 配置对应的密钥。
 
 name: Generate release draft
 
@@ -129,6 +130,7 @@ jobs:
           RELEASE_NOTES_MODEL: ${{ vars.RELEASE_NOTES_MODEL }}
           OPENCODE_CONFIG: ${{ github.workspace }}/.opencode/release-notes.json
           OPENCODE_GO_API_KEY: ${{ secrets.OPENCODE_GO_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         shell: bash
         run: |
           set -euo pipefail
@@ -136,10 +138,24 @@ jobs:
             echo "::error::Set RELEASE_NOTES_MODEL to a full provider/model ID"
             exit 1
           fi
-          if [[ -z "$OPENCODE_GO_API_KEY" ]]; then
-            echo "::error::Set the OPENCODE_GO_API_KEY repository secret"
-            exit 1
-          fi
+          case "$RELEASE_NOTES_MODEL" in
+            opencode-go/*)
+              if [[ -z "$OPENCODE_GO_API_KEY" ]]; then
+                echo "::error::Set the OPENCODE_GO_API_KEY repository secret"
+                exit 1
+              fi
+              ;;
+            openrouter/*)
+              if [[ -z "$OPENROUTER_API_KEY" ]]; then
+                echo "::error::Set the OPENROUTER_API_KEY repository secret"
+                exit 1
+              fi
+              ;;
+            *)
+              echo "::error::Unsupported RELEASE_NOTES_MODEL provider: $RELEASE_NOTES_MODEL"
+              exit 1
+              ;;
+          esac
 
           GENERATE_ARGS=(
             --repository "$GITHUB_REPOSITORY"

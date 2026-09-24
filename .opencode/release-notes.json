@@ -22,8 +22,8 @@
         "apiKey": "{env:OPENROUTER_API_KEY}"
       },
       "models": {
-        "glm-5.2": {
-          "name": "glm-5.2"
+        "z-ai/glm-5.2": {
+          "name": "GLM 5.2"
         }
       }
     }
