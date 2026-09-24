@@ -13,6 +13,19 @@
           "name": "MiniMax-M3"
         }
       }
+    },
+    "openrouter": {
+      "npm": "@ai-sdk/openrouter",
+      "name": "OpenRouter Gateway",
+      "options": {
+        "baseURL": "https://openrouter.ai/api/v1",
+        "apiKey": "{env:OPENROUTER_API_KEY}"
+      },
+      "models": {
+        "glm-5.2": {
+          "name": "glm-5.2"
+        }
+      }
     }
   },
   "permission": {
