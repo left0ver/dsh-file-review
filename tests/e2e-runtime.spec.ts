@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { dshInvocation, seedRuntimeState } from '../e2e/dsh-runtime.mjs'
@@ -12,6 +12,7 @@ afterEach(() => {
 describe('E2E DSH runtime', () => {
   // 验证全新测试数据目录能初始化当前仓库与北京时间戳。
   it('seeds the current checkout for a fresh DSH home', () => {
+    mkdirSync(path.resolve('.e2e'), { recursive: true })
     const root = mkdtempSync(path.resolve('.e2e', 'dsh-file-review-e2e-'))
     temporaryRoots.push(root)
     const dshHome = path.join(root, '.e2e', 'dsh-home-standalone')

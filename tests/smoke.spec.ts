@@ -1,4 +1,4 @@
-import { access, lstat, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { access, lstat, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
@@ -40,6 +40,7 @@ function smokeAgent(cwd: string, callId: string): Agent {
 describe('file review smoke', () => {
   // 验证从工具执行捕获到文件服务的完整链路：创建和删除标记可用于撤销及重新应用，并恢复正确内容和权限。
   it('captures, undoes, and reapplies created and deleted files end to end', async () => {
+    await mkdir(resolve('.e2e'), { recursive: true })
     root = await mkdtemp(resolve('.e2e', 'dsh-file-review-smoke-'))
     const createdPath = join(root, 'created.txt')
     const deletedPath = join(root, 'deleted.txt')
