@@ -15,7 +15,7 @@
       }
     },
     "openrouter": {
-      "npm": "@ai-sdk/openrouter",
+      "npm": "@openrouter/ai-sdk-provider",
       "name": "OpenRouter Gateway",
       "options": {
         "baseURL": "https://openrouter.ai/api/v1",
