@@ -78,6 +78,8 @@ export function bindReviewReference(
   events: SessionEventSource,
 ): { readonly sync: () => void; readonly dispose: () => void } {
   let reconciling = false
+  let syncScheduled = false
+  let disposed = false
 
   const sync = (): void => {
     if (reconciling) return
@@ -91,18 +93,45 @@ export function bindReviewReference(
         : count === 1
           ? t('review.commentCountOne')
           : t('review.commentCount', { count: String(count) })
-    if (current !== undefined && count > 0 && current.label === expectedLabel) return
+    if (
+      current !== undefined &&
+      count > 0 &&
+      current.label === expectedLabel &&
+      current.offset === 0
+    )
+      return
 
     reconciling = true
     try {
+      let caretAfterPrefix: number | undefined
       if (current !== undefined) {
         const end = current.offset + current.length
-        const removeEnd = state.draft[end] === ' ' ? end + 1 : end
-        input.setDraft(state.draft.slice(0, current.offset) + state.draft.slice(removeEnd))
+        const hasSeparator = state.draft[end] === ' '
+        if (current.offset > 0) {
+          // DSH 的 detect 坐标中每个引用占一个位置。
+          const detectStart =
+            current.offset -
+            state.occurrences
+              .filter((occurrence) => occurrence.offset < current.offset)
+              .reduce((length, occurrence) => length + occurrence.length - 1, 0)
+          const removed = scope.bail(scope, 'slash/input-insert-text', {
+            text: '',
+            span: {
+              start: detectStart,
+              end: detectStart + (hasSeparator ? 2 : 1),
+              draftRev: state.draftRev,
+            },
+          })
+          if (removed !== true) throw new Error('Failed to move review comment reference')
+          caretAfterPrefix = detectStart
+        } else {
+          const removeEnd = hasSeparator ? end + 1 : end
+          input.setDraft(state.draft.slice(0, current.offset) + state.draft.slice(removeEnd))
+        }
         state = input.state.getSnapshot()
       }
       if (count === 0 || expectedLabel === undefined || state.phase !== 'plain') return
-      scope.bail(scope, 'slash/input-insert-reference', {
+      const inserted = scope.bail(scope, 'slash/input-insert-reference', {
         reference: {
           source: REVIEW_COMMENT_SOURCE,
           ref: sessionId,
@@ -111,6 +140,17 @@ export function bindReviewReference(
         },
         span: { start: 0, end: 0, draftRev: state.draftRev },
       })
+      if (inserted !== true) throw new Error('Failed to insert review comment reference')
+      if (caretAfterPrefix !== undefined) {
+        state = input.state.getSnapshot()
+        // 新引用与后续空格各占一个 detect 位置。
+        const caret = caretAfterPrefix + 2
+        const positioned = scope.bail(scope, 'slash/input-insert-text', {
+          text: '',
+          span: { start: caret, end: caret, draftRev: state.draftRev },
+        })
+        if (positioned !== true) throw new Error('Failed to position review comment caret')
+      }
     } finally {
       reconciling = false
     }
@@ -119,7 +159,18 @@ export function bindReviewReference(
   const unsubscribe = input.state.subscribe(() => {
     if (reconciling) return
     const state = input.state.getSnapshot()
-    if (state.phase === 'plain') sync()
+    if (state.phase !== 'plain') return
+    if ((occurrenceFor(state, sessionId)?.offset ?? 0) === 0) {
+      sync()
+      return
+    }
+    if (syncScheduled) return
+    // 等输入组件完成状态通知，再按新的 draftRev 调整引用位置。
+    syncScheduled = true
+    queueMicrotask(() => {
+      syncScheduled = false
+      if (!disposed) sync()
+    })
   })
   const unsubscribeEvents = events.subscribe(() => {
     const change = events.getSnapshot().change
@@ -143,6 +194,7 @@ export function bindReviewReference(
   return {
     sync,
     dispose: () => {
+      disposed = true
       unsubscribeComments()
       unsubscribeEvents()
       unsubscribe()

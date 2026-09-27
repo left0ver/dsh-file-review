@@ -80,7 +80,20 @@ test('审查评论会发送给 Agent 并形成下一轮修改', async ({ page, a
   await expect(draftPreview).toContainText(comment)
   await closeReview(firstReview)
 
-  await sendTask(page, composer, '请严格按照审查评论修改文件，不要修改其他文件，然后结束任务。')
+  const reviewPrompt = '请严格按照审查评论修改文件，不要修改其他文件，然后结束任务。'
+  await composer.press('End')
+  await composer.pressSequentially(reviewPrompt)
+  await expect(composer).toContainText(reviewPrompt)
+  await expect(composer.locator('[data-composer-chip="file-review-comments"]')).toHaveCount(1)
+  await expect
+    .poll(() =>
+      composer.evaluate((node) => {
+        const chip = node.querySelector('[data-composer-chip="file-review-comments"]')
+        return chip !== null && chip.parentElement?.firstElementChild === chip
+      }),
+    )
+    .toBe(true)
+  await page.getByRole('button', { name: names.send }).click()
   const secondCard = await waitForProducedCard(page, agent, target, 2)
   await expectCardSummary(secondCard, target, 1, 1)
   await expectFileText(target.absolutePath, 'final\n')
