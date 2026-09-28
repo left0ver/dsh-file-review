@@ -24,7 +24,7 @@ async function readLaunchUrl(baseURL: string): Promise<string> {
 export const test = midsceneTest.extend({
   page: async ({ baseURL, page }, use) => {
     if (baseURL === undefined) throw new Error('E2E baseURL is required')
-    const welcome = page.getByRole('dialog', { name: /^(?:Internal Testing Notice|内测声明)$/ })
+    const welcome = page.getByRole('dialog', { name: /^(?:Preview Notice|预览版说明)$/ })
     await page.addLocatorHandler(welcome, async () => {
       await welcome.getByRole('button', { name: /^(?:Continue|继续)$/ }).click()
     })
