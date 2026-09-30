@@ -384,6 +384,7 @@ export function ReviewContent({
               ) : (
                 <UnifiedDiff
                   layout={renderedLayout}
+                  preferredLayout={layout}
                   commentsActive={commentPath === review.path}
                   onCommentStart={() => setCommentPath(review.path)}
                   diffs={review.diffs}

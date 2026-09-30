@@ -113,6 +113,12 @@ function CommentEditor({
 }: CommentEditorProps) {
   const editorRef = useRef<HTMLTextAreaElement>(null)
 
+  // A layout fallback remounts the editor with its kept draft; resume typing at the end.
+  useLayoutEffect(() => {
+    const editor = editorRef.current
+    editor?.setSelectionRange(editor.value.length, editor.value.length)
+  }, [])
+
   useLayoutEffect(() => {
     const editor = editorRef.current
     if (editor === null) return
@@ -149,6 +155,11 @@ function CommentEditor({
 
 export interface UnifiedDiffProps {
   readonly layout?: DiffLayout | undefined
+  /**
+   * The saved layout choice; changing it discards an open draft. Defaults to
+   * `layout`, so a width-driven fallback can change `layout` alone and keep it.
+   */
+  readonly preferredLayout?: DiffLayout | undefined
   readonly commentsActive?: boolean | undefined
   readonly onCommentStart?: (() => void) | undefined
   readonly diffs: readonly DiffHunk[]
@@ -333,6 +344,7 @@ function anchorFor(
  */
 export function UnifiedDiff({
   layout = DEFAULT_DIFF_LAYOUT,
+  preferredLayout = layout,
   commentsActive = true,
   onCommentStart,
   diffs,
@@ -356,7 +368,7 @@ export function UnifiedDiff({
   useLayoutEffect(() => {
     setEditing(null)
     setCommentDraft('')
-  }, [layout])
+  }, [preferredLayout])
   useLayoutEffect(() => {
     if (!commentsActive) {
       setEditing(null)
