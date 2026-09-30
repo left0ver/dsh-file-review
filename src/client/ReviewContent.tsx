@@ -33,19 +33,60 @@ function addStats(left: UnifiedDiffStats, right: UnifiedDiffStats): UnifiedDiffS
   return { added: left.added + right.added, removed: left.removed + right.removed }
 }
 
+const METER_CELLS = 5
+
+/** Split five meter cells by change share, keeping any non-zero side visible. */
+function meterCells({ added, removed }: UnifiedDiffStats): ('added' | 'removed' | 'empty')[] {
+  const total = added + removed
+  if (total === 0) return Array.from({ length: METER_CELLS }, () => 'empty')
+  let green = Math.round((added / total) * METER_CELLS)
+  if (added > 0) green = Math.max(1, green)
+  if (removed > 0) green = Math.min(METER_CELLS - 1, green)
+  return Array.from({ length: METER_CELLS }, (_, index) => (index < green ? 'added' : 'removed'))
+}
+
 export function ReviewStats({
   stats,
   label,
+  meter = false,
 }: {
   readonly stats: UnifiedDiffStats
   readonly label: string
+  readonly meter?: boolean | undefined
 }) {
   return (
     <span className={css.stats} aria-label={label}>
       <span className={css.added}>+{stats.added}</span>
       <span className={css.removed}>-{stats.removed}</span>
+      {meter && (
+        <span className={css.statsBar} aria-hidden="true">
+          {meterCells(stats).map((cell, index) => (
+            <span
+              key={index}
+              className={`${css.statsCell} ${
+                cell === 'added'
+                  ? css.statsCellAdded
+                  : cell === 'removed'
+                    ? css.statsCellRemoved
+                    : ''
+              }`}
+            />
+          ))}
+        </span>
+      )}
     </span>
   )
+}
+
+/** Git-style status letter for one reviewed file's net lifecycle. */
+function fileStatus(review: ProducedFileReview): 'A' | 'D' | 'M' {
+  const first = review.diffs[0]
+  const last = review.diffs.at(-1)
+  if (last?.lifecycle?.kind === 'delete') return 'D'
+  if (first?.lifecycle?.kind === 'create' || (first !== undefined && first.oldText === null)) {
+    return 'A'
+  }
+  return 'M'
 }
 
 function CopyIcon() {
@@ -215,6 +256,7 @@ export function ReviewContent({
             added: String(stats.added),
             removed: String(stats.removed),
           })}
+          meter
         />
         <div className={css.reviewToolbar}>
           <select
@@ -264,10 +306,16 @@ export function ReviewContent({
           const fileStats = summarizeDiffs(review.diffs)
           const relativePath = displayProjectPath(review.path, projectRoot)
           const fileCollapsed = collapsedPaths.has(review.path)
+          const status = fileStatus(review)
           return (
-            <section key={review.path} className={css.reviewFile}>
+            <section
+              key={review.path}
+              className={`${css.reviewFile} ${fileCollapsed ? css.reviewFileCollapsed : ''}`}
+            >
               <header className={css.reviewFileHeader}>
-                <span className={css.reviewStatus}>M</span>
+                <span className={css.reviewStatus} data-status={status}>
+                  {status}
+                </span>
                 <button
                   type="button"
                   className={css.reviewPath}
@@ -286,7 +334,7 @@ export function ReviewContent({
                   }
                 >
                   <svg viewBox="0 0 20 20" aria-hidden="true" className={css.buttonIcon}>
-                    <path d={fileCollapsed ? 'M7 5l5 5-5 5' : 'M5 7l5 5 5-5'} />
+                    <path d="M5 7l5 5 5-5" />
                   </svg>
                   <span className={css.reviewPathText}>{relativePath}</span>
                 </button>
@@ -304,6 +352,9 @@ export function ReviewContent({
                     openFile(review.path)
                   }}
                 >
+                  <svg viewBox="0 0 20 20" aria-hidden="true" className={css.buttonIcon}>
+                    <path d="M11 4h5v5M16 4l-7 7M14 11.5V15a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h3.5" />
+                  </svg>
                   {t('review.openInEditor')}
                 </button>
               </header>
