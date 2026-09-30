@@ -1,7 +1,22 @@
 /* The review layout follows a source-control diff: one content stream with a
    single line-number gutter. It is deliberately separate from `.block`, so
-   existing inline tool cards keep their compact geometry. */
+   existing inline tool cards keep their compact geometry.
+
+   Palette: change rows keep the primary label color and carry meaning through
+   an OKLab-mixed tint, a stronger gutter tint and a 3px edge rail, so long
+   runs of changed code stay as readable as context lines in both themes. */
 .unifiedBlock {
+  --fr-add: var(--dsw-alias-state-success-primary);
+  --fr-del: var(--dsw-alias-state-error-primary);
+  --fr-accent: var(--dsw-alias-state-business-primary);
+  --fr-surface: var(--dsw-alias-bg-layer-1, Canvas);
+  --fr-add-row: color-mix(in oklab, var(--fr-add) 9%, transparent);
+  --fr-add-gutter: color-mix(in oklab, var(--fr-add) 18%, transparent);
+  --fr-del-row: color-mix(in oklab, var(--fr-del) 8%, transparent);
+  --fr-del-gutter: color-mix(in oklab, var(--fr-del) 16%, transparent);
+  --fr-gutter: color-mix(in oklab, var(--dsw-alias-label-primary) 2.5%, transparent);
+  --fr-hairline: var(--dsw-alias-border-l1);
+
   position: relative;
   margin: 16px 0;
   color: var(--dsw-alias-label-primary);
@@ -15,6 +30,7 @@
   margin: 0;
   border: 0;
   border-radius: 0;
+  background: var(--fr-surface);
 }
 
 .unifiedCopyButton {
@@ -66,16 +82,34 @@
 }
 
 .unifiedHunkHeader {
-  padding: 6px 12px;
-  border-bottom: 1px solid var(--dsw-alias-border-l2);
-  color: var(--dsw-alias-label-tertiary);
+  padding: 5px 12px 5px 56px;
+  border-block: 1px solid var(--fr-hairline);
+  background: color-mix(in oklab, var(--fr-accent) 7%, transparent);
+  color: color-mix(in oklab, var(--fr-accent) 80%, var(--dsw-alias-label-tertiary));
   font: var(--dsw-font-markdown-code-block);
+  letter-spacing: 0.02em;
+}
+
+/* The gutter column is painted by the scroller, so it runs unbroken beside
+   inline comments and scrolls horizontally with the line numbers. */
+.unifiedBody,
+.splitPane {
+  background: linear-gradient(
+      90deg,
+      var(--fr-gutter) 47px,
+      var(--fr-hairline) 47px 48px,
+      transparent 48px
+    )
+    local;
 }
 
 .unifiedBody {
   overflow-x: auto;
   overflow-y: hidden;
   font: var(--dsw-font-markdown-code-block);
+  font-variant-ligatures: none;
+  scrollbar-width: thin;
+  scrollbar-color: var(--dsw-alias-border-l3) transparent;
 }
 
 .unifiedBodyWrap {
@@ -86,9 +120,10 @@
   display: grid;
   grid-template-columns: 48px 24px minmax(max-content, 1fr);
   min-width: max-content;
-  min-height: 23px;
-  line-height: 23px;
+  min-height: 22px;
+  line-height: 22px;
   white-space: pre;
+  transition: background-color 90ms ease;
 }
 
 .unifiedLineNumber {
@@ -96,9 +131,9 @@
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  padding: 0 8px;
-  border-right: 1px solid var(--dsw-alias-border-l2);
-  color: var(--dsw-alias-label-tertiary);
+  padding: 0 10px 0 8px;
+  color: var(--dsw-alias-label-caption);
+  font-variant-numeric: tabular-nums;
   text-align: right;
   user-select: none;
 }
@@ -106,35 +141,41 @@
 .commentTrigger {
   position: absolute;
   z-index: 1;
-  left: 2px;
+  left: 3px;
   display: grid;
-  width: 19px;
-  height: 19px;
+  width: 18px;
+  height: 18px;
   padding: 0;
   place-items: center;
-  border: 1px solid var(--dsw-alias-border-l2);
-  border-radius: 5px;
-  background: var(--dsw-alias-bg-container, Canvas);
-  color: var(--dsw-alias-label-secondary);
+  border: 0;
+  border-radius: 6px;
+  background: var(--fr-accent);
+  box-shadow:
+    0 1px 2px color-mix(in srgb, var(--fr-accent) 40%, transparent),
+    0 0 0 2px var(--fr-surface);
+  color: var(--dsw-static-neutral-00, #fff);
   cursor: pointer;
-  font: inherit;
-  line-height: 17px;
+  font: 600 14px/18px var(--dsw-font-family, system-ui);
   opacity: 0;
+  transform: scale(0.6);
+  transition:
+    opacity 120ms ease,
+    transform 160ms cubic-bezier(0.3, 1.5, 0.6, 1);
 }
 
 .unifiedLine:hover .commentTrigger,
 .commentTrigger:focus-visible {
   opacity: 1;
+  transform: scale(1);
 }
 
 .commentTrigger:hover {
-  color: var(--dsw-alias-label-primary);
-  border-color: var(--dsw-alias-border-l3);
+  transform: scale(1.12);
 }
 
 .commentTrigger:focus-visible {
-  outline: 2px solid var(--dsw-alias-state-business-primary);
-  outline-offset: 1px;
+  outline: 2px solid var(--fr-accent);
+  outline-offset: 2px;
 }
 
 .unifiedSign {
@@ -143,7 +184,7 @@
 }
 
 .unifiedText {
-  padding-right: 14px;
+  padding: 0 16px 0 2px;
 }
 
 .unifiedBodyWrap .unifiedLine {
@@ -162,21 +203,58 @@
 }
 
 .unified_del {
-  color: var(--dsw-alias-state-error-primary);
-  background: color-mix(in srgb, var(--dsw-alias-state-error-primary) 11%, transparent);
+  background: var(--fr-del-row);
 }
 
 .unified_add {
-  color: var(--dsw-alias-state-success-primary);
-  background: color-mix(in srgb, var(--dsw-alias-state-success-primary) 11%, transparent);
+  background: var(--fr-add-row);
+}
+
+.unified_del .unifiedLineNumber {
+  background: var(--fr-del-gutter);
+  box-shadow: inset 3px 0 0 var(--fr-del);
+  color: color-mix(in oklab, var(--fr-del) 75%, var(--dsw-alias-label-primary));
+}
+
+.unified_add .unifiedLineNumber {
+  background: var(--fr-add-gutter);
+  box-shadow: inset 3px 0 0 var(--fr-add);
+  color: color-mix(in oklab, var(--fr-add) 70%, var(--dsw-alias-label-primary));
+}
+
+.unified_del .unifiedSign {
+  color: var(--fr-del);
+  font-weight: 700;
+}
+
+.unified_add .unifiedSign {
+  color: var(--fr-add);
+  font-weight: 700;
 }
 
 .unified_context {
   color: var(--dsw-alias-label-primary);
 }
 
+.unified_context .unifiedText {
+  color: color-mix(in oklab, var(--dsw-alias-label-primary) 88%, transparent);
+}
+
+.unified_context:hover {
+  background: color-mix(in oklab, var(--dsw-alias-label-primary) 3%, transparent);
+}
+
+.unified_add:hover {
+  background: color-mix(in oklab, var(--fr-add) 14%, transparent);
+}
+
+.unified_del:hover {
+  background: color-mix(in oklab, var(--fr-del) 12%, transparent);
+}
+
 .splitGrid {
   display: grid;
+  background: var(--fr-surface);
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
@@ -186,6 +264,8 @@
   grid-template-rows: subgrid;
   min-width: 0;
   overflow-x: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--dsw-alias-border-l3) transparent;
 }
 
 .splitPane + .splitPane {
@@ -197,20 +277,24 @@
 }
 
 .splitEmpty {
-  background: repeating-linear-gradient(
-    -45deg,
-    transparent,
-    transparent 4px,
-    var(--dsw-alias-border-l2) 4px,
-    var(--dsw-alias-border-l2) 5px
-  );
+  background:
+    repeating-linear-gradient(
+      135deg,
+      transparent 0 6px,
+      color-mix(in oklab, var(--dsw-alias-label-primary) 5%, transparent) 6px 7px
+    ),
+    var(--fr-gutter);
 }
 
 .unifiedBodyWrap .splitPane {
   overflow-x: hidden;
 }
 
+/* Inline review note: a lifted card tied to its line by a brand rail. */
 .commentRow {
+  --fr-comment-rail: var(--fr-accent);
+
+  position: relative;
   box-sizing: border-box;
   display: flex;
   width: calc(100% - 68px);
@@ -219,14 +303,53 @@
   min-width: 360px;
   min-height: 78px;
   margin: 8px 12px 12px 56px;
-  padding: 12px;
+  padding: 12px 12px 10px 16px;
   align-items: stretch;
   gap: 8px;
   border: 1px solid var(--dsw-alias-border-l2);
-  border-radius: 10px;
-  background: var(--dsw-alias-bg-container, Canvas);
-  box-shadow: 0 2px 8px color-mix(in srgb, black 7%, transparent);
+  border-radius: 12px;
+  background: var(--fr-surface);
+  box-shadow:
+    0 1px 2px color-mix(in srgb, black 5%, transparent),
+    0 8px 24px -8px color-mix(in srgb, black 14%, transparent);
   white-space: normal;
+  animation: frCommentIn 180ms cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+
+.commentRow::before {
+  content: '';
+  position: absolute;
+  top: 12px;
+  bottom: 12px;
+  left: 0;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--fr-comment-rail);
+}
+
+.commentRow:focus-within {
+  border-color: color-mix(in oklab, var(--fr-accent) 45%, var(--dsw-alias-border-l2));
+  box-shadow:
+    0 0 0 3px color-mix(in oklab, var(--fr-accent) 14%, transparent),
+    0 8px 24px -8px color-mix(in srgb, black 14%, transparent);
+}
+
+@keyframes frCommentIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.99);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .commentRow {
+    animation: none;
+  }
+
+  .commentTrigger,
+  .unifiedLine {
+    transition: none;
+  }
 }
 
 .splitPane .commentRow {
@@ -284,16 +407,22 @@
 }
 
 .commentDelete {
-  padding: 2px 4px;
+  min-height: 26px;
+  padding: 0 9px;
   border: 0;
+  border-radius: 7px;
   background: transparent;
   color: var(--dsw-alias-label-tertiary);
   cursor: pointer;
   font: var(--dsw-font-xs-13);
+  transition:
+    background-color 120ms ease,
+    color 120ms ease;
 }
 
 .commentDelete:hover {
-  color: var(--dsw-alias-state-error-primary);
+  background: color-mix(in oklab, var(--fr-del) 10%, transparent);
+  color: var(--fr-del);
 }
 
 .commentActions {
@@ -318,17 +447,18 @@
 .commentCancel,
 .commentSave {
   box-sizing: border-box;
-  min-width: 54px;
+  min-width: 56px;
   min-height: 30px;
-  padding: 0 11px;
+  padding: 0 12px;
   border: 1px solid transparent;
-  border-radius: 8px;
+  border-radius: 999px;
   cursor: pointer;
   font: var(--dsw-font-xs-13);
   line-height: 28px;
   transition:
     background-color 120ms ease,
     border-color 120ms ease,
+    box-shadow 120ms ease,
     opacity 120ms ease;
 }
 
@@ -339,59 +469,106 @@
 
 .commentCancel:hover {
   background: var(--dsw-alias-interactive-bg-hover);
-  border-color: var(--dsw-alias-border-l2);
   color: var(--dsw-alias-label-primary);
 }
 
 .commentSave {
-  background: var(--dsw-alias-label-primary);
-  color: var(--dsw-alias-bg-container, Canvas);
+  background: var(--fr-accent);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--fr-accent) 35%, transparent);
+  color: var(--dsw-static-neutral-00, #fff);
   font-weight: 600;
 }
 
 .commentSave:hover:not(:disabled) {
-  opacity: 0.86;
+  background: color-mix(in oklab, var(--fr-accent) 88%, black);
 }
 
 .commentSave:disabled {
   cursor: default;
+  box-shadow: none;
   opacity: 0.35;
 }
 
 .commentCancel:focus-visible,
 .commentSave:focus-visible,
 .commentDelete:focus-visible {
-  outline: 2px solid var(--dsw-alias-state-business-primary);
+  outline: 2px solid var(--fr-accent);
   outline-offset: 2px;
 }
 
-.unifiedGap {
-  display: block;
+/* Collapsed context reads as a quiet fold marker, not a toolbar. */
+.unifiedGap,
+.unifiedOmitted {
+  box-sizing: border-box;
+  display: flex;
   width: 100%;
-  min-height: 32px;
-  padding: 0 12px 0 72px;
+  min-height: 30px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px 0 16px;
   border: 0;
-  border-top: 1px solid var(--dsw-alias-border-l1);
-  border-bottom: 1px solid var(--dsw-alias-border-l1);
-  background: var(--dsw-alias-border-l1);
-  color: var(--dsw-alias-label-secondary);
-  cursor: pointer;
+  border-block: 1px solid var(--fr-hairline);
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(in oklab, var(--fr-accent) 6%, transparent),
+      color-mix(in oklab, var(--fr-accent) 2%, transparent) 60%,
+      transparent
+    ),
+    var(--fr-gutter);
+  color: var(--dsw-alias-label-tertiary);
   font: var(--dsw-font-xs-13);
   text-align: left;
 }
 
+.unifiedGap {
+  cursor: pointer;
+  transition:
+    color 120ms ease,
+    background-color 120ms ease;
+}
+
+.unifiedGap::before,
+.unifiedOmitted > [aria-hidden='true'] {
+  display: inline-grid;
+  flex: 0 0 auto;
+  width: 20px;
+  height: 18px;
+  place-items: center;
+  border-radius: 5px;
+  background: color-mix(in oklab, var(--fr-accent) 12%, transparent);
+  color: var(--fr-accent);
+  font-size: 11px;
+  line-height: 1;
+}
+
+.unifiedGap::before {
+  content: '↕';
+}
+
+.unifiedGap[aria-expanded='true']::before {
+  content: '↑';
+}
+
+/* The right split pane mirrors the gap row as an empty spacer. */
+.unifiedGap:empty::before {
+  content: none;
+}
+
 .unifiedGap:hover {
-  color: var(--dsw-alias-label-primary);
+  color: var(--fr-accent);
+}
+
+.unifiedGap:hover::before {
+  background: var(--fr-accent);
+  color: var(--dsw-static-neutral-00, #fff);
+}
+
+.unifiedGap:focus-visible {
+  outline: 2px solid var(--fr-accent);
+  outline-offset: -2px;
 }
 
 .unifiedOmitted {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-height: 32px;
-  padding: 0 12px;
-  border-bottom: 1px solid var(--dsw-alias-border-l1);
-  background: var(--dsw-alias-border-l1);
-  color: var(--dsw-alias-label-secondary);
-  font: var(--dsw-font-xs-13);
+  border-top: 0;
 }
