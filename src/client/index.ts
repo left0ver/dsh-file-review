@@ -74,7 +74,13 @@ export async function apply(ctx: ClientContext): Promise<() => Promise<void>> {
     subscribe: (listener: () => void) => settings.subscribe(listener),
   }
   const t = ctx.locale.bind(NS)
-  const reviewBindings = new Map<string, ReturnType<typeof bindReviewReference>>()
+  const reviewBindings = new Map<
+    string,
+    {
+      readonly session: NonNullable<ReturnType<ISessions['binding']>>
+      readonly reference: ReturnType<typeof bindReviewReference>
+    }
+  >()
   const reviewRemotes = new Map<string, FileReviewTabRuntime>()
   // The package ships Host and browser halves in one TypeScript program. The Host
   // SessionStore and browser ISessions intentionally share the Cordis key, so keep
@@ -83,19 +89,23 @@ export async function apply(ctx: ClientContext): Promise<() => Promise<void>> {
   const reviewBindingFor = (
     sessionId: SessionId,
   ): ReturnType<typeof bindReviewReference> | undefined => {
-    let binding = reviewBindings.get(sessionId)
-    if (binding !== undefined) return binding
     const session = sessions.binding(sessionId)
+    const cached = reviewBindings.get(sessionId)
+    if (cached !== undefined && cached.session === session) return cached.reference
+    // Leaving a Session can release its binding; returning builds a new composer
+    // shell, so a cached reference would keep reconciling the dead one.
+    cached?.reference.dispose()
+    reviewBindings.delete(sessionId)
     if (session === undefined) return undefined
-    binding = bindReviewReference(
+    const reference = bindReviewReference(
       session.ctx,
       sessionId,
       ctx.conversation.input.for(session.ctx),
       ctx.locale.bind(NS),
       session.eventSource,
     )
-    reviewBindings.set(sessionId, binding)
-    return binding
+    reviewBindings.set(sessionId, { session, reference })
+    return reference
   }
   const reviewRemoteFor = (sessionId: SessionId): FileReviewTabRuntime => {
     let remote = reviewRemotes.get(sessionId)
@@ -159,6 +169,7 @@ export async function apply(ctx: ClientContext): Promise<() => Promise<void>> {
         locale: NS,
         inject: (sessionId) => ({
           projectRoot: sessions.list.getSnapshot().byId[sessionId]?.cwd,
+          syncComments: reviewRemoteFor(sessionId).syncComments,
         }),
       },
       ReviewCommentsDock,
@@ -215,7 +226,7 @@ export async function apply(ctx: ClientContext): Promise<() => Promise<void>> {
   }
   ctx.provide('chatFileMentions', mentions)
   return async () => {
-    for (const binding of reviewBindings.values()) binding.dispose()
+    for (const { reference } of reviewBindings.values()) reference.dispose()
     reviewBindings.clear()
     reviewRemotes.clear()
     disposeReviewSource()

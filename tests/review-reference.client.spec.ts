@@ -140,6 +140,26 @@ class FakeInput {
     this.emit()
   }
 
+  /** Replace a leading detect span, as the host does for a plain-text-only draft. */
+  replace(
+    start: number,
+    end: number,
+    text: string,
+    reference?: { source: string; ref: string; label: string },
+  ): void {
+    const clipboardText = reference === undefined ? text : REVIEW_REFERENCE
+    this.snapshot = {
+      ...this.snapshot,
+      draft: this.snapshot.draft.slice(0, start) + clipboardText + this.snapshot.draft.slice(end),
+      draftRev: this.snapshot.draftRev + 1,
+      occurrences:
+        reference === undefined
+          ? []
+          : [{ ...reference, clipboardText, offset: start, length: clipboardText.length }],
+    }
+    this.emit()
+  }
+
   transition(phase: FakeInput['snapshot']['phase'], clear = false): void {
     this.snapshot = {
       ...this.snapshot,
@@ -292,4 +312,50 @@ describe('review comment composer reference', () => {
     expect(input.snapshot.draft).toBe('')
     binding.dispose()
   })
+
+  // 验证宿主用纯文本恢复草稿后，开头的 @review-comments 字面文字被原地换回引用 chip。
+  it('restores a leading reference the host flattened into plain text', () => {
+    const input = new FakeInput()
+    const scope = spanScope(input)
+    input.setDraft(`${REVIEW_REFERENCE} Please fix these.`)
+    setReviewComment(comment(0, 'First'))
+    setReviewComment(comment(1, 'Second'))
+
+    const binding = bindReviewReference(scope, 'session-1', input, t, eventSource())
+
+    expect(input.snapshot.draft).toBe(`${REVIEW_REFERENCE} Please fix these.`)
+    expect(input.snapshot.occurrences).toEqual([
+      expect.objectContaining({ source: REVIEW_COMMENT_SOURCE, label: '2 comments', offset: 0 }),
+    ])
+    binding.dispose()
+  })
+
+  // 验证评论已清空时，残留的 @review-comments 字面文字会被移除而不是发给模型。
+  it('drops a flattened reference once no comments remain', () => {
+    const input = new FakeInput()
+    input.setDraft(`${REVIEW_REFERENCE} Question`)
+
+    const binding = bindReviewReference(spanScope(input), 'session-1', input, t, eventSource())
+
+    expect(input.snapshot.draft).toBe('Question')
+    expect(input.snapshot.occurrences).toHaveLength(0)
+    binding.dispose()
+  })
 })
+
+function spanScope(input: FakeInput): ClientContext {
+  return {
+    bail: (
+      _subject: unknown,
+      event: string,
+      payload: {
+        text?: string
+        reference?: { source: string; ref: string; label: string }
+        span: { start: number; end: number }
+      },
+    ) => {
+      input.replace(payload.span.start, payload.span.end, payload.text ?? '', payload.reference)
+      return true
+    },
+  } as unknown as ClientContext
+}

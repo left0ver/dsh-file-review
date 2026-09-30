@@ -1770,6 +1770,7 @@ describe('plugin registration', () => {
     )
     expect(dockRegistration?.options.inject?.('session-1')).toEqual({
       projectRoot: '/workspace/project',
+      syncComments: expect.any(Function),
     })
     expect(registrations).toEqual(
       expect.arrayContaining([

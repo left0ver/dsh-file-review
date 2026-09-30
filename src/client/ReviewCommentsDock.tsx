@@ -8,12 +8,27 @@ import { ReviewCommentPill } from './ReviewCommentPill.tsx'
 import css from './ProducedFiles.module.css'
 
 export type ReviewCommentsDockProps = PropsRuntime<'conversation.input.dock'> &
-  PropsLocale<typeof NS> & { readonly projectRoot?: string | undefined }
+  PropsLocale<typeof NS> & {
+    readonly projectRoot?: string | undefined
+    /** Reconcile the composer reference against this mount's composer shell. */
+    readonly syncComments?: (() => void) | undefined
+  }
 
 /** Render one session's aggregate chip; the hidden model reference remains in the draft. */
-export function ReviewCommentsDock({ sessionId, projectRoot, t }: ReviewCommentsDockProps) {
+export function ReviewCommentsDock({
+  sessionId,
+  projectRoot,
+  syncComments,
+  t,
+}: ReviewCommentsDockProps) {
   const [version, setVersion] = useState(0)
   const comments = reviewComments(sessionId)
+
+  // The dock mounts with the Session's composer, including after returning to
+  // a Session whose composer was rebuilt from a plain-text draft.
+  useEffect(() => {
+    syncComments?.()
+  }, [syncComments])
 
   useEffect(
     () =>
