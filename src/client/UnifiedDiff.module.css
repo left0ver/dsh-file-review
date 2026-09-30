@@ -572,3 +572,18 @@
 .unifiedOmitted {
   border-top: 0;
 }
+
+/* In a narrow panel the note spans the visible width instead of hanging off
+   the gutter, and the keyboard hint yields its room to the actions. */
+@container (max-width: 520px) {
+  .commentRow,
+  .splitPane .commentRow {
+    min-width: 0;
+    width: calc(100% - 16px);
+    margin: 6px 8px 10px;
+  }
+
+  .commentHint {
+    display: none;
+  }
+}

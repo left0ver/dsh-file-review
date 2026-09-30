@@ -24,6 +24,9 @@ import {
 import type { ProducedFileReview } from './turn-deliverables.ts'
 import css from './ProducedFiles.module.css'
 
+/** Below this panel width two panes are too cramped to read, so diffs render unified. */
+const SPLIT_MIN_WIDTH = 480
+
 export const DEFAULT_WORD_WRAP_SOURCE: ObservableSnapshot<boolean> = {
   getSnapshot: () => false,
   subscribe: () => () => {},
@@ -140,6 +143,23 @@ export function ReviewContent({
   const getSettings = useCallback(() => settings?.getSnapshot(), [settings])
   const snapshot = useSyncExternalStore(subscribeSettings, getSettings, getSettings)
   const layout = snapshot?.value?.diffLayout ?? DEFAULT_DIFF_LAYOUT
+  const rootRef = useRef<HTMLDivElement>(null)
+  const [narrow, setNarrow] = useState(false)
+  useEffect(() => {
+    const root = rootRef.current
+    if (root === null || typeof ResizeObserver === 'undefined') return undefined
+    const observer = new ResizeObserver(([entry]) => {
+      const width = entry?.contentRect.width ?? 0
+      // A hidden tab reports zero width; keep the last real decision.
+      if (width > 0) setNarrow(width < SPLIT_MIN_WIDTH)
+    })
+    observer.observe(root)
+    return () => {
+      observer.disconnect()
+    }
+  }, [])
+  // The saved preference stays split; only the rendering falls back while narrow.
+  const renderedLayout: DiffLayout = narrow ? 'unified' : layout
   const changeLayout = async (value: DiffLayout): Promise<void> => {
     if (settings === undefined) return
     setSavingLayout(true)
@@ -240,7 +260,7 @@ export function ReviewContent({
   }, [copied, diffs])
 
   return (
-    <div className={css.reviewContent} data-review-content="">
+    <div ref={rootRef} className={css.reviewContent} data-review-content="">
       <header className={css.reviewHeader}>
         <div className={css.reviewHeading}>
           <span className={css.reviewTitle}>{t('review.title')}</span>
@@ -348,6 +368,7 @@ export function ReviewContent({
                 <button
                   type="button"
                   className={css.openButton}
+                  title={t('review.openInEditor')}
                   onClick={() => {
                     openFile(review.path)
                   }}
@@ -355,14 +376,14 @@ export function ReviewContent({
                   <svg viewBox="0 0 20 20" aria-hidden="true" className={css.buttonIcon}>
                     <path d="M11 4h5v5M16 4l-7 7M14 11.5V15a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h3.5" />
                   </svg>
-                  {t('review.openInEditor')}
+                  <span className={css.openButtonLabel}>{t('review.openInEditor')}</span>
                 </button>
               </header>
               {fileCollapsed ? null : review.diffs.length === 0 ? (
                 <p className={css.reviewUnavailable}>{t('review.unavailable')}</p>
               ) : (
                 <UnifiedDiff
-                  layout={layout}
+                  layout={renderedLayout}
                   commentsActive={commentPath === review.path}
                   onCommentStart={() => setCommentPath(review.path)}
                   diffs={review.diffs}
