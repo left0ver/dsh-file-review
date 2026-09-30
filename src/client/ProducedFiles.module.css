@@ -597,9 +597,16 @@
   text-align: center;
 }
 
+/* Narrow sidebar: keep every file header on one row and let toolbar actions
+   collapse to icons; their text stays in the DOM as the accessible name. */
 @container (max-width: 520px) {
   .reviewHeader {
-    padding-left: 14px;
+    gap: 8px 10px;
+    padding: 10px 12px;
+  }
+
+  .reviewToolbar {
+    margin-left: auto;
   }
 
   .reviewBody {
@@ -607,14 +614,41 @@
   }
 
   .reviewFileHeader {
-    flex-wrap: wrap;
-    padding-block: 8px;
+    gap: 6px;
+    padding: 0 4px 0 8px;
   }
 
-  .reviewPath {
-    flex-basis: calc(100% - 70px);
-    overflow-wrap: anywhere;
-    white-space: normal;
+  .reviewToolbar .toolbarButton:not(select) {
+    width: 30px;
+    padding: 0;
+    justify-content: center;
+    gap: 0;
+    overflow: hidden;
+    color: transparent;
+    font-size: 0;
+  }
+
+  .reviewToolbar .toolbarButton:not(select) .buttonIcon {
+    color: var(--dsw-alias-label-secondary);
+  }
+
+  .openButton {
+    width: 28px;
+    padding: 0;
+    justify-content: center;
+  }
+
+  .openButton .buttonIcon {
+    flex: 0 0 auto;
+  }
+
+  .openButtonLabel {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
 }
 
@@ -747,13 +781,26 @@
 
 .commentDockPill {
   display: inline-flex;
-  min-height: 34px;
+  min-height: 32px;
   align-items: center;
-  border: 1px solid var(--dsw-alias-border-l2);
-  border-radius: 18px;
-  background: var(--dsw-specific-input-major, var(--dsw-alias-bg-container, Canvas));
-  box-shadow: var(--dsw-shadow-lv1);
-  overflow: hidden;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 999px;
+  background: var(--dsw-specific-input-major, var(--dsw-alias-bg-layer-1, Canvas));
+  box-shadow:
+    0 0 0 1px var(--dsw-alias-border-l2),
+    0 1px 2px color-mix(in srgb, black 4%, transparent),
+    0 6px 16px -8px color-mix(in srgb, black 14%, transparent);
+  transition: box-shadow 160ms ease;
+}
+
+.reviewCommentPillRoot:hover .commentDockPill,
+.reviewCommentPillRoot:focus-within .commentDockPill {
+  box-shadow:
+    0 0 0 1px
+      color-mix(in oklab, var(--dsw-alias-state-business-primary) 40%, var(--dsw-alias-border-l2)),
+    0 0 0 4px color-mix(in oklab, var(--dsw-alias-state-business-primary) 10%, transparent),
+    0 6px 16px -8px color-mix(in srgb, black 14%, transparent);
 }
 
 .commentDockOpen,
@@ -766,45 +813,77 @@
 
 .commentDockOpen {
   display: flex;
-  min-height: 34px;
+  min-height: 26px;
   align-items: center;
   gap: 7px;
-  padding: 0 4px 0 11px;
-  font: var(--dsw-font-sm-14);
+  padding: 0 10px 0 1px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 18px;
+  white-space: nowrap;
 }
 
-.commentDockOpen:hover,
-.commentDockRemove:hover {
-  background: var(--dsw-alias-interactive-bg-hover);
-}
-
+/* The comment glyph sits in a brand-tinted disc, echoing the diff comment rail. */
 .commentDockIcon {
-  width: 17px;
-  height: 17px;
+  box-sizing: border-box;
+  width: 24px;
+  height: 24px;
+  padding: 4px;
+  border-radius: 50%;
+  background: color-mix(in oklab, var(--dsw-alias-state-business-primary) 13%, transparent);
+  color: var(--dsw-alias-state-business-primary);
   fill: none;
   stroke: currentColor;
   stroke-linecap: round;
   stroke-linejoin: round;
-  stroke-width: 1.4;
-  color: var(--dsw-alias-label-tertiary);
+  stroke-width: 1.5;
+  transition:
+    background-color 160ms ease,
+    color 160ms ease;
+}
+
+.commentDockOpen:hover .commentDockIcon,
+.commentDockOpen[aria-expanded='true'] .commentDockIcon {
+  background: var(--dsw-alias-state-business-primary);
+  color: var(--dsw-static-neutral-00, #fff);
 }
 
 .commentDockRemove {
+  position: relative;
   display: grid;
-  width: 30px;
-  height: 30px;
+  width: 24px;
+  height: 24px;
   place-items: center;
-  margin-right: 2px;
+  margin-left: 5px;
   border-radius: 50%;
-  color: var(--dsw-alias-label-secondary);
-  font-size: 22px;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 17px;
   line-height: 1;
+  transition:
+    background-color 120ms ease,
+    color 120ms ease;
+}
+
+.commentDockRemove::before {
+  content: '';
+  position: absolute;
+  top: 5px;
+  bottom: 5px;
+  left: -4px;
+  width: 1px;
+  background: var(--dsw-alias-border-l2);
+}
+
+.commentDockRemove:hover {
+  background: color-mix(in oklab, var(--dsw-alias-state-error-primary) 12%, transparent);
+  color: var(--dsw-alias-state-error-primary);
 }
 
 .commentDockOpen:focus-visible,
 .commentDockRemove:focus-visible {
   outline: 2px solid var(--dsw-alias-state-business-primary);
-  outline-offset: -2px;
+  outline-offset: 1px;
 }
 
 .reviewCommentPreviewPositioner {
@@ -821,13 +900,37 @@
   height: auto;
   max-height: min(420px, 60vh);
   flex-direction: column;
-  gap: 8px;
-  padding: 8px;
+  gap: 6px;
+  padding: 6px;
   overflow: auto;
-  border: 1px solid var(--dsw-alias-border-l2);
-  border-radius: 16px;
-  background: var(--dsw-alias-bg-container, Canvas);
-  box-shadow: var(--dsw-shadow-lv3);
+  border-radius: 14px;
+  background: var(--dsw-alias-bg-layer-1, Canvas);
+  box-shadow:
+    0 0 0 1px var(--dsw-alias-border-l2),
+    var(--dsw-shadow-lv3);
+  scrollbar-width: thin;
+  animation: frPreviewIn 140ms cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+
+.reviewCommentPreviewAbove .reviewCommentPreview {
+  transform-origin: bottom left;
+}
+
+.reviewCommentPreviewBelow .reviewCommentPreview {
+  transform-origin: top right;
+}
+
+@keyframes frPreviewIn {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reviewCommentPreview {
+    animation: none;
+  }
 }
 
 .reviewCommentPreviewAbove {
@@ -843,37 +946,59 @@
 }
 
 .commentPreviewCard {
+  position: relative;
   box-sizing: border-box;
-  padding: 14px 16px;
-  border: 1px solid var(--dsw-alias-border-l2);
-  border-radius: 12px;
-  background: var(--dsw-alias-bg-container, Canvas);
+  padding: 11px 14px 12px 16px;
+  border-radius: 10px;
+  background: color-mix(
+    in oklab,
+    var(--dsw-alias-label-primary) 3.5%,
+    var(--dsw-alias-bg-layer-1, Canvas)
+  );
+}
+
+.commentPreviewCard::before {
+  content: '';
+  position: absolute;
+  top: 12px;
+  bottom: 12px;
+  left: 0;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--dsw-alias-state-business-primary);
 }
 
 .commentPreviewHeader {
   display: flex;
   min-width: 0;
   align-items: center;
-  gap: 12px;
-  font: var(--dsw-font-sm-14);
+  gap: 10px;
 }
 
 .commentPreviewPath {
   min-width: 0;
   flex: 1 1 auto;
   overflow: hidden;
-  color: var(--dsw-alias-state-business-primary);
+  color: var(--dsw-alias-label-secondary);
+  font: var(--dsw-font-markdown-code-block);
+  font-weight: 500;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .commentPreviewLocation {
   flex: 0 0 auto;
-  color: var(--dsw-alias-label-tertiary);
+  padding: 0 7px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--dsw-alias-state-business-primary) 11%, transparent);
+  color: var(--dsw-alias-state-business-primary);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  line-height: 20px;
 }
 
 .commentPreviewBody {
-  margin: 10px 0 0;
+  margin: 6px 0 0;
   color: var(--dsw-alias-label-primary);
   font: var(--dsw-font-sm-14);
   line-height: 22px;
@@ -922,23 +1047,32 @@
 
 .reviewMessageCommentPill {
   display: inline-flex;
-  min-height: 36px;
+  min-height: 32px;
   align-items: center;
   gap: 7px;
-  padding: 0 14px;
-  border: 1px solid var(--dsw-alias-border-l2);
-  border-radius: 18px;
-  background: var(--dsw-alias-bg-container, Canvas);
+  padding: 3px 12px 3px 4px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--dsw-alias-bg-layer-1, Canvas);
+  box-shadow:
+    0 0 0 1px var(--dsw-alias-border-l2),
+    0 1px 2px color-mix(in srgb, black 4%, transparent);
   color: var(--dsw-alias-label-primary);
   cursor: pointer;
-  font: var(--dsw-font-sm-14);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 18px;
   white-space: nowrap;
+  transition: box-shadow 160ms ease;
 }
 
 .reviewMessageCommentPill:hover,
 .reviewMessageCommentPill:focus-visible,
 .reviewMessageCommentPill[aria-expanded='true'] {
-  background: var(--dsw-alias-interactive-bg-hover);
+  box-shadow:
+    0 0 0 1px
+      color-mix(in oklab, var(--dsw-alias-state-business-primary) 40%, var(--dsw-alias-border-l2)),
+    0 0 0 4px color-mix(in oklab, var(--dsw-alias-state-business-primary) 10%, transparent);
 }
 
 .reviewMessageCommentPill:focus-visible {
@@ -947,14 +1081,18 @@
 }
 
 .reviewMessageCommentIcon {
-  width: 17px;
-  height: 17px;
+  box-sizing: border-box;
+  width: 24px;
+  height: 24px;
+  padding: 4px;
+  border-radius: 50%;
+  background: color-mix(in oklab, var(--dsw-alias-state-business-primary) 13%, transparent);
+  color: var(--dsw-alias-state-business-primary);
   fill: none;
   stroke: currentColor;
   stroke-linecap: round;
   stroke-linejoin: round;
-  stroke-width: 1.4;
-  color: var(--dsw-alias-label-tertiary);
+  stroke-width: 1.5;
 }
 
 .reviewMessageReference {
@@ -1069,18 +1207,5 @@
 
   .toolbarButton .buttonIcon {
     color: var(--dsw-alias-label-primary);
-  }
-
-  .reviewFileHeader {
-    flex-wrap: wrap;
-    padding-block: 8px;
-  }
-
-  .reviewPath {
-    flex-basis: calc(100% - 30px);
-  }
-
-  .openButton {
-    margin-left: auto;
   }
 }
