@@ -38,7 +38,13 @@ English · [简体中文](README.zh.md)
 
 ## Compatibility
 
-See the badge above for the currently supported DSH CLI version.
+The badge above shows the DSH CLI version this release was tested against. The plugin also accepts the other prereleases and the final release of that DSH version (for example, every `0.2.0-rc.x` plus `0.2.0`); the exact range is `peerDependencies` in [package.json](package.json).
+
+Outside that range, DSH refuses to load the plugin. To run it anyway at your own risk, grant an exemption for the exact versions involved:
+
+```bash
+dsh plugin --profile web allow-version dsh-file-review@<plugin-version> --dsh-version <dsh-version> --accept-risk
+```
 
 ## Quick start
 
