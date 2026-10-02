@@ -38,7 +38,13 @@
 
 ## 兼容性声明
 
-当前适配版本见顶部的徽章
+顶部徽章是本版本实际测试过的 DSH CLI 版本。插件同时兼容该 DSH 版本的其他预发布版和正式版（例如所有 `0.2.0-rc.x` 以及 `0.2.0`），准确范围见 [package.json](package.json) 中的 `peerDependencies`。
+
+超出该范围时，DSH 会拒绝加载插件。如果仍想使用（风险自负），可以为对应的精确版本授予豁免：
+
+```bash
+dsh plugin --profile web allow-version dsh-file-review@<plugin-version> --dsh-version <dsh-version> --accept-risk
+```
 
 ## 快速开始
 
