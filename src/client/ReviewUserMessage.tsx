@@ -1,9 +1,12 @@
 /** User-message projection that keeps serialized review context out of the visible bubble. */
 
-import { useCallback, useEffect, useRef, useState } from 'react'
-import type { ReactNode } from 'react'
-import type { ChatNodeViewProps } from '@deepseek-ai/dsh-client-ui-chat/client'
-import type { MessageImageSource } from '@deepseek-ai/dsh-client-ui-conversation/client'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type {
+  ChatNodeViewProps,
+  UserContentAttachment,
+  UserContentData,
+  UserContentInput,
+} from '@deepseek-ai/dsh-client-ui-chat/client'
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import type { NS } from './locales.ts'
 import { ReviewCommentPill } from './ReviewCommentPill.tsx'
@@ -32,7 +35,7 @@ type UserMessageProps = ChatNodeViewProps<'user' | 'steering'> & {
 
 interface ContentParts {
   readonly text: string
-  readonly images: readonly MessageImageSource[]
+  readonly attachments: readonly UserContentAttachment[]
   readonly rest: readonly unknown[]
 }
 
@@ -85,9 +88,10 @@ export function projectReviewMessageText(text: string): ReviewMessageProjection 
   }
 }
 
+/** Mirror the host split so files and images keep their original display order. */
 function contentParts(content: readonly unknown[]): ContentParts {
   const texts: string[] = []
-  const images: MessageImageSource[] = []
+  const attachments: UserContentAttachment[] = []
   const rest: unknown[] = []
   for (const block of content) {
     const value = block as {
@@ -97,38 +101,15 @@ function contentParts(content: readonly unknown[]): ContentParts {
     }
     if (value.type === 'text' && typeof value.text === 'string') texts.push(value.text)
     else if (value.type === 'image' && value.attachment !== undefined) {
-      images.push({ attachment: value.attachment } as MessageImageSource)
+      attachments.push({
+        type: 'image',
+        image: { attachment: value.attachment },
+      } as UserContentAttachment)
+    } else if (value.type === 'file' && value.attachment !== undefined) {
+      attachments.push({ type: 'file', file: value.attachment } as UserContentAttachment)
     } else rest.push(block)
   }
-  return { text: texts.join(''), images, rest }
-}
-
-/** Match the host's compact reference treatment for ordinary user messages. */
-function projectPlainReferences(text: string): ReactNode {
-  const expression = /(^|\s)([/@][\w-]+)(?=\s|$)/g
-  const parts: ReactNode[] = []
-  let cursor = 0
-  let match: RegExpExecArray | null
-  while ((match = expression.exec(text)) !== null) {
-    const tokenStart = match.index + (match[1]?.length ?? 0)
-    const label = match[2] ?? ''
-    if (tokenStart > cursor) {
-      parts.push(<span key={cursor}>{text.slice(cursor, tokenStart)}</span>)
-    }
-    parts.push(
-      <span
-        key={tokenStart}
-        className={css.reviewMessageReference}
-        data-ref-chip={label.startsWith('@') ? 'subagent' : 'skill'}
-      >
-        {label}
-      </span>,
-    )
-    cursor = tokenStart + label.length
-  }
-  if (parts.length === 0) return <span>{text}</span>
-  if (cursor < text.length) parts.push(<span key={cursor}>{text.slice(cursor)}</span>)
-  return parts
+  return { text: texts.join(''), attachments, rest }
 }
 
 function pad2(value: number): string {
@@ -175,21 +156,6 @@ function CopyIcon() {
       <rect x="6.5" y="6.5" width="9" height="9" rx="1.5" />
       <path d="M13.5 6.5v-2a1 1 0 0 0-1-1h-8a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h2" />
     </svg>
-  )
-}
-
-function ExtraBlock({ value, label }: { readonly value: unknown; readonly label: string }) {
-  let serialized: string
-  try {
-    serialized = JSON.stringify(value, null, 2) ?? String(value)
-  } catch {
-    serialized = String(value)
-  }
-  return (
-    <details className={css.reviewMessageExtraBlock}>
-      <summary>{label}</summary>
-      <pre>{serialized}</pre>
-    </details>
   )
 }
 
@@ -240,18 +206,35 @@ function MessageActions({
   )
 }
 
-/** Shadow the host user renderer while preserving its ordinary-message behavior. */
+/** Shadow the host user renderer, delegating content to its Factory so host text rules still apply. */
 export function ReviewUserMessage({
   node,
   cwd,
-  renderMessageImages,
+  loadImage,
+  renderFactorySlot,
   t,
   reviewT,
 }: UserMessageProps) {
-  const { content, time } = node.data
-  const { text, images, rest } = contentParts(content)
-  const projection = projectReviewMessageText(text)
-  const visibleText = projection?.visibleText ?? text
+  const { content, time, referenceLabels, skillNames } = node.data
+  const parts = useMemo(() => contentParts(content), [content])
+  const projection = useMemo(() => projectReviewMessageText(parts.text), [parts.text])
+  const visibleText = projection?.visibleText ?? parts.text
+  const prepared = useMemo<UserContentData>(
+    () => ({
+      text: visibleText,
+      attachments: parts.attachments,
+      extraBlocks: parts.rest,
+      ...(referenceLabels === undefined ? {} : { referenceLabels }),
+    }),
+    [visibleText, parts, referenceLabels],
+  )
+  // Same Facts the host derives; skillNames is declared by an optional skill plugin.
+  const facts = useMemo(() => {
+    const value: Record<string, unknown> = {}
+    if (referenceLabels !== undefined) value.sessionLabels = referenceLabels
+    if (skillNames !== undefined) value.skillNames = skillNames
+    return value as UserContentInput['facts']
+  }, [referenceLabels, skillNames])
   const countLabel =
     projection === null
       ? null
@@ -260,14 +243,13 @@ export function ReviewUserMessage({
         : reviewT('review.commentCount', { count: String(projection.commentCount) })
   const copyText =
     projection === null
-      ? text
+      ? parts.text
       : [countLabel, visibleText].filter((value) => value !== null && value !== '').join('\n\n')
-  const showBubble = visibleText !== '' || rest.length > 0
+  const showContent = visibleText !== '' || parts.attachments.length > 0 || parts.rest.length > 0
 
   return (
     <div className={css.reviewMessageRow} data-time-hover-root="">
       <div className={css.reviewMessageStack}>
-        {images.length > 0 ? renderMessageImages({ images, align: 'end' }) : null}
         {countLabel !== null && projection !== null && (
           <ReviewCommentPill
             comments={projection.comments.map((comment, index) => ({
@@ -280,14 +262,13 @@ export function ReviewUserMessage({
             variant="message"
           />
         )}
-        {showBubble && (
-          <div className={css.reviewMessageBubble}>
-            {projectPlainReferences(visibleText)}
-            {rest.map((block, index) => (
-              <ExtraBlock key={index} label={t('message.extraBlock')} value={block} />
-            ))}
-          </div>
-        )}
+        {showContent &&
+          renderFactorySlot('conversation.chat.user.content', {
+            content: prepared,
+            loadImage,
+            facts,
+            interactive: true,
+          })}
       </div>
       <MessageActions text={copyText} time={time} t={t} />
     </div>

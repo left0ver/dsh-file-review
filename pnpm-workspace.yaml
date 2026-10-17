@@ -7,3 +7,6 @@ allowBuilds:
 minimumReleaseAgeExclude:
   - '@deepseek-ai/dsh-*'
   - dsh-file-review
+  - '@deepseek-ai/cordis-plugin-loader@1.0.6'
+  - '@deepseek-ai/cosmokit@1.8.6'
+  - '@deepseek-ai/schemastery@3.18.5'

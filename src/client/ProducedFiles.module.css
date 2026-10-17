@@ -1034,17 +1034,6 @@
   gap: 8px;
 }
 
-.reviewMessageBubble {
-  max-width: 100%;
-  padding: 10px 16px;
-  border-radius: 22px;
-  background: var(--dsw-specific-bubble);
-  color: var(--dsw-alias-label-primary);
-  font-size: 16px;
-  line-height: 24px;
-  white-space: pre-wrap;
-}
-
 .reviewMessageCommentPill {
   display: inline-flex;
   min-height: 32px;
@@ -1095,19 +1084,6 @@
   stroke-width: 1.5;
 }
 
-.reviewMessageReference {
-  display: inline-block;
-  margin: 0 2px;
-  padding: 0 8px;
-  border-radius: 6px;
-  background: rgb(97 135 216 / 22%);
-  color: var(--dsw-alias-label-primary);
-  font-size: 0.85em;
-  line-height: 1.6;
-  vertical-align: baseline;
-  white-space: nowrap;
-}
-
 .reviewMessageActions {
   display: flex;
   height: 28px;
@@ -1150,21 +1126,6 @@
   stroke-linecap: round;
   stroke-linejoin: round;
   stroke-width: 1.4;
-}
-
-.reviewMessageExtraBlock {
-  margin-top: 8px;
-  font-size: 13px;
-}
-
-.reviewMessageExtraBlock pre {
-  max-height: 240px;
-  margin: 6px 0 0;
-  padding: 10px;
-  overflow: auto;
-  border-radius: 8px;
-  background: var(--dsw-alias-markdown-code-block);
-  white-space: pre-wrap;
 }
 
 @media (hover: hover) {

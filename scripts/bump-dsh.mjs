@@ -3,7 +3,8 @@
 // Moves every DSH version reference together:
 // - devDependencies and dsh.adapter.cliVersion pin the exact version E2E ran against;
 // - dependencies and peerDependencies accept a range, because DSH denies a plugin whose
-//   @deepseek-ai/dsh-* peers do not satisfy the running version (prereleases included).
+//   @deepseek-ai/dsh-* peers do not satisfy the running version (prereleases included);
+// - engines.dsh carries the same range, and DSH >= 0.2.1 checks it instead of the peers.
 // Usage: node scripts/bump-dsh.mjs <tested-version> [--peer <range>]
 
 import { readFile, writeFile } from 'node:fs/promises'
@@ -64,6 +65,7 @@ const manifest = JSON.parse(await readFile(manifestPath, 'utf8'))
 setDshVersions(manifest.devDependencies, tested)
 setDshVersions(manifest.dependencies, peer)
 setDshVersions(manifest.peerDependencies, peer)
+manifest.engines = { ...manifest.engines, dsh: peer }
 manifest.dsh.adapter.cliVersion = tested
 await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`)
 

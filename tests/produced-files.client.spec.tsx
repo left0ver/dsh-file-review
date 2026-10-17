@@ -1420,7 +1420,13 @@ describe('sent review comment projection', () => {
   it('renders the model-only envelope as a compact comment count pill', () => {
     const absolutePath = '/Users/test/projects/example/src/client/index.ts'
     const attachment = { id: 'image-1' }
-    const renderMessageImages = vi.fn(() => <span>Rendered image</span>)
+    const loadImage = vi.fn()
+    const renderFactorySlot = vi.fn((_name: string, input: { content: { text: string } }) => (
+      <span>
+        {input.content.text}
+        <span>Rendered image</span>
+      </span>
+    ))
     setReviewComment({
       sessionId: 'rendered-session',
       turn: 3,
@@ -1448,7 +1454,8 @@ describe('sent review comment projection', () => {
           time: Date.now(),
         },
       },
-      renderMessageImages,
+      loadImage,
+      renderFactorySlot,
       cwd: '/Users/test/projects/example',
       t: (key: string) => key,
       reviewT: makeTranslate(en),
@@ -1458,9 +1465,15 @@ describe('sent review comment projection', () => {
     expect(view.getByText('1 comment')).toBeTruthy()
     expect(view.getByText('Please apply it.')).toBeTruthy()
     expect(view.getByText('Rendered image')).toBeTruthy()
-    expect(renderMessageImages).toHaveBeenCalledExactlyOnceWith({
-      images: [{ attachment }],
-      align: 'end',
+    expect(renderFactorySlot).toHaveBeenCalledExactlyOnceWith('conversation.chat.user.content', {
+      content: {
+        text: 'Please apply it.',
+        attachments: [{ type: 'image', image: { attachment } }],
+        extraBlocks: [],
+      },
+      loadImage,
+      facts: {},
+      interactive: true,
     })
     expect(view.queryByText(/file_review_comments/)).toBeNull()
 
