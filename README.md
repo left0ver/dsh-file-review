@@ -38,7 +38,7 @@ English · [简体中文](README.zh.md)
 
 ## Compatibility
 
-The badge above shows the DSH CLI version this release was tested against. The plugin also accepts the other prereleases and the final release of that DSH version (for example, every `0.2.0-rc.x` plus `0.2.0`); the exact range is `peerDependencies` in [package.json](package.json).
+The badge above shows the DSH CLI version this release was tested against. The plugin also accepts the other prereleases and the final release of that DSH version (for example, every `0.2.1-rc.x` plus `0.2.1`); the exact range is `engines.dsh` in [package.json](package.json), which DSH 0.2.1 and later check instead of `peerDependencies` (both carry the same range).
 
 Outside that range, DSH refuses to load the plugin. To run it anyway at your own risk, grant an exemption for the exact versions involved:
 
