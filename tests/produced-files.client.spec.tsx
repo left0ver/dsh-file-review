@@ -32,7 +32,12 @@ import {
   ReviewCommentsDock,
   type ReviewCommentsDockProps,
 } from '../src/client/ReviewCommentsDock.tsx'
-import { projectReviewMessageText, ReviewUserMessage } from '../src/client/ReviewUserMessage.tsx'
+import {
+  matchReviewEnvelope,
+  REVIEW_COMMENTS_TEXT_ID,
+  ReviewCommentsText,
+  reviewCommentsTextRule,
+} from '../src/client/ReviewCommentsText.tsx'
 import { summarizeDiffs, unifiedDiffText } from '../src/client/UnifiedDiff.tsx'
 import {
   clearAllReviewComments,
@@ -1400,33 +1405,75 @@ describe('sent review comment projection', () => {
     })
     const serialized = serializeReviewComments('sent-session')
 
-    expect(projectReviewMessageText(`${serialized}\n\nPlease apply it.`)).toEqual({
-      commentCount: 1,
-      comments: [
-        {
-          path: 'src/client/index.ts',
-          kind: 'add',
-          oldLine: '',
-          newLine: '19',
-          body: 'Keep this behavior.',
-        },
-      ],
-      visibleText: 'Please apply it.',
+    const comments = [
+      {
+        path: 'src/client/index.ts',
+        kind: 'add',
+        oldLine: '',
+        newLine: '19',
+        body: 'Keep this behavior.',
+      },
+    ]
+    const message = `${serialized}\n\nPlease apply it.`
+    expect(matchReviewEnvelope(message)).toEqual({
+      comments,
+      end: serialized.length,
+      bodyStart: serialized.length + 2,
     })
-    expect(projectReviewMessageText(`Prefix\n${serialized}`)).toBeNull()
+    expect(matchReviewEnvelope(`Prefix\n${serialized}`)).toBeNull()
   })
 
-  // 验证模型专用评论封装显示为数量标签，隐藏原始标记，同时保留用户文字、图片及悬停预览。
-  it('renders the model-only envelope as a compact comment count pill', () => {
+  // 验证 UserText 规则把封装投影为评审节点，并把分隔换行显示为单个换行；纯封装消息不留空行。
+  it('projects the envelope and its separator through the UserText rule', () => {
+    setReviewComment({
+      sessionId: 'rule-session',
+      turn: 1,
+      closingSeq: 2,
+      body: 'Rename this.',
+      anchor: {
+        path: 'a.ts',
+        hunkIndex: 0,
+        rowIndex: 0,
+        kind: 'del',
+        oldLine: 4,
+        newLine: null,
+        text: 'old',
+        excerpt: '- old',
+      },
+    })
+    const serialized = serializeReviewComments('rule-session')
+    const end = serialized.length
+    const context = { read: () => undefined }
+    const message = `${serialized}\n\nPlease apply it.`
+
+    expect(reviewCommentsTextRule.match(message, 0, context)).toEqual({
+      id: REVIEW_COMMENTS_TEXT_ID,
+      start: 0,
+      end,
+      data: {
+        comments: [{ path: 'a.ts', kind: 'del', oldLine: '4', newLine: '', body: 'Rename this.' }],
+      },
+    })
+    expect(reviewCommentsTextRule.match(message, end, context)).toEqual({
+      id: 'text',
+      start: end,
+      end: end + 2,
+      data: { text: '\n\n', display: '\n' },
+    })
+    expect(reviewCommentsTextRule.match(message, end + 2, context)).toBeUndefined()
+    expect(reviewCommentsTextRule.match(`${serialized}\n`, end, context)).toEqual({
+      id: 'text',
+      start: end,
+      end: end + 1,
+      data: { text: '\n', display: '' },
+    })
+    expect(reviewCommentsTextRule.match(serialized, end, context)).toBeUndefined()
+    expect(reviewCommentsTextRule.match(`Hi ${serialized}`, 0, context)).toBeUndefined()
+  })
+
+  // 验证评审节点渲染为数量胶囊，悬停预览显示相对路径、行号与评论内容。
+  it('renders the projected envelope as a compact comment count pill', () => {
     const absolutePath = '/Users/test/projects/example/src/client/index.ts'
-    const attachment = { id: 'image-1' }
-    const loadImage = vi.fn()
-    const renderFactorySlot = vi.fn((_name: string, input: { content: { text: string } }) => (
-      <span>
-        {input.content.text}
-        <span>Rendered image</span>
-      </span>
-    ))
     setReviewComment({
       sessionId: 'rendered-session',
       turn: 3,
@@ -1444,37 +1491,17 @@ describe('sent review comment projection', () => {
       },
     })
     const serialized = serializeReviewComments('rendered-session')
+    const node = reviewCommentsTextRule.match(serialized, 0, { read: () => undefined })
     const props = {
-      node: {
-        data: {
-          content: [
-            { type: 'text', text: `${serialized}\n\nPlease apply it.` },
-            { type: 'image', attachment },
-          ],
-          time: Date.now(),
-        },
-      },
-      loadImage,
-      renderFactorySlot,
-      cwd: '/Users/test/projects/example',
-      t: (key: string) => key,
-      reviewT: makeTranslate(en),
-    } as unknown as Parameters<typeof ReviewUserMessage>[0]
-    const view = render(<ReviewUserMessage {...props} />)
+      node,
+      raw: serialized,
+      interactive: true,
+      projectRoot: '/Users/test/projects/example',
+      t: makeTranslate(en),
+    } as unknown as Parameters<typeof ReviewCommentsText>[0]
+    const view = render(<ReviewCommentsText {...props} />)
 
     expect(view.getByText('1 comment')).toBeTruthy()
-    expect(view.getByText('Please apply it.')).toBeTruthy()
-    expect(view.getByText('Rendered image')).toBeTruthy()
-    expect(renderFactorySlot).toHaveBeenCalledExactlyOnceWith('conversation.chat.user.content', {
-      content: {
-        text: 'Please apply it.',
-        attachments: [{ type: 'image', image: { attachment } }],
-        extraBlocks: [],
-      },
-      loadImage,
-      facts: {},
-      interactive: true,
-    })
     expect(view.queryByText(/file_review_comments/)).toBeNull()
 
     const pill = view.getByRole('button', { name: '1 comment' })
@@ -1637,6 +1664,7 @@ describe('plugin registration', () => {
     }
     const disposeSource = vi.fn()
     const registerSource = vi.fn(() => disposeSource)
+    const registerUserTextRule = vi.fn(() => () => {})
     let settingsValue = { wordWrap: false }
     const settingsListeners = new Set<() => void>()
     const publishWordWrap = (value: boolean): void => {
@@ -1694,6 +1722,7 @@ describe('plugin registration', () => {
             return () => {}
           },
         },
+        userText: { register: registerUserTextRule },
       },
       conversation: {
         input: {
@@ -1785,28 +1814,25 @@ describe('plugin registration', () => {
       projectRoot: '/workspace/project',
       syncComments: expect.any(Function),
     })
-    expect(registrations).toEqual(
-      expect.arrayContaining([
-        {
-          options: expect.objectContaining({
-            name: 'conversation.chat.node',
-            key: 'user',
-            priority: -10,
-            locale: 'chat',
-          }),
-          component: ReviewUserMessage,
-        },
-        {
-          options: expect.objectContaining({
-            name: 'conversation.chat.node',
-            key: 'steering',
-            priority: -10,
-            locale: 'chat',
-          }),
-          component: ReviewUserMessage,
-        },
-      ]),
+    expect(registerUserTextRule).toHaveBeenCalledExactlyOnceWith(reviewCommentsTextRule)
+    expect(registrations.some(({ options }) => options.name === 'conversation.chat.node')).toBe(
+      false,
     )
+    const textRegistration = registrations.find(
+      (registration) => registration.options.name === 'conversation.user.text.node',
+    )
+    expect(textRegistration).toEqual({
+      options: expect.objectContaining({
+        name: 'conversation.user.text.node',
+        key: REVIEW_COMMENTS_TEXT_ID,
+        locale: NS,
+        inject: expect.any(Function),
+      }),
+      component: ReviewCommentsText,
+    })
+    expect(textRegistration?.options.inject?.('session-1')).toEqual({
+      projectRoot: '/workspace/project',
+    })
     expect(slot?.component).toBe(ProducedFilesTail)
     expect(slot?.options.id).toBe('dsh-file-review')
     expect(slot?.options.order).toBe(-2)

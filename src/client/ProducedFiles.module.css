@@ -776,7 +776,11 @@
 }
 
 .reviewCommentPillRootMessage {
-  align-self: flex-end;
+  /* Inline inside the host's pre-wrap user bubble, on its own line above the user's text. */
+  display: inline-block;
+  vertical-align: middle;
+  margin: 1px 0 4px;
+  white-space: normal;
 }
 
 .commentDockPill {
@@ -1018,22 +1022,6 @@
 }
 
 /* Sent user messages keep the model-only review envelope behind a compact pill. */
-.reviewMessageRow {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 6px;
-}
-
-.reviewMessageStack {
-  display: flex;
-  max-width: min(525px, 82%);
-  min-width: 0;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 8px;
-}
-
 .reviewMessageCommentPill {
   display: inline-flex;
   min-height: 32px;
@@ -1082,62 +1070,6 @@
   stroke-linecap: round;
   stroke-linejoin: round;
   stroke-width: 1.5;
-}
-
-.reviewMessageActions {
-  display: flex;
-  height: 28px;
-  align-items: center;
-  gap: 10px;
-}
-
-.reviewMessageTime {
-  padding-right: 12px;
-  color: var(--dsw-alias-label-tertiary);
-  font-size: 14px;
-  line-height: 24px;
-  white-space: nowrap;
-}
-
-.reviewMessageAction {
-  display: inline-flex;
-  width: 28px;
-  height: 28px;
-  align-items: center;
-  justify-content: center;
-  padding: 6px;
-  border: 0;
-  border-radius: 50%;
-  background: transparent;
-  color: var(--dsw-alias-label-tertiary);
-  cursor: pointer;
-}
-
-.reviewMessageAction:hover {
-  background: var(--dsw-alias-interactive-bg-hover);
-  color: var(--dsw-alias-label-secondary);
-}
-
-.reviewMessageActionIcon {
-  width: 16px;
-  height: 16px;
-  fill: none;
-  stroke: currentColor;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 1.4;
-}
-
-@media (hover: hover) {
-  [data-time-hover-root] .reviewMessageTime {
-    opacity: 0;
-    transition: opacity 80ms;
-  }
-
-  [data-time-hover-root]:hover .reviewMessageTime,
-  [data-time-hover-root]:focus-within .reviewMessageTime {
-    opacity: 1;
-  }
 }
 
 @media (max-width: 760px) {

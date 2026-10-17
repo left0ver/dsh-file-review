@@ -29,7 +29,11 @@ import { installNativeSidebarIntegration } from './native-sidebar-adapter.tsx'
 import type { FileReviewTabRuntime } from './FileReviewTab.tsx'
 import { FileReviewSettingsCard } from './FileReviewSettingsCard.tsx'
 import { ReviewCommentsDock } from './ReviewCommentsDock.tsx'
-import { ReviewUserMessage } from './ReviewUserMessage.tsx'
+import {
+  REVIEW_COMMENTS_TEXT_ID,
+  ReviewCommentsText,
+  reviewCommentsTextRule,
+} from './ReviewCommentsText.tsx'
 import { en, NS, zh, type DeliverablesKey } from './locales.ts'
 import {
   deliverablesDefinition,
@@ -175,20 +179,21 @@ export async function apply(ctx: ClientContext): Promise<() => Promise<void>> {
       ReviewCommentsDock,
     ),
   )
-  for (const key of ['user', 'steering'] as const) {
-    ctx.slots.inject('conversation.chat.node', () =>
-      ctx.slots.register(
-        {
-          name: 'conversation.chat.node',
-          key,
-          priority: -10,
-          locale: 'chat',
-          inject: () => ({ reviewT: ctx.locale.bind(NS) }),
-        },
-        ReviewUserMessage,
-      ),
-    )
-  }
+  ctx.uiConversation.userText.register(reviewCommentsTextRule)
+  ctx.slots.inject('conversation.user.text.node', () =>
+    ctx.slots.register(
+      {
+        name: 'conversation.user.text.node',
+        key: REVIEW_COMMENTS_TEXT_ID,
+        priority: 100,
+        locale: NS,
+        inject: (sessionId) => ({
+          projectRoot: sessions.list.getSnapshot().byId[sessionId]?.cwd,
+        }),
+      },
+      ReviewCommentsText,
+    ),
+  )
   ctx.slots.inject('conversation.chat.turnTail', () =>
     ctx.slots.register(
       {
