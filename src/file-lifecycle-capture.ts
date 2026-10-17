@@ -1,7 +1,7 @@
 /** Capture exact file transitions around successful mutation tools. */
 
 import { lstat, readFile, realpath } from 'node:fs/promises'
-import { isAbsolute, relative, resolve } from 'node:path'
+import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type {
@@ -255,17 +255,53 @@ function snapshotFiles(
   return files
 }
 
-/** Prefer snapshot-derived diffs while retaining tool presentation for uncaptured paths. */
-function mergePresentedFiles(
+/**
+ * Resolve a tool path to the file it names, so relative, absolute, and symlinked spellings
+ * of one file compare equal. A missing file resolves through its parent directory.
+ */
+async function fileIdentity(root: string, path: string): Promise<string> {
+  const absolute = resolve(root, path)
+  try {
+    return await realpath(absolute)
+  } catch {
+    try {
+      return join(await realpath(dirname(absolute)), basename(absolute))
+    } catch {
+      return absolute
+    }
+  }
+}
+
+/**
+ * Prefer snapshot-derived diffs while retaining tool presentation for uncaptured paths.
+ * Files match by identity: DSH 0.2.1 edit/write present resolved absolute paths in their
+ * result, while the call (and therefore the snapshot) keeps the model's spelling.
+ */
+async function mergePresentedFiles(
+  root: string,
   presented: readonly PresentedFileChange[],
   captured: readonly PresentedFileChange[],
-): readonly PresentedFileChange[] {
-  const replacements = new Map(captured.map((file) => [file.path, file]))
-  const merged = presented.map((file) => {
-    const replacement = replacements.get(file.path)
-    replacements.delete(file.path)
-    return replacement ?? file
-  })
+): Promise<readonly PresentedFileChange[]> {
+  const identities = new Map<string, Promise<string>>()
+  const identify = (path: string): Promise<string> => {
+    let identity = identities.get(path)
+    if (identity === undefined) {
+      identity = fileIdentity(root, path)
+      identities.set(path, identity)
+    }
+    return identity
+  }
+  const replacements = new Map<string, PresentedFileChange>()
+  for (const file of captured) replacements.set(await identify(file.path), file)
+  const merged: PresentedFileChange[] = []
+  const emitted = new Set<string>()
+  for (const file of presented) {
+    const identity = await identify(file.path)
+    if (emitted.has(identity)) continue
+    emitted.add(identity)
+    merged.push(replacements.get(identity) ?? file)
+    replacements.delete(identity)
+  }
   return [...merged, ...replacements.values()]
 }
 
@@ -312,7 +348,7 @@ export function registerFileLifecycleCapture(ctx: Context): void {
         } catch {
           presented = normalizeMutationPresentation(callView, undefined)
         }
-        const files = mergePresentedFiles(presented, snapshots)
+        const files = await mergePresentedFiles(root, presented, snapshots)
         const owner = rootCall(agent, exec.rootCallId)
         if (snapshots.length > 0 && files.length > 0 && owner !== null) {
           captured.set(exec.token, {
