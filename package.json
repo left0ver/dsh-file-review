@@ -1,6 +1,6 @@
 {
   "name": "dsh-file-review",
-  "version": "0.8.10",
+  "version": "0.8.11",
   "description": "Review DeepSeek Harness file changes in native sidebar tabs",
   "keywords": [
     "code-review",
