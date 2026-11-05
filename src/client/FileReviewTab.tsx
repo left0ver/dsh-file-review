@@ -94,7 +94,7 @@ export function FileReviewTab({
   const reviews = useMemo(() => {
     if (target === undefined || snapshot === EMPTY_SNAPSHOT) return []
     const turn = snapshot.timeline.turns.get(target.turn)
-    const available = reviewsForClosing(turn?.data.get('deliverables'), target.closingSeq)
+    const available = reviewsForClosing(turn?.data.get('deliverables'))
     if (target.focusPaths.length === 0) return available
     const focused = new Set(target.focusPaths)
     return available.filter((review) => focused.has(review.path))

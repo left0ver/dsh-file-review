@@ -1,13 +1,10 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { access, lstat, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { Context } from '@deepseek-ai/cordis'
-import type { Agent } from '@deepseek-ai/dsh-agent'
-import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
-import Tools, { defineTool } from '@deepseek-ai/dsh-tools'
+import type { Context } from '@deepseek-ai/cordis'
 import { afterEach, describe, expect, it } from 'vitest'
-import { apply, inject } from '../src/index.ts'
 import { markerFromContent } from '../src/ptc-marker.ts'
+import { createHost, executeTool } from './host.ts'
 
 let ctx: Context | undefined
 const roots: string[] = []
@@ -24,67 +21,17 @@ async function workspace(): Promise<string> {
   return root
 }
 
-function agent(cwd: string, callId: string, step = 1): Agent {
-  return {
-    session: {
-      header: { cwd },
-      events: [
-        {
-          seq: 0,
-          time: 0,
-          type: 'tool/call',
-          data: { turn: 4, step, callId, name: 'fixture_write', arguments: '{}' },
-        },
-      ],
-    },
-  } as unknown as Agent
-}
-
-describe('tool lifecycle capture', () => {
-  // 验证根据工具执行前后的磁盘状态，记录新建文件的内容、权限和明确的创建标记。
-  it('persists an explicit create diff from the execution before/after state', async () => {
+describe('工具文件变更记录', () => {
+  it('记录原生 write 工具创建文件的内容和权限', async () => {
     const root = await workspace()
-    const filename = join(root, 'created.txt')
-    const callId = 'create-call'
-    ctx = new Context()
-    await ctx.plugin(SystemPrompt, { persona: '' })
-    await ctx.plugin(Tools, {})
-    const mounted = ctx.plugin({ apply, inject })
-    await mounted.await()
-    ctx.tools.register(
-      defineTool({
-        name: 'fixture_write',
-        description: 'write a fixture file',
-        parameters: {
-          path: { type: 'string', required: true },
-          content: { type: 'string', required: true },
-        },
-        output: {
-          schema: { type: 'string' },
-          render: (_args, value) => [{ type: 'text', text: value }],
-        },
-        presentCall: (args) => ({
-          card: 'diff',
-          title: `Write ${args.path}`,
-          locations: [{ path: args.path }],
-          diffs: [{ path: args.path, oldText: null, newText: args.content }],
-        }),
-        async execute(args) {
-          await writeFile(join(root, args.path), args.content, { mode: 0o640 })
-          return args.path
-        },
-      }),
-    )
-
-    const result = await ctx.tools.execute({
-      callId,
-      name: 'fixture_write',
-      arguments: { path: 'created.txt', content: 'created' },
-      agent: agent(root, callId),
-      signal: new AbortController().signal,
+    const host = await createHost(root)
+    ctx = host.ctx
+    const { callId, result } = await executeTool(ctx, host.agent, 'write', {
+      file_path: 'created.txt',
+      content: 'created',
     })
-
     expect(result.isError).toBe(false)
+    const mode = (await lstat(join(root, 'created.txt'))).mode & 0o777
     expect(
       markerFromContent(result.content, { rootCallId: callId, subCallId: callId })?.files,
     ).toEqual([
@@ -98,55 +45,22 @@ describe('tool lifecycle capture', () => {
             newText: 'created',
             oldStart: 1,
             newStart: 1,
-            lifecycle: { kind: 'create', mode: 0o640 },
+            lifecycle: { kind: 'create', mode },
           },
         ],
       },
     ])
-    expect(await readFile(filename, 'utf8')).toBe('created')
+    expect(await readFile(join(root, 'created.txt'), 'utf8')).toBe('created')
   })
 
-  // 验证通用删除工具执行后仍能记录删除前的文件内容和权限，供后续恢复使用。
-  it('persists the deleted file contents and permissions for a generic delete tool', async () => {
+  it('记录 apply_patch 删除文件之前的内容和权限', async () => {
     const root = await workspace()
-    const filename = join(root, 'deleted.txt')
-    await writeFile(filename, 'deleted', { mode: 0o600 })
-    const callId = 'delete-call'
-    ctx = new Context()
-    await ctx.plugin(SystemPrompt, { persona: '' })
-    await ctx.plugin(Tools, {})
-    const mounted = ctx.plugin({ apply, inject })
-    await mounted.await()
-    ctx.tools.register(
-      defineTool({
-        name: 'fixture_delete',
-        description: 'delete a fixture file',
-        parameters: { path: { type: 'string', required: true } },
-        output: {
-          schema: { type: 'string' },
-          render: (_args, value) => [{ type: 'text', text: value }],
-        },
-        presentCall: (args) => ({
-          card: 'generic',
-          title: `Delete ${args.path}`,
-          kind: 'delete',
-          locations: [{ path: args.path }],
-        }),
-        async execute(args) {
-          await rm(join(root, args.path))
-          return args.path
-        },
-      }),
-    )
-
-    const result = await ctx.tools.execute({
-      callId,
-      name: 'fixture_delete',
-      arguments: { path: 'deleted.txt' },
-      agent: agent(root, callId),
-      signal: new AbortController().signal,
+    await writeFile(join(root, 'deleted.txt'), 'deleted', { mode: 0o600 })
+    const host = await createHost(root)
+    ctx = host.ctx
+    const { callId, result } = await executeTool(ctx, host.agent, 'apply_patch', {
+      input: '*** Begin Patch\n*** Delete File: deleted.txt\n*** End Patch',
     })
-
     expect(result.isError).toBe(false)
     expect(
       markerFromContent(result.content, { rootCallId: callId, subCallId: callId })?.files,
@@ -166,12 +80,11 @@ describe('tool lifecycle capture', () => {
         ],
       },
     ])
+    await expect(access(join(root, 'deleted.txt'))).rejects.toThrow()
   })
 
-  // 验证插入和删除操作保留准确行号，差异块之间最多直接保留五行未修改内容。
-  it('captures insert/delete coordinates and keeps at most five unchanged lines inline', async () => {
+  it('记录准确的插入和删除行号，并在差异块之间保留最多五行未修改内容', async () => {
     const root = await workspace()
-    const filename = join(root, 'edited.txt')
     const before =
       [
         'repeat',
@@ -222,47 +135,13 @@ describe('tool lifecycle capture', () => {
         'six-6',
         'tail',
       ].join('\n') + '\n'
-    await writeFile(filename, before)
-    const callId = 'edit-call'
-    ctx = new Context()
-    await ctx.plugin(SystemPrompt, { persona: '' })
-    await ctx.plugin(Tools, {})
-    const mounted = ctx.plugin({ apply, inject })
-    await mounted.await()
-    ctx.tools.register(
-      defineTool({
-        name: 'fixture_edit',
-        description: 'edit a fixture file',
-        parameters: { path: { type: 'string', required: true } },
-        output: {
-          schema: { type: 'string' },
-          render: (_args, value) => [{ type: 'text', text: value }],
-        },
-        presentCall: (args) => ({
-          card: 'diff',
-          title: `Edit ${args.path}`,
-          locations: [{ path: args.path }],
-          diffs: [{ path: args.path, oldText: 'repeat', newText: 'changed' }],
-        }),
-        presentResult: (args) => ({
-          card: 'diff',
-          diffs: [{ path: args.path, oldText: 'repeat', newText: 'changed' }],
-        }),
-        async execute(args) {
-          await writeFile(join(root, args.path), after)
-          return args.path
-        },
-      }),
-    )
-
-    const result = await ctx.tools.execute({
-      callId,
-      name: 'fixture_edit',
-      arguments: { path: 'edited.txt' },
-      agent: agent(root, callId),
-      signal: new AbortController().signal,
+    await writeFile(join(root, 'edited.txt'), before)
+    const host = await createHost(root)
+    ctx = host.ctx
+    const { callId, result } = await executeTool(ctx, host.agent, 'write', {
+      file_path: 'edited.txt',
+      content: after,
     })
-
     expect(result.isError).toBe(false)
     expect(
       markerFromContent(result.content, { rootCallId: callId, subCallId: callId })?.files,
@@ -271,13 +150,7 @@ describe('tool lifecycle capture', () => {
         path: 'edited.txt',
         source: 'result',
         diffs: [
-          {
-            path: 'edited.txt',
-            oldText: '',
-            newText: 'inserted\n',
-            oldStart: 1,
-            newStart: 1,
-          },
+          { path: 'edited.txt', oldText: '', newText: 'inserted\n', oldStart: 1, newStart: 1 },
           {
             path: 'edited.txt',
             oldText: 'repeat\nfive-1\nfive-2\nfive-3\nfive-4\nfive-5\nsecond-old\n',
@@ -285,69 +158,24 @@ describe('tool lifecycle capture', () => {
             oldStart: 8,
             newStart: 9,
           },
-          {
-            path: 'edited.txt',
-            oldText: 'distant-old\n',
-            newText: '',
-            oldStart: 21,
-            newStart: 22,
-          },
+          { path: 'edited.txt', oldText: 'distant-old\n', newText: '', oldStart: 21, newStart: 22 },
         ],
       },
     ])
+    expect(await readFile(join(root, 'edited.txt'), 'utf8')).toBe(after)
   })
 
-  // 验证调用参数用相对路径、结果展示用绝对路径（DSH 0.2.1 的 edit/write）时，同一文件只记录一次。
-  it('merges result presentation paths that spell the captured file differently', async () => {
+  it('合并原生 edit 工具调用中的相对路径和执行结果中的绝对路径', async () => {
     const root = await workspace()
     await writeFile(join(root, 'edited.txt'), 'alpha\nbefore\nomega\n')
-    const callId = 'spelling-call'
-    ctx = new Context()
-    await ctx.plugin(SystemPrompt, { persona: '' })
-    await ctx.plugin(Tools, {})
-    const mounted = ctx.plugin({ apply, inject })
-    await mounted.await()
-    ctx.tools.register(
-      defineTool({
-        name: 'fixture_resolved_edit',
-        description: 'edit a fixture file and present its resolved path',
-        parameters: { path: { type: 'string', required: true } },
-        output: {
-          schema: { type: 'string' },
-          render: (_args, value) => [{ type: 'text', text: value }],
-        },
-        presentCall: (args) => ({
-          card: 'diff',
-          title: `Edit ${args.path}`,
-          locations: [{ path: args.path }],
-          diffs: [{ path: args.path, oldText: 'before', newText: 'after' }],
-        }),
-        // `root` is the unresolved tmpdir spelling, so this also crosses the /var symlink on macOS.
-        presentResult: (args) => ({
-          card: 'diff',
-          diffs: [
-            {
-              path: join(root, args.path),
-              oldText: 'alpha\nbefore\nomega',
-              newText: 'alpha\nafter\nomega',
-            },
-          ],
-        }),
-        async execute(args) {
-          await writeFile(join(root, args.path), 'alpha\nafter\nomega\n')
-          return args.path
-        },
-      }),
-    )
-
-    const result = await ctx.tools.execute({
-      callId,
-      name: 'fixture_resolved_edit',
-      arguments: { path: 'edited.txt' },
-      agent: agent(root, callId),
-      signal: new AbortController().signal,
+    const host = await createHost(root)
+    ctx = host.ctx
+    const { callId, result } = await executeTool(ctx, host.agent, 'edit', {
+      file_path: 'edited.txt',
+      old_string: 'before',
+      new_string: 'after',
     })
-
+    expect(result.isError).toBe(false)
     expect(
       markerFromContent(result.content, { rootCallId: callId, subCallId: callId })?.files,
     ).toEqual([
@@ -355,101 +183,101 @@ describe('tool lifecycle capture', () => {
         path: 'edited.txt',
         source: 'result',
         diffs: [
-          {
-            path: 'edited.txt',
-            oldText: 'before\n',
-            newText: 'after\n',
-            oldStart: 2,
-            newStart: 2,
-          },
+          { path: 'edited.txt', oldText: 'before\n', newText: 'after\n', oldStart: 2, newStart: 2 },
         ],
       },
     ])
   })
 
-  // 验证一次工具调用同时编辑和新建或删除文件时，普通编辑差异与生命周期快照都被保留。
-  it('keeps ordinary edit diffs beside captured lifecycle diffs from the same call', async () => {
+  it('记录单次 apply_patch 中的创建、删除、修改以及移动前后的路径', async () => {
     const root = await workspace()
-    await writeFile(join(root, 'edited.txt'), 'old')
-    const callId = 'mixed-call'
-    ctx = new Context()
-    await ctx.plugin(SystemPrompt, { persona: '' })
-    await ctx.plugin(Tools, {})
-    const mounted = ctx.plugin({ apply, inject })
-    await mounted.await()
-    ctx.tools.register(
-      defineTool({
-        name: 'fixture_mixed',
-        description: 'create one file and edit another',
-        parameters: {},
-        output: {
-          schema: { type: 'string' },
-          render: (_args, value) => [{ type: 'text', text: value }],
-        },
-        presentCall: () => ({
-          card: 'diff',
-          title: 'Mixed write',
-          locations: [{ path: 'created.txt' }, { path: 'edited.txt' }],
-          diffs: [
-            { path: 'created.txt', oldText: null, newText: 'created' },
-            { path: 'edited.txt', oldText: 'old', newText: 'new' },
-          ],
-        }),
-        presentResult: () => ({
-          card: 'diff',
-          diffs: [
-            { path: 'created.txt', oldText: null, newText: 'created' },
-            { path: 'edited.txt', oldText: 'old', newText: 'new' },
-          ],
-        }),
-        async execute() {
-          await writeFile(join(root, 'created.txt'), 'created', { mode: 0o640 })
-          await writeFile(join(root, 'edited.txt'), 'new')
-          return 'done'
-        },
-      }),
-    )
-
-    const result = await ctx.tools.execute({
-      callId,
-      name: 'fixture_mixed',
-      arguments: {},
-      agent: agent(root, callId),
-      signal: new AbortController().signal,
+    await writeFile(join(root, 'edited.txt'), 'old\n')
+    await writeFile(join(root, 'deleted.txt'), 'deleted\n', { mode: 0o600 })
+    await writeFile(join(root, 'source.txt'), 'before move\n', { mode: 0o640 })
+    const host = await createHost(root)
+    ctx = host.ctx
+    const { callId, result } = await executeTool(ctx, host.agent, 'apply_patch', {
+      input: [
+        '*** Begin Patch',
+        '*** Add File: created.txt',
+        '+created',
+        '*** Update File: edited.txt',
+        '@@',
+        '-old',
+        '+new',
+        '*** Delete File: deleted.txt',
+        '*** Update File: source.txt',
+        '*** Move to: destination.txt',
+        '@@',
+        '-before move',
+        '+after move',
+        '*** End Patch',
+      ].join('\n'),
     })
+    expect(result.isError).toBe(false)
     const files = markerFromContent(result.content, {
       rootCallId: callId,
       subCallId: callId,
     })?.files
-
-    expect(files).toEqual([
-      {
-        path: 'created.txt',
-        source: 'result',
-        diffs: [
-          {
-            path: 'created.txt',
-            oldText: null,
-            newText: 'created',
-            oldStart: 1,
-            newStart: 1,
-            lifecycle: { kind: 'create', mode: 0o640 },
-          },
-        ],
-      },
-      {
-        path: 'edited.txt',
-        source: 'result',
-        diffs: [
-          {
-            path: 'edited.txt',
-            oldText: 'old',
-            newText: 'new',
-            oldStart: 1,
-            newStart: 1,
-          },
-        ],
-      },
-    ])
+    expect(files).toHaveLength(5)
+    expect(files).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          path: 'created.txt',
+          diffs: [
+            expect.objectContaining({
+              oldText: null,
+              newText: 'created\n',
+              lifecycle: {
+                kind: 'create',
+                mode: (await lstat(join(root, 'created.txt'))).mode & 0o777,
+              },
+            }),
+          ],
+        }),
+        expect.objectContaining({
+          path: 'edited.txt',
+          diffs: [
+            { path: 'edited.txt', oldText: 'old\n', newText: 'new\n', oldStart: 1, newStart: 1 },
+          ],
+        }),
+        expect.objectContaining({
+          path: 'deleted.txt',
+          diffs: [
+            expect.objectContaining({
+              oldText: 'deleted\n',
+              lifecycle: { kind: 'delete', mode: 0o600 },
+            }),
+          ],
+        }),
+        expect.objectContaining({
+          path: 'source.txt',
+          diffs: [
+            expect.objectContaining({
+              oldText: 'before move\n',
+              lifecycle: { kind: 'delete', mode: 0o640 },
+            }),
+          ],
+        }),
+        expect.objectContaining({
+          path: 'destination.txt',
+          diffs: [
+            expect.objectContaining({
+              oldText: null,
+              newText: 'after move\n',
+              lifecycle: {
+                kind: 'create',
+                mode: (await lstat(join(root, 'destination.txt'))).mode & 0o777,
+              },
+            }),
+          ],
+        }),
+      ]),
+    )
+    expect(await readFile(join(root, 'created.txt'), 'utf8')).toBe('created\n')
+    expect(await readFile(join(root, 'edited.txt'), 'utf8')).toBe('new\n')
+    expect(await readFile(join(root, 'destination.txt'), 'utf8')).toBe('after move\n')
+    await expect(access(join(root, 'deleted.txt'))).rejects.toThrow()
+    await expect(access(join(root, 'source.txt'))).rejects.toThrow()
   })
 })

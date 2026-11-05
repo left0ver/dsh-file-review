@@ -350,22 +350,24 @@ function makeTranslate(...dicts: readonly Record<string, string>[]) {
 }
 
 describe('produced-file Turn data', () => {
-  // 验证产出文件按首次出现顺序去重，只汇总结束回复之前的结果，无产出时不挂载卡片。
-  it('deduplicates paths in first-seen order and stops at the closing Assistant seq', () => {
+  // 验证整个 turn 的产出文件按首次出现顺序去重，包含最终回复之后的修改。
+  it('includes every mutation in the turn in first-seen order', () => {
     const data = produced(
       [3, 'out/index.html'],
       [4, 'out/app.css'],
       [4, 'out/index.html'],
       [8, 'after.txt'],
     )
-    expect(producedForClosing(data, 6)).toEqual(['out/index.html', 'out/app.css'])
-    expect(reviewsForClosing(data, 6)).toEqual([
+    expect(producedForClosing(data)).toEqual(['out/index.html', 'out/app.css', 'after.txt'])
+    expect(reviewsForClosing(data)).toEqual([
       fileReview('out/index.html'),
       fileReview('out/app.css'),
+      fileReview('after.txt'),
     ])
     expect(selectProducedFiles(tailOwner(data, 6))).toEqual([
       fileReview('out/index.html'),
       fileReview('out/app.css'),
+      fileReview('after.txt'),
     ])
     expect(producedForClosing(undefined)).toEqual([])
     expect(selectProducedFiles(tailOwner(undefined, 9, () => {}, 2))).toBeNull()

@@ -4,6 +4,7 @@ import { Context } from '@deepseek-ai/cordis'
 import { afterEach, describe, expect, it } from 'vitest'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import Tools from '@deepseek-ai/dsh-tools'
+import * as NativeExecutor from '@deepseek-ai/dsh-tool-executor-native'
 import { apply, inject } from '../src/index.ts'
 
 let ctx: Context | undefined
@@ -19,6 +20,7 @@ describe('dsh-file-review node plugin', () => {
     ctx = new Context()
     await ctx.plugin(SystemPrompt, { persona: '' })
     await ctx.plugin(Tools, {})
+    await ctx.plugin(NativeExecutor).await()
     const mounted = ctx.plugin({ apply, inject })
     await mounted.await()
 

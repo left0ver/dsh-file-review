@@ -40,7 +40,7 @@ import {
   producedFileMentions,
   selectProducedFiles,
 } from './turn-deliverables.ts'
-import { bindReviewReference, reviewCommentSource } from './review-reference.ts'
+import { bindReviewReference, reviewCommentSource, type ReviewInput } from './review-reference.ts'
 import { clearAllReviewComments } from './review-comments.ts'
 
 declare module '@deepseek-ai/dsh-client-ui-slots' {
@@ -101,10 +101,13 @@ export async function apply(ctx: ClientContext): Promise<() => Promise<void>> {
     cached?.reference.dispose()
     reviewBindings.delete(sessionId)
     if (session === undefined) return undefined
+    const input = ctx.conversation.input.for(session.ctx)
+    if (!('draftSnapshot' in input)) throw new Error('Session input 缺少完整草稿快照')
     const reference = bindReviewReference(
       session.ctx,
       sessionId,
-      ctx.conversation.input.for(session.ctx),
+      // DSH 0.2.2 的 SessionInputShell 提供完整草稿，用于保留引用文字块的坐标。
+      input as ReviewInput,
       ctx.locale.bind(NS),
       session.eventSource,
     )

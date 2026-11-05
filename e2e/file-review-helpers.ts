@@ -16,7 +16,7 @@ export interface TargetFile {
 }
 
 export type MidsceneAgent = Awaited<ReturnType<PlayWrightAiFixtureType['agentForPage']>>
-export type AgentPreset = 'standard' | 'code'
+export type AgentPreset = 'standard' | 'code' | 'patch'
 
 export const names = {
   close: /^(?:Close|关闭)$/,
@@ -36,10 +36,11 @@ export const names = {
 const presetLabels: Record<AgentPreset, RegExp> = {
   standard: /^(?:Standard mode|标准模式)$/,
   code: /^(?:PTC mode|PTC 模式)$/,
+  patch: /^文件补丁测试$/,
 }
 
-const anyBuiltInPreset =
-  /Standard mode|标准模式|PTC mode|PTC 模式|Creator mode|创造模式|Minimal mode|极简模式/
+const anyPreset =
+  /Standard mode|标准模式|PTC mode|PTC 模式|Creator mode|创造模式|Minimal mode|极简模式|文件补丁测试/
 
 export function targetFile(basename: string): TargetFile {
   return {
@@ -97,7 +98,7 @@ export async function expectFileMode(filename: string, expected: number): Promis
 }
 
 function presetButton(page: Page): Locator {
-  return page.locator('button[aria-haspopup="menu"]').filter({ hasText: anyBuiltInPreset }).first()
+  return page.locator('button[aria-haspopup="menu"]').filter({ hasText: anyPreset }).first()
 }
 
 export async function expectSelectedPreset(page: Page, preset: AgentPreset): Promise<void> {
@@ -126,7 +127,11 @@ export async function openNewSession(page: Page, preset: AgentPreset): Promise<L
 
 export async function sendTask(page: Page, composer: Locator, prompt: string): Promise<void> {
   await composer.press('End')
-  await composer.pressSequentially(prompt)
+  const lines = prompt.split('\n')
+  for (const [index, line] of lines.entries()) {
+    if (index > 0) await composer.press('Shift+Enter')
+    await composer.pressSequentially(line)
+  }
   await page.getByRole('button', { name: names.send }).click()
 }
 

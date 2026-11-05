@@ -10,7 +10,7 @@ import type {
 } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { MarkdownFileMentions } from '@deepseek-ai/dsh-client-ui-primitives'
 import { isAppendSurfaceEvent } from '@deepseek-ai/dsh-session/surface'
-import type {} from '@deepseek-ai/dsh-tools/types'
+import type {} from '@deepseek-ai/dsh-tool-executor-ptc/client'
 import type { ProducedFileDiff, ProducedFileReview } from '../change-types.ts'
 import { markerFromContent, type PtcFileReviewMarker } from '../ptc-marker.ts'
 
@@ -74,21 +74,14 @@ function nativeResultMarker(event: ConversationEvent): PtcFileReviewMarker | nul
   return markerFromContent(result.content, { rootCallId: callId, subCallId: callId })
 }
 
-/**
- * Files and review hunks available at one closing Assistant boundary.
- * @param data - engine-published Deliverables data for one Turn.
- * @param seq - closing Assistant seq; later Tool settlements are excluded.
- * @returns Produced files in first-seen order with same-path hunks appended in settlement order.
- */
+/** 读取整个 turn 的文件变更，同一路径的差异按工具完成顺序合并。 */
 export function reviewsForClosing(
   data: Readonly<DeliverablesTurnData> | undefined,
-  seq = Number.POSITIVE_INFINITY,
 ): readonly ProducedFileReview[] {
   if (data === undefined) return []
   const reviews: Array<{ path: string; diffs: ProducedFileDiff[]; complete?: false }> = []
   const byPath = new Map<string, { path: string; diffs: ProducedFileDiff[]; complete?: false }>()
   for (const produced of data.produced) {
-    if (produced.seq > seq) continue
     const review = byPath.get(produced.path)
     if (review === undefined) {
       const created = {
@@ -121,18 +114,16 @@ export function reviewsForClosing(
  * runs, so paths cannot spill across turns and this derivation does not infer
  * boundaries from neighboring presentation Nodes.
  * @param data - engine-published Deliverables data for one Turn.
- * @param seq - closing Assistant seq; later Tool settlements are excluded.
  * @returns Produced paths in first-seen order; empty when the turn wrote nothing.
  */
 export function producedForClosing(
   data: Readonly<DeliverablesTurnData> | undefined,
-  seq = Number.POSITIVE_INFINITY,
 ): readonly string[] {
   if (data === undefined) return []
   const paths: string[] = []
   const seen = new Set<string>()
   for (const produced of data.produced) {
-    if (produced.seq > seq || seen.has(produced.path)) continue
+    if (seen.has(produced.path)) continue
     seen.add(produced.path)
     paths.push(produced.path)
   }
@@ -147,7 +138,7 @@ export function producedForClosing(
 export function selectProducedFiles(
   owner: TurnTailOwnerProps,
 ): readonly ProducedFileReview[] | null {
-  const reviews = reviewsForClosing(owner.turn.data.get('deliverables'), owner.seq)
+  const reviews = reviewsForClosing(owner.turn.data.get('deliverables'))
   return reviews.length === 0 ? null : reviews
 }
 

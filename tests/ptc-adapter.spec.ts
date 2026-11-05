@@ -1,6 +1,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
-import type { PtcDispatchLog, ToolDefinition } from '@deepseek-ai/dsh-tools'
+import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
+import type { PtcDispatchLog } from '@deepseek-ai/dsh-tool-executor-ptc'
 import { describe, expect, it, vi } from 'vitest'
 import { adaptPtcDispatchLog, registerPtcAdapter } from '../src/ptc-adapter.ts'
 import { boundedPtcFileReviewMarker, markerBlock, markerFromContent } from '../src/ptc-marker.ts'

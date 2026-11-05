@@ -2,6 +2,7 @@
 
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
 import type { SessionEventSource } from '@deepseek-ai/dsh-api-session-controller/client'
+import type { DraftSnapshot, InputState } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type { InputTriggerSource } from '@deepseek-ai/dsh-client-ui-input-trigger/client'
 import type { TranslateNS } from '@deepseek-ai/dsh-client-ui-slots'
 import type { NS } from './locales.ts'
@@ -28,16 +29,16 @@ interface ReviewOccurrence {
 interface ReviewInputState {
   readonly draft: string
   readonly draftRev: number
-  readonly phase: 'plain' | 'adjudicating' | 'claimed' | 'submitting'
+  readonly phase: InputState['phase']
   readonly occurrences: readonly ReviewOccurrence[]
 }
 
 export interface ReviewInput {
+  readonly draftSnapshot: DraftSnapshot
   readonly state: {
     getSnapshot(): ReviewInputState
     subscribe(listener: () => void): () => void
   }
-  setDraft(text: string): void
 }
 
 function occurrenceFor(state: ReviewInputState, sessionId: string): ReviewOccurrence | undefined {
@@ -118,27 +119,23 @@ export function bindReviewReference(
       if (current !== undefined) {
         const end = current.offset + current.length
         const hasSeparator = state.draft[end] === ' '
-        if (current.offset > 0) {
-          // DSH 的 detect 坐标中每个引用占一个位置。
-          const detectStart =
-            current.offset -
-            state.occurrences
-              .filter((occurrence) => occurrence.offset < current.offset)
-              .reduce((length, occurrence) => length + occurrence.length - 1, 0)
-          const removed = scope.bail(scope, 'slash/input-insert-text', {
-            text: '',
-            span: {
-              start: detectStart,
-              end: detectStart + (hasSeparator ? 2 : 1),
-              draftRev: state.draftRev,
-            },
-          })
-          if (removed !== true) throw new Error('Failed to move review comment reference')
-          caretAfterPrefix = detectStart
-        } else {
-          const removeEnd = hasSeparator ? end + 1 : end
-          input.setDraft(state.draft.slice(0, current.offset) + state.draft.slice(removeEnd))
-        }
+        // 引用标签和引用文字块在 detect 坐标中各占一个位置。
+        const atoms = [...state.occurrences, ...(input.draftSnapshot.quotes ?? [])]
+        const detectStart =
+          current.offset -
+          atoms
+            .filter((atom) => atom.offset < current.offset)
+            .reduce((length, atom) => length + atom.length - 1, 0)
+        const removed = scope.bail(scope, 'slash/input-insert-text', {
+          text: '',
+          span: {
+            start: detectStart,
+            end: detectStart + (hasSeparator ? 2 : 1),
+            draftRev: state.draftRev,
+          },
+        })
+        if (removed !== true) throw new Error('Failed to update review comment reference')
+        if (current.offset > 0) caretAfterPrefix = detectStart
         state = input.state.getSnapshot()
       }
       if (flattened > 0 && count === 0) {

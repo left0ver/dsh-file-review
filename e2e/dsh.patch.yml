@@ -1,3 +1,16 @@
 # Keep workspace selection inside the browser so Playwright can operate it.
 - id: directory-picker
   name: '@deepseek-ai/dsh-host-directory-picker-browse'
+- insert:
+    - id: preset-file-review-patch
+      name: '@deepseek-ai/dsh-agent-preset'
+      config:
+        id: file-review-patch
+        name: 文件补丁测试
+        plugins:
+          - id: tool-fs
+            name: '@deepseek-ai/dsh-tool-fs'
+            config:
+              write: false
+              edit: false
+              applyPatch: true
