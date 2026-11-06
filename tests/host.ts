@@ -1,4 +1,7 @@
 import { randomUUID } from 'node:crypto'
+import { readFile } from 'node:fs/promises'
+import { load } from 'js-yaml'
+import { z } from 'zod'
 import { Context } from '@deepseek-ai/cordis'
 import Agents, { type Agent } from '@deepseek-ai/dsh-agent'
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
@@ -26,7 +29,23 @@ export async function createHost(cwd: string): Promise<{ ctx: Context; agent: Ag
   await ctx.plugin(AgentLoop).await()
   await ctx.plugin(LocalFileSystem, { cwd }).await()
   await ctx.plugin(WorkingDirectory).await()
-  await ctx.plugin(FileTools, { applyPatch: true }).await()
+  await ctx.plugin(FileTools).await()
+  const bundle = z
+    .array(
+      z.object({
+        insert: z
+          .array(z.object({ id: z.string(), name: z.string(), config: z.unknown().optional() }))
+          .optional(),
+      }),
+    )
+    .parse(load(await readFile(new URL('../cordis.patch.yml', import.meta.url), 'utf8')))
+  const patchTool = bundle
+    .flatMap((entry) => entry.insert ?? [])
+    .find((entry) => entry.id === 'file-review-apply-patch')
+  if (patchTool?.name !== '@deepseek-ai/dsh-tool-fs') {
+    throw new Error('插件安装配置缺少官方 apply_patch 工具')
+  }
+  await ctx.plugin(FileTools, FileTools.Config(patchTool.config)).await()
   await ctx.plugin(FileReview).await()
   const handle = await ctx.agents.create({ sessionId: SessionId(randomUUID()), meta: { cwd } })
   return { ctx, agent: handle.agent }

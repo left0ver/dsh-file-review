@@ -16,7 +16,7 @@ export interface TargetFile {
 }
 
 export type MidsceneAgent = Awaited<ReturnType<PlayWrightAiFixtureType['agentForPage']>>
-export type AgentPreset = 'standard' | 'code' | 'patch'
+export type AgentPreset = 'standard' | 'code'
 
 export const names = {
   close: /^(?:Close|关闭)$/,
@@ -36,11 +36,10 @@ export const names = {
 const presetLabels: Record<AgentPreset, RegExp> = {
   standard: /^(?:Standard mode|标准模式)$/,
   code: /^(?:PTC mode|PTC 模式)$/,
-  patch: /^文件补丁测试$/,
 }
 
 const anyPreset =
-  /Standard mode|标准模式|PTC mode|PTC 模式|Creator mode|创造模式|Minimal mode|极简模式|文件补丁测试/
+  /Standard mode|标准模式|PTC mode|PTC 模式|Creator mode|创造模式|Minimal mode|极简模式/
 
 export function targetFile(basename: string): TargetFile {
   return {

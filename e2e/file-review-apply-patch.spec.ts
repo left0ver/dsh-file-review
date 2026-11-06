@@ -31,7 +31,7 @@ test('apply_patch 创建、删除和移动文件后可整体撤销及重新应�
     prepareExistingTarget(source, 'source\n'),
     prepareMissingTarget(destination),
   ])
-  const composer = await openNewSession(page, 'patch')
+  const composer = await openNewSession(page, 'standard')
   const agent = await agentForPage(page)
   const patch = [
     '*** Begin Patch',

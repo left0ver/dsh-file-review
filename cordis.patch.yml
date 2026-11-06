@@ -2,5 +2,13 @@
   disabled: true
 
 - insert:
+    - id: file-review-apply-patch
+      name: '@deepseek-ai/dsh-tool-fs'
+      config:
+        read: false
+        readImage: false
+        write: false
+        edit: false
+        applyPatch: true
     - id: file-review
       name: 'dsh-file-review'
