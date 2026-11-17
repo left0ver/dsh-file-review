@@ -1,21 +1,26 @@
 .card {
-  --accent: #9b8afb;
+  --accent: var(--dsw-alias-state-business-primary, var(--dsw-alias-brand-primary, #7c6df2));
   list-style: none;
-  border: 1px solid color-mix(in srgb, var(--accent) 65%, var(--dsw-alias-border-l2));
+  border: 1px solid color-mix(in oklab, var(--accent) 34%, var(--dsw-alias-border-l2));
   border-radius: 16px;
   background: linear-gradient(
     135deg,
-    color-mix(in srgb, var(--accent) 12%, var(--dsw-alias-bg-layer-3)),
+    color-mix(in oklab, var(--accent) 9%, var(--dsw-alias-bg-layer-3)),
     var(--dsw-alias-bg-layer-3) 65%
   );
+  box-shadow: 0 1px 3px color-mix(in srgb, black 5%, transparent);
   transition:
-    border-color 0.16s,
-    background 0.16s;
+    border-color 0.16s ease,
+    background 0.16s ease,
+    box-shadow 0.16s ease;
 }
 
 .card:hover,
 .cardOpen {
-  border-color: color-mix(in srgb, var(--dsw-alias-brand-primary) 40%, var(--dsw-alias-border-l2));
+  border-color: color-mix(in oklab, var(--accent) 52%, var(--dsw-alias-border-l2));
+  box-shadow:
+    0 1px 3px color-mix(in srgb, black 5%, transparent),
+    0 8px 20px -12px color-mix(in oklab, var(--accent) 28%, transparent);
 }
 
 .header {
@@ -205,12 +210,32 @@
 }
 
 .select {
-  padding: 6px 8px;
+  appearance: none;
+  min-height: 32px;
+  padding: 5px 28px 5px 10px;
   border: 1px solid var(--dsw-alias-border-l2);
-  border-radius: 6px;
-  background: var(--dsw-alias-bg-layer-3);
+  border-radius: 8px;
+  background-color: var(--dsw-alias-bg-layer-3);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%2381858c' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 8l4 4 4-4'/%3E%3C/svg%3E");
+  background-position: right 8px center;
+  background-repeat: no-repeat;
+  background-size: 14px;
   color: var(--dsw-alias-label-primary);
+  cursor: pointer;
   font: inherit;
+  font-size: 13px;
+  transition:
+    border-color 0.14s ease,
+    background-color 0.14s ease;
+}
+
+.select:hover:not(:disabled) {
+  border-color: color-mix(in oklab, var(--accent) 45%, var(--dsw-alias-border-l2));
+}
+
+.select:disabled {
+  cursor: default;
+  opacity: 0.5;
 }
 
 .toggle[data-checked='true'] {

@@ -82,7 +82,7 @@ export function ReviewStats({
 }
 
 /** Git-style status letter for one reviewed file's net lifecycle. */
-function fileStatus(review: ProducedFileReview): 'A' | 'D' | 'M' {
+export function fileStatus(review: ProducedFileReview): 'A' | 'D' | 'M' {
   const first = review.diffs[0]
   const last = review.diffs.at(-1)
   if (last?.lifecycle?.kind === 'delete') return 'D'
@@ -97,6 +97,14 @@ function CopyIcon() {
     <svg viewBox="0 0 20 20" aria-hidden="true" className={css.buttonIcon}>
       <rect x="6.5" y="6.5" width="9" height="9" rx="1.5" />
       <path d="M13.5 6.5v-2a1 1 0 0 0-1-1h-8a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h2" />
+    </svg>
+  )
+}
+
+function CheckIcon() {
+  return (
+    <svg viewBox="0 0 20 20" aria-hidden="true" className={css.buttonIcon}>
+      <path d="m4.5 10.5 3.5 3.5 7.5-7.5" />
     </svg>
   )
 }
@@ -210,6 +218,14 @@ export function ReviewContent({
     [closingSeq, commentVersion, sessionId, turn, visible],
   )
 
+  const commentCountsByPath = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const comment of comments.values()) {
+      counts.set(comment.anchor.path, (counts.get(comment.anchor.path) ?? 0) + 1)
+    }
+    return counts
+  }, [comments])
+
   const commentFor = useCallback(
     (anchor: DiffLineAnchor): string | undefined =>
       comments.get(reviewCommentKey(turn, closingSeq, anchor))?.body,
@@ -311,22 +327,27 @@ export function ReviewContent({
           </button>
           <button
             type="button"
-            className={css.toolbarButton}
+            className={`${css.toolbarButton} ${copied ? css.toolbarButtonSuccess : ''}`}
             disabled={diffs.length === 0}
             onClick={copyDiff}
           >
-            <CopyIcon />
+            {copied ? <CheckIcon /> : <CopyIcon />}
             {copied ? t('review.copied') : t('review.copy')}
           </button>
         </div>
       </header>
-      {layoutError && <p role="alert">{t('settings.saveError')}</p>}
+      {layoutError && (
+        <p className={css.reviewAlert} role="alert">
+          {t('settings.saveError')}
+        </p>
+      )}
       <div className={css.reviewBody}>
         {reviews.map((review) => {
           const fileStats = summarizeDiffs(review.diffs)
           const relativePath = displayProjectPath(review.path, projectRoot)
           const fileCollapsed = collapsedPaths.has(review.path)
           const status = fileStatus(review)
+          const fileComments = commentCountsByPath.get(review.path) ?? 0
           return (
             <section
               key={review.path}
@@ -358,6 +379,26 @@ export function ReviewContent({
                   </svg>
                   <span className={css.reviewPathText}>{relativePath}</span>
                 </button>
+                {fileComments > 0 && (
+                  <span
+                    className={css.reviewFileComments}
+                    data-file-comment-count={fileComments}
+                    title={
+                      fileComments === 1
+                        ? t('review.commentCountOne')
+                        : t('review.commentCount', { count: String(fileComments) })
+                    }
+                  >
+                    <svg
+                      viewBox="0 0 16 16"
+                      aria-hidden="true"
+                      className={css.reviewFileCommentIcon}
+                    >
+                      <path d="M3 3.25h10a1 1 0 0 1 1 1v5.5a1 1 0 0 1-1 1H7l-2.8 2.25V10.75H3a1 1 0 0 1-1-1v-5.5a1 1 0 0 1 1-1Z" />
+                    </svg>
+                    {fileComments}
+                  </span>
+                )}
                 <ReviewStats
                   stats={fileStats}
                   label={t('review.stats', {
@@ -380,7 +421,13 @@ export function ReviewContent({
                 </button>
               </header>
               {fileCollapsed ? null : review.diffs.length === 0 ? (
-                <p className={css.reviewUnavailable}>{t('review.unavailable')}</p>
+                <div className={css.reviewUnavailable}>
+                  <svg viewBox="0 0 20 20" aria-hidden="true" className={css.unavailableIcon}>
+                    <circle cx="10" cy="10" r="7" />
+                    <path d="M10 6.75v3.75M10 13.25h.01" />
+                  </svg>
+                  <p className={css.reviewUnavailableText}>{t('review.unavailable')}</p>
+                </div>
               ) : (
                 <UnifiedDiff
                   layout={renderedLayout}

@@ -5,7 +5,8 @@ import type { TurnTailOwnerProps } from '@deepseek-ai/dsh-client-ui-chat/client'
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { FileReviewRequest, FileReviewResult } from '../change-types.ts'
 import type { NS } from './locales.ts'
-import { ReviewStats } from './ReviewContent.tsx'
+import { disambiguateDirectories } from './project-path.ts'
+import { fileStatus, ReviewStats } from './ReviewContent.tsx'
 import { ReviewResultToast, unavailableChanges, useReviewActions } from './review-actions.tsx'
 import type { ReviewTarget } from './FileReviewTab.tsx'
 import { basename, selectProducedFiles, type ProducedFileReview } from './turn-deliverables.ts'
@@ -75,8 +76,13 @@ export function ProducedFiles({
     () =>
       reviews.map((review) => ({
         review,
+        status: fileStatus(review),
         stats: summarizeDiffs(review.diffs),
       })),
+    [reviews],
+  )
+  const directoryHints = useMemo(
+    () => disambiguateDirectories(reviews.map((review) => review.path)),
     [reviews],
   )
   const totalStats = useMemo(
@@ -145,37 +151,60 @@ export function ProducedFiles({
           </button>
         </header>
         <div className={css.fileList}>
-          {shown.map(({ review, stats }) => (
-            <button
-              key={review.path}
-              type="button"
-              className={css.fileRow}
-              title={review.path}
-              aria-label={t('produced.review', { name: review.path })}
-              onClick={() =>
-                openReview({ turn: turnNumber, closingSeq: seq, focusPaths: [review.path] })
-              }
-            >
-              <span className={css.fileName}>{basename(review.path)}</span>
-              <ReviewStats
-                stats={stats}
-                label={t('review.stats', {
-                  added: String(stats.added),
-                  removed: String(stats.removed),
-                })}
-              />
-            </button>
-          ))}
-          {hidden > 0 && (
+          {shown.map(({ review, status, stats }) => {
+            const dirHint = directoryHints.get(review.path)
+            return (
+              <button
+                key={review.path}
+                type="button"
+                className={css.fileRow}
+                title={review.path}
+                aria-label={t('produced.review', { name: review.path })}
+                onClick={() =>
+                  openReview({ turn: turnNumber, closingSeq: seq, focusPaths: [review.path] })
+                }
+              >
+                <span className={css.fileStatusBadge} data-status={status} aria-hidden="true">
+                  {status}
+                </span>
+                <span className={css.fileNameGroup}>
+                  <span className={css.fileName}>{basename(review.path)}</span>
+                  {dirHint !== undefined && <span className={css.fileDir}>{dirHint}</span>}
+                </span>
+                <ReviewStats
+                  stats={stats}
+                  label={t('review.stats', {
+                    added: String(stats.added),
+                    removed: String(stats.removed),
+                  })}
+                />
+                <svg viewBox="0 0 16 16" aria-hidden="true" className={css.fileRowChevron}>
+                  <path d="m6 4 4 4-4 4" />
+                </svg>
+              </button>
+            )
+          })}
+          {reviewsWithStats.length > SHOWN_LIMIT && (
             <button
               type="button"
               className={css.moreFiles}
               aria-expanded={isPreviewExpanded}
               onClick={() => {
-                setIsPreviewExpanded(true)
+                setIsPreviewExpanded((expanded) => !expanded)
               }}
             >
-              {hidden === 1 ? t('produced.moreOne') : t('produced.more', { count: String(hidden) })}
+              <svg
+                viewBox="0 0 16 16"
+                aria-hidden="true"
+                className={`${css.moreFilesIcon} ${isPreviewExpanded ? css.moreFilesIconOpen : ''}`}
+              >
+                <path d="m4.5 6 3.5 3.5L11.5 6" />
+              </svg>
+              {isPreviewExpanded
+                ? t('produced.showLess')
+                : hidden === 1
+                  ? t('produced.moreOne')
+                  : t('produced.more', { count: String(hidden) })}
             </button>
           )}
         </div>

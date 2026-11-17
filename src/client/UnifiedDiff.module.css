@@ -12,8 +12,10 @@
   --fr-surface: var(--dsw-alias-bg-layer-1, Canvas);
   --fr-add-row: color-mix(in oklab, var(--fr-add) 9%, transparent);
   --fr-add-gutter: color-mix(in oklab, var(--fr-add) 18%, transparent);
+  --fr-add-token: color-mix(in oklab, var(--fr-add) 25%, transparent);
   --fr-del-row: color-mix(in oklab, var(--fr-del) 8%, transparent);
   --fr-del-gutter: color-mix(in oklab, var(--fr-del) 16%, transparent);
+  --fr-del-token: color-mix(in oklab, var(--fr-del) 23%, transparent);
   --fr-gutter: color-mix(in oklab, var(--dsw-alias-label-primary) 2.5%, transparent);
   --fr-hairline: var(--dsw-alias-border-l1);
 
@@ -160,13 +162,47 @@
   transform: scale(0.6);
   transition:
     opacity 120ms ease,
-    transform 160ms cubic-bezier(0.3, 1.5, 0.6, 1);
+    transform 160ms cubic-bezier(0.3, 1.5, 0.6, 1),
+    background-color 140ms ease,
+    color 140ms ease;
+}
+
+.commentTriggerIcon {
+  width: 11px;
+  height: 11px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
+.commentTriggerActive {
+  opacity: 1;
+  transform: scale(1);
+  background: color-mix(in oklab, var(--fr-accent) 18%, var(--fr-surface));
+  box-shadow:
+    inset 0 0 0 1px color-mix(in oklab, var(--fr-accent) 42%, transparent),
+    0 0 0 1.5px var(--fr-surface);
+  color: var(--fr-accent);
+}
+
+.commentTriggerActive .commentTriggerIcon {
+  fill: color-mix(in oklab, var(--fr-accent) 22%, transparent);
+  stroke-width: 1.5;
 }
 
 .unifiedLine:hover .commentTrigger,
 .commentTrigger:focus-visible {
   opacity: 1;
   transform: scale(1);
+}
+
+.unifiedLine:hover .commentTriggerActive,
+.commentTriggerActive:hover,
+.commentTriggerActive:focus-visible {
+  background: var(--fr-accent);
+  color: var(--dsw-static-neutral-00, #fff);
 }
 
 .commentTrigger:hover {
@@ -185,6 +221,25 @@
 
 .unifiedText {
   padding: 0 16px 0 2px;
+}
+
+.intralineDel,
+.intralineAdd {
+  margin: 0;
+  padding: 1px 0;
+  border-radius: 3px;
+  color: inherit;
+  font: inherit;
+}
+
+.intralineDel {
+  background: var(--fr-del-token);
+  box-shadow: inset 0 -1px 0 color-mix(in oklab, var(--fr-del) 42%, transparent);
+}
+
+.intralineAdd {
+  background: var(--fr-add-token);
+  box-shadow: inset 0 -1px 0 color-mix(in oklab, var(--fr-add) 45%, transparent);
 }
 
 .unifiedBodyWrap .unifiedLine {
@@ -250,6 +305,22 @@
 
 .unified_del:hover {
   background: color-mix(in oklab, var(--fr-del) 12%, transparent);
+}
+
+.unifiedCommented.unified_add {
+  background: color-mix(
+    in oklab,
+    var(--fr-add) 12%,
+    color-mix(in oklab, var(--fr-accent) 4%, transparent)
+  );
+}
+
+.unifiedCommented.unified_del {
+  background: color-mix(
+    in oklab,
+    var(--fr-del) 11%,
+    color-mix(in oklab, var(--fr-accent) 4%, transparent)
+  );
 }
 
 .splitGrid {
@@ -327,6 +398,14 @@
   background: var(--fr-comment-rail);
 }
 
+.commentRow[data-comment-kind='del'] {
+  --fr-comment-rail: color-mix(in oklab, var(--fr-del) 65%, var(--fr-accent));
+}
+
+.commentRow[data-comment-kind='add'] {
+  --fr-comment-rail: color-mix(in oklab, var(--fr-add) 65%, var(--fr-accent));
+}
+
 .commentRow:focus-within {
   border-color: color-mix(in oklab, var(--fr-accent) 45%, var(--dsw-alias-border-l2));
   box-shadow:
@@ -390,6 +469,11 @@
   overflow-y: auto;
   appearance: none;
   cursor: text;
+}
+
+.commentBody:hover {
+  border-radius: 7px;
+  background: color-mix(in oklab, var(--dsw-alias-label-primary) 3.5%, transparent);
 }
 
 .commentEditor {

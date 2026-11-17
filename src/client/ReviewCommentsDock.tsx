@@ -3,7 +3,13 @@
 import { useEffect, useState } from 'react'
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { NS } from './locales.ts'
-import { clearReviewComments, reviewComments, subscribeReviewComments } from './review-comments.ts'
+import { displayProjectPath } from './project-path.ts'
+import {
+  clearReviewComments,
+  deleteReviewComment,
+  reviewComments,
+  subscribeReviewComments,
+} from './review-comments.ts'
 import { ReviewCommentPill } from './ReviewCommentPill.tsx'
 import css from './ProducedFiles.module.css'
 
@@ -52,6 +58,13 @@ export function ReviewCommentsDock({
           oldLine: comment.anchor.oldLine,
           newLine: comment.anchor.newLine,
           body: comment.body,
+          lineText: comment.anchor.text,
+          removeLabel: t('review.commentRemoveOne', {
+            name: displayProjectPath(comment.anchor.path, projectRoot),
+          }),
+          onRemove: () => {
+            deleteReviewComment(sessionId, comment.turn, comment.closingSeq, comment.anchor)
+          },
         }))}
         projectRoot={projectRoot}
         t={t}

@@ -14,6 +14,9 @@ export interface PreviewReviewComment {
   readonly oldLine: string | number | null
   readonly newLine: string | number | null
   readonly body: string
+  readonly lineText?: string | undefined
+  readonly removeLabel?: string | undefined
+  readonly onRemove?: (() => void) | undefined
 }
 
 interface ReviewCommentPillProps {
@@ -111,16 +114,49 @@ export function ReviewCommentPill({
                 comment.kind === 'del' ? t('review.commentSideLeft') : t('review.commentSideRight')
               const line = comment.kind === 'del' ? comment.oldLine : comment.newLine
               const path = displayProjectPath(comment.path, projectRoot)
+              const snippet = comment.lineText?.trim() ?? ''
               return (
-                <article key={comment.key} className={css.commentPreviewCard}>
+                <article
+                  key={comment.key}
+                  className={css.commentPreviewCard}
+                  data-comment-kind={comment.kind}
+                >
                   <header className={css.commentPreviewHeader}>
                     <span className={css.commentPreviewPath} title={path}>
                       {path}
                     </span>
-                    <span className={css.commentPreviewLocation}>
+                    <span className={css.commentPreviewLocation} data-location-kind={comment.kind}>
                       {t('review.commentLocation', { side, line: String(line ?? '') })}
                     </span>
+                    {comment.onRemove !== undefined && (
+                      <button
+                        type="button"
+                        className={css.commentPreviewRemove}
+                        aria-label={comment.removeLabel ?? t('review.commentDelete')}
+                        title={comment.removeLabel ?? t('review.commentDelete')}
+                        onMouseDown={(event) => {
+                          event.preventDefault()
+                        }}
+                        onClick={comment.onRemove}
+                      >
+                        <svg
+                          viewBox="0 0 16 16"
+                          aria-hidden="true"
+                          className={css.commentPreviewRemoveIcon}
+                        >
+                          <path d="m4.5 4.5 7 7m0-7-7 7" />
+                        </svg>
+                      </button>
+                    )}
                   </header>
+                  {snippet.length > 0 && (
+                    <div className={css.commentPreviewSnippet} data-snippet-kind={comment.kind}>
+                      <span className={css.commentPreviewSign} aria-hidden="true">
+                        {comment.kind === 'del' ? '-' : comment.kind === 'add' ? '+' : ' '}
+                      </span>
+                      <code className={css.commentPreviewCode}>{snippet}</code>
+                    </div>
+                  )}
                   <p className={css.commentPreviewBody}>{comment.body}</p>
                 </article>
               )

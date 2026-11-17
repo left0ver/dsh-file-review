@@ -103,21 +103,39 @@ export function FileReviewTab({
   if (target === undefined) {
     return (
       <div className={css.sidebarTabEmpty} role="status">
-        {t('review.sidebarTargetUnavailable')}
+        <span className={css.sidebarEmptyCard}>
+          <svg viewBox="0 0 24 24" aria-hidden="true" className={css.sidebarEmptyIcon}>
+            <path d="M7 3.75h6.5L18 8.25v11a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 6 19.25V5.25A1.5 1.5 0 0 1 7.5 3.75Z" />
+            <path d="M13.5 3.75v4.5H18M9.5 13h5M9.5 16h3" />
+          </svg>
+          <span>{t('review.sidebarTargetUnavailable')}</span>
+        </span>
       </div>
     )
   }
   if (snapshot === EMPTY_SNAPSHOT) {
     return (
       <div className={css.sidebarTabEmpty} role="status">
-        {t('review.sidebarSessionUnavailable')}
+        <span className={css.sidebarEmptyCard}>
+          <svg viewBox="0 0 24 24" aria-hidden="true" className={css.sidebarEmptyIcon}>
+            <circle cx="12" cy="12" r="8.25" />
+            <path d="M12 8v4.5l3 1.75" />
+          </svg>
+          <span>{t('review.sidebarSessionUnavailable')}</span>
+        </span>
       </div>
     )
   }
   if (reviews.length === 0) {
     return (
       <div className={css.sidebarTabEmpty} role="status">
-        {t('review.sidebarDataUnavailable')}
+        <span className={css.sidebarEmptyCard}>
+          <svg viewBox="0 0 24 24" aria-hidden="true" className={css.sidebarEmptyIcon}>
+            <path d="M7 3.75h6.5L18 8.25v11a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 6 19.25V5.25A1.5 1.5 0 0 1 7.5 3.75Z" />
+            <path d="M13.5 3.75v4.5H18M9.5 14h5" />
+          </svg>
+          <span>{t('review.sidebarDataUnavailable')}</span>
+        </span>
       </div>
     )
   }

@@ -327,3 +327,92 @@ it.each<DiffLayout>(['split', 'unified'])('collapses and expands every file in %
   expect(view.container.querySelectorAll('[data-diff]')).toHaveLength(2)
   expect(settings.set).not.toHaveBeenCalled()
 })
+
+// 验证相似度锚点能跨越新增注释行对齐真实修改行，并在单双栏精确高亮中英文行内改动词元。
+it.each<DiffLayout>(['split', 'unified'])(
+  'aligns shifted modifications by similarity and highlights intraline CJK and code tokens in %s',
+  (layout) => {
+    const view = render(
+      <ReviewContent
+        reviews={[
+          {
+            path: 'intraline.ts',
+            diffs: [
+              {
+                path: 'intraline.ts',
+                oldText: [
+                  'const count = items.length',
+                  '可以通过 Diff 面板审查修改',
+                  'completelyOld()',
+                ].join('\n'),
+                newText: [
+                  '// Track active items only',
+                  'const count = activeItems.length',
+                  '可以通过 审查 标签页审查修改',
+                  'unrelatedReplacement()',
+                ].join('\n'),
+                oldStart: 1,
+                newStart: 1,
+              },
+            ],
+          },
+        ]}
+        sessionId="split-test"
+        turn={1}
+        closingSeq={2}
+        settings={settingsForm(layout)}
+        openFile={() => {}}
+        t={t}
+      />,
+    )
+
+    if (layout === 'split') {
+      const left = view.container.querySelector('[data-diff-side="left"]')!
+      const right = view.container.querySelector('[data-diff-side="right"]')!
+      const texts = (pane: Element) =>
+        [...pane.querySelectorAll('[data-split-row]')].map(
+          (row) => row.querySelector('[data-line-kind]')?.lastElementChild?.textContent ?? null,
+        )
+      expect(texts(left)).toEqual([
+        null,
+        'const count = items.length',
+        '可以通过 Diff 面板审查修改',
+        'completelyOld()',
+      ])
+      expect(texts(right)).toEqual([
+        '// Track active items only',
+        'const count = activeItems.length',
+        '可以通过 审查 标签页审查修改',
+        'unrelatedReplacement()',
+      ])
+    }
+
+    const delMarks = [...view.container.querySelectorAll('mark[data-intraline="del"]')].map(
+      (node) => node.textContent,
+    )
+    const addMarks = [...view.container.querySelectorAll('mark[data-intraline="add"]')].map(
+      (node) => node.textContent,
+    )
+    expect(delMarks).toEqual(['items', 'Diff 面板'])
+    expect(addMarks).toEqual(['activeItems', '审查 标签页'])
+  },
+)
+
+// 验证已评论行保留常驻行号徽标，且文件头部在折叠后仍展示评论计数。
+it('marks commented lines persistently and shows file comment counts when collapsed', () => {
+  const view = render(<Review settings={settingsForm()} />)
+  const addButtons = view.getAllByRole('button', { name: 'Add comment on line 1' })
+  expect(addButtons[0]?.getAttribute('data-has-comment')).toBeNull()
+
+  fireEvent.click(addButtons[0]!)
+  fireEvent.change(view.getByRole('textbox'), { target: { value: 'keep gutter badge visible' } })
+  fireEvent.click(view.getByRole('button', { name: 'Save' }))
+
+  const editButton = view.getByRole('button', { name: 'Edit comment on line 1' })
+  expect(editButton.getAttribute('data-has-comment')).toBe('true')
+  expect(editButton.closest('[data-line-kind]')?.getAttribute('data-commented')).toBe('true')
+  expect(view.container.querySelector('[data-file-comment-count="1"]')?.textContent).toBe('1')
+
+  fireEvent.click(view.getByRole('button', { name: 'Collapse all' }))
+  expect(view.container.querySelector('[data-file-comment-count="1"]')?.textContent).toBe('1')
+})

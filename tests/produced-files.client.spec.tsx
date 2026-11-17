@@ -751,6 +751,54 @@ describe('ProducedFiles review card', () => {
     const first = within(card).getByRole('button', { name: 'Review deep/a.html' })
     expect(first.textContent).toContain('a.html')
     expect(first.getAttribute('title')).toBe('deep/a.html')
+
+    fireEvent.click(within(card).getByRole('button', { name: 'Show fewer' }))
+    expect(within(card).queryByRole('button', { name: 'Review g.ts' })).toBeNull()
+    expect(within(card).getByRole('button', { name: '1 more file' })).toBeTruthy()
+  })
+
+  // 验证卡片展示新增/修改/删除状态徽标，并仅为同名文件补充最小区分目录。
+  it('renders lifecycle status badges and disambiguates colliding basenames', () => {
+    const colliding: readonly ProducedFileReview[] = [
+      fileReview('/work/repo/packages/ui/src/Button.tsx', [
+        {
+          path: '/work/repo/packages/ui/src/Button.tsx',
+          oldText: 'old',
+          newText: 'new',
+          oldStart: 1,
+          newStart: 1,
+        },
+      ]),
+      fileReview('/work/repo/packages/admin/src/Button.tsx', [
+        {
+          path: '/work/repo/packages/admin/src/Button.tsx',
+          oldText: null,
+          newText: 'created',
+          oldStart: 1,
+          newStart: 1,
+          lifecycle: { kind: 'create', mode: 0o644 },
+        },
+      ]),
+      fileReview('/work/repo/README.md', [
+        {
+          path: '/work/repo/README.md',
+          oldText: 'gone',
+          newText: '',
+          oldStart: 1,
+          newStart: 1,
+          lifecycle: { kind: 'delete', mode: 0o644 },
+        },
+      ]),
+    ]
+    const view = render(<ReviewFixture matched={colliding} openFile={() => {}} t={t} />)
+    const card = view.getByRole('region', { name: 'Edited files' })
+    const statuses = [...card.querySelectorAll('[data-status]')].map((el) =>
+      el.getAttribute('data-status'),
+    )
+    expect(statuses).toEqual(['M', 'A', 'D'])
+    expect(within(card).getByText('ui/src')).toBeTruthy()
+    expect(within(card).getByText('admin/src')).toBeTruthy()
+    expect(within(card).queryByText('/work/repo')).toBeNull()
   })
 
   // 验证运行时切换语言后，文件卡片、行数统计、审查按钮和面板文案同步更新。
@@ -1383,6 +1431,58 @@ describe('review comment composer chip', () => {
     fireEvent.click(view.getByRole('button', { name: 'Remove all review comments' }))
     expect(view.queryByRole('tooltip')).toBeNull()
     expect(reviewComments('dock-session')).toHaveLength(0)
+  })
+
+  // 验证悬停预览展示被评论代码片段，并支持单条移除而不收起剩余预览。
+  it('shows code snippets in dock preview and removes individual comments inline', () => {
+    setReviewComment({
+      sessionId: 'dock-inline-remove',
+      turn: 1,
+      closingSeq: 2,
+      body: 'First comment',
+      anchor: {
+        path: 'src/first.ts',
+        hunkIndex: 0,
+        rowIndex: 0,
+        kind: 'del',
+        oldLine: 4,
+        newLine: null,
+        text: '  const legacy = true',
+        excerpt: '-   const legacy = true',
+      },
+    })
+    setReviewComment({
+      sessionId: 'dock-inline-remove',
+      turn: 1,
+      closingSeq: 2,
+      body: 'Second comment',
+      anchor: {
+        path: 'src/second.ts',
+        hunkIndex: 0,
+        rowIndex: 1,
+        kind: 'add',
+        oldLine: null,
+        newLine: 8,
+        text: '  const modern = true',
+        excerpt: '+   const modern = true',
+      },
+    })
+    const props = {
+      sessionId: 'dock-inline-remove',
+      t,
+    } as unknown as ReviewCommentsDockProps
+    const view = render(<ReviewCommentsDock {...props} />)
+
+    fireEvent.mouseEnter(view.getByRole('button', { name: 'Preview 2 review comments' }))
+    const preview = view.getByRole('tooltip', { name: 'Review comment preview' })
+    expect(within(preview).getByText('const legacy = true')).toBeTruthy()
+    expect(within(preview).getByText('const modern = true')).toBeTruthy()
+
+    fireEvent.click(within(preview).getByRole('button', { name: 'Remove comment on src/first.ts' }))
+    expect(reviewComments('dock-inline-remove').map((c) => c.body)).toEqual(['Second comment'])
+    expect(view.queryByRole('tooltip')).not.toBeNull()
+    expect(within(preview).queryByText('First comment')).toBeNull()
+    expect(within(preview).getByText('Second comment')).toBeTruthy()
   })
 })
 

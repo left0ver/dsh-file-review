@@ -2,6 +2,11 @@ import { Fragment, useCallback, useLayoutEffect, useMemo, useRef, useState } fro
 import { diffArrays } from 'diff'
 import type { ProducedFileDiff as DiffHunk } from './turn-deliverables.ts'
 import { diffContentLines } from './diff-text.ts'
+import {
+  computeIntralineSegments,
+  pairChangeBlock,
+  type IntralineSegment,
+} from './intraline-diff.ts'
 import type { DiffLineAnchor } from './review-comments.ts'
 import css from './UnifiedDiff.module.css'
 import { DEFAULT_DIFF_LAYOUT, type DiffLayout } from '../settings-contract.ts'
@@ -55,7 +60,7 @@ interface SplitRow {
   readonly gap?: UnifiedGap
 }
 
-/** Pair each contiguous change block, preserving original line identities for comments. */
+/** Pair each contiguous change block using similarity anchors while preserving line identities. */
 function splitRows(rows: readonly UnifiedRow[]): SplitRow[] {
   const result: SplitRow[] = []
   let index = 0
@@ -68,15 +73,14 @@ function splitRows(rows: readonly UnifiedRow[]): SplitRow[] {
     }
     const left: UnifiedLine[] = []
     const right: UnifiedLine[] = []
-    // ponytail: pair replacements in order; similarity matching can refine alignment later.
     while (index < rows.length) {
       const line = rows[index]!
       if (line.kind !== 'del' && line.kind !== 'add') break
       ;(line.kind === 'del' ? left : right).push(line)
       index++
     }
-    for (let i = 0; i < Math.max(left.length, right.length); i++) {
-      result.push({ left: left[i], right: right[i] })
+    for (const pair of pairChangeBlock(left, right)) {
+      result.push({ left: pair.left, right: pair.right })
     }
   }
   return result
@@ -85,6 +89,7 @@ function splitRows(rows: readonly UnifiedRow[]): SplitRow[] {
 interface UnifiedHunk {
   readonly lines: readonly UnifiedLine[]
   readonly rows: readonly UnifiedRow[]
+  readonly intraline: ReadonlyMap<number, readonly IntralineSegment[]>
   readonly added: number
   readonly removed: number
   readonly unchangedBefore: number
@@ -241,6 +246,38 @@ function collapsedRows(
   return rows
 }
 
+function buildIntralineMap(
+  lines: readonly UnifiedLine[],
+): ReadonlyMap<number, readonly IntralineSegment[]> {
+  const map = new Map<number, readonly IntralineSegment[]>()
+  let cursor = 0
+  while (cursor < lines.length) {
+    const current = lines[cursor]!
+    if (current.kind !== 'del' && current.kind !== 'add') {
+      cursor++
+      continue
+    }
+    const removed: UnifiedLine[] = []
+    const added: UnifiedLine[] = []
+    while (cursor < lines.length) {
+      const line = lines[cursor]!
+      if (line.kind !== 'del' && line.kind !== 'add') break
+      ;(line.kind === 'del' ? removed : added).push(line)
+      cursor++
+    }
+    if (removed.length === 0 || added.length === 0) continue
+    for (const pair of pairChangeBlock(removed, added)) {
+      if (!pair.paired || pair.left === undefined || pair.right === undefined) continue
+      const segments = computeIntralineSegments(pair.left.text, pair.right.text)
+      if (segments !== null) {
+        map.set(pair.left.rowIndex, segments.oldSegments)
+        map.set(pair.right.rowIndex, segments.newSegments)
+      }
+    }
+  }
+  return map
+}
+
 function buildHunks(diffs: readonly DiffHunk[], contextLines: number): UnifiedHunk[] {
   let previousPath: string | undefined
   let previousOldEnd = 1
@@ -267,6 +304,7 @@ function buildHunks(diffs: readonly DiffHunk[], contextLines: number): UnifiedHu
     return {
       lines,
       rows: collapsedRows(lines, contextLines, index),
+      intraline: buildIntralineMap(lines),
       added: lines.filter((line) => line.kind === 'add').length,
       removed: lines.filter((line) => line.kind === 'del').length,
       unchangedBefore,
@@ -405,8 +443,11 @@ export function UnifiedDiff({
     const anchor = anchorFor(diff, hunk, hunkIndex, line)
     const anchorKey = `${hunkIndex}:${line.rowIndex}`
     const comment = side === 'left' && line.kind === 'context' ? undefined : commentFor?.(anchor)
+    const hasComment = comment !== undefined
     const isEditing = editing === anchorKey && !(side === 'left' && line.kind === 'context')
     const displayLine = (side === 'left' ? line.oldNumber : lineNumber(line)) ?? 0
+    const segments = hunk.intraline.get(line.rowIndex)
+    const markClass = line.kind === 'del' ? css.intralineDel : css.intralineAdd
     const commit = (): void => {
       const body = commentDraft.trim()
       if (body === '') return
@@ -421,16 +462,18 @@ export function UnifiedDiff({
     return (
       <Fragment key={key}>
         <div
-          className={`${css.unifiedLine} ${css[`unified_${line.kind}`] ?? ''}`}
+          className={`${css.unifiedLine} ${css[`unified_${line.kind}`] ?? ''} ${hasComment ? css.unifiedCommented : ''}`}
           data-line-kind={line.kind}
           data-old-line={line.oldNumber ?? undefined}
           data-new-line={line.newNumber ?? undefined}
+          data-commented={hasComment ? 'true' : undefined}
         >
           <span className={css.unifiedLineNumber}>
             {commentsEnabled && line.kind !== 'context' && displayLine > 0 && (
               <button
                 type="button"
-                className={css.commentTrigger}
+                className={`${css.commentTrigger} ${hasComment ? css.commentTriggerActive : ''}`}
+                data-has-comment={hasComment ? 'true' : undefined}
                 aria-label={
                   (comment === undefined ? labels.addComment : labels.editComment)?.(displayLine) ??
                   `${comment === undefined ? 'Add' : 'Edit'} comment on line ${displayLine}`
@@ -441,16 +484,40 @@ export function UnifiedDiff({
                   setCommentDraft(comment ?? '')
                 }}
               >
-                +
+                {hasComment ? (
+                  <svg viewBox="0 0 16 16" aria-hidden="true" className={css.commentTriggerIcon}>
+                    <path d="M3 3.25h10a1 1 0 0 1 1 1v5.5a1 1 0 0 1-1 1H7l-2.8 2.25V10.75H3a1 1 0 0 1-1-1v-5.5a1 1 0 0 1 1-1Z" />
+                  </svg>
+                ) : (
+                  <svg viewBox="0 0 16 16" aria-hidden="true" className={css.commentTriggerIcon}>
+                    <path d="M8 3.75v8.5M3.75 8h8.5" />
+                  </svg>
+                )}
               </button>
             )}
             <span>{side === 'left' ? line.oldNumber : lineNumber(line)}</span>
           </span>
           <span className={css.unifiedSign}>{sign}</span>
-          <span className={css.unifiedText}>{line.text}</span>
+          <span className={css.unifiedText}>
+            {segments === undefined
+              ? line.text
+              : segments.map((segment, segIndex) =>
+                  segment.changed ? (
+                    <mark key={segIndex} className={markClass} data-intraline={line.kind}>
+                      {segment.text}
+                    </mark>
+                  ) : (
+                    segment.text
+                  ),
+                )}
+          </span>
         </div>
         {(comment !== undefined || isEditing) && (
-          <div className={css.commentRow} data-review-comment={anchorKey}>
+          <div
+            className={css.commentRow}
+            data-review-comment={anchorKey}
+            data-comment-kind={line.kind}
+          >
             {isEditing ? (
               <>
                 <CommentEditor
